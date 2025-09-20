@@ -13,19 +13,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Call RolePermissionSeeder first
+        // Call seeders in order
         $this->call([
             RolePermissionSeeder::class,
-        ]);
-
-        // Create admin user
-        $adminRole = \App\Models\Role::where('name', 'admin')->first();
-        
-        User::factory()->create([
-            'name' => 'Administrator',
-            'username' => 'admin',
-            'email' => 'admin@example.com',
-            'role_id' => $adminRole->id,
+            DepartmentSeeder::class,
+            MasterItemSeeder::class,
         ]);
     }
 }

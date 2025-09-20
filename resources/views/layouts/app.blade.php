@@ -76,7 +76,86 @@
                     </li>
                     @endif
 
+                    @if(auth()->user()->hasPermission('manage_departments'))
+                    <li>
+                        <a href="{{ route('departments.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('departments.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Departments">
+                            <i class="fas fa-building w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                            <span x-show="!sidebarCollapsed">Departments</span>
+                        </a>
+                    </li>
+                    @endif
+
+                    @if(auth()->user()->hasPermission('manage_workflows'))
+                    <li>
+                        <a href="{{ route('approval-workflows.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Workflows">
+                            <i class="fas fa-sitemap w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                            <span x-show="!sidebarCollapsed">Workflows</span>
+                        </a>
+                    </li>
+                    @endif
+
+                    @if(auth()->user()->hasPermission('manage_approvals'))
+                    <li>
+                        <a href="{{ route('approval-requests.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Approval Requests">
+                            <i class="fas fa-clipboard-check w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                            <span x-show="!sidebarCollapsed">Approval Requests</span>
+                        </a>
+                    </li>
+                    @endif
+
+                @if(auth()->user()->hasPermission('manage_items'))
+                <li>
+                    <a href="{{ route('master-items.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('master-items.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Master Barang">
+                        <i class="fas fa-box w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Master Barang</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('item-categories.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('item-categories.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Kategori Barang">
+                        <i class="fas fa-tags w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Kategori Barang</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('item-types.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('item-types.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Tipe Barang">
+                        <i class="fas fa-cube w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Tipe Barang</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('units.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('units.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Satuan Barang">
+                        <i class="fas fa-weight w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Satuan Barang</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('commodities.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('commodities.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Komoditas">
+                        <i class="fas fa-industry w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Komoditas</span>
+                    </a>
+                </li>
+                @endif
+
                 </ul>
+
+                <!-- Approval Section -->
+                <div class="mt-6">
+                    <h3 class="px-4 py-2 text-xs font-semibold text-green-200 uppercase tracking-wider" x-show="!sidebarCollapsed">Approval</h3>
+                    <ul class="mt-2 space-y-1">
+                        <li>
+                            <a href="{{ route('approval-requests.my-requests') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.my-requests') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="My Requests">
+                                <i class="fas fa-file-alt w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                                <span x-show="!sidebarCollapsed">My Requests</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('approval-requests.pending-approvals') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.pending-approvals') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Pending Approvals">
+                                <i class="fas fa-clock w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                                <span x-show="!sidebarCollapsed">Pending Approvals</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
 
                 <!-- User Profile Section -->
                 <div class="mt-8 pt-6 border-t border-green-600">
