@@ -18,7 +18,10 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_users', 'display_name' => 'Kelola Users', 'description' => 'Mengelola pengguna'],
             ['name' => 'manage_departments', 'display_name' => 'Kelola Departments', 'description' => 'Mengelola departemen'],
             ['name' => 'manage_workflows', 'display_name' => 'Kelola Workflows', 'description' => 'Mengelola approval workflows'],
-            ['name' => 'manage_approvals', 'display_name' => 'Kelola Approvals', 'description' => 'Mengelola approval requests'],
+            ['name' => 'view_all_approvals', 'display_name' => 'Lihat Semua Approvals', 'description' => 'Melihat semua approval requests'],
+            ['name' => 'view_my_approvals', 'display_name' => 'Lihat My Requests', 'description' => 'Melihat approval requests yang dibuat sendiri'],
+            ['name' => 'view_pending_approvals', 'display_name' => 'Lihat Pending Approvals', 'description' => 'Melihat approval requests yang menunggu persetujuan'],
+            ['name' => 'manage_approvals', 'display_name' => 'Kelola Approvals', 'description' => 'Mengelola approval requests (create, edit, delete)'],
             ['name' => 'manage_items', 'display_name' => 'Kelola Master Barang', 'description' => 'Mengelola master barang dan data pendukungnya'],
         ];
 
@@ -75,6 +78,9 @@ class RolePermissionSeeder extends Seeder
         $technicalExpertRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
+                'view_all_approvals',
+                'view_my_approvals',
+                'view_pending_approvals',
                 'manage_approvals',
                 'manage_items'
             ])->get()
@@ -83,6 +89,9 @@ class RolePermissionSeeder extends Seeder
         $managerPemintaRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
+                'view_all_approvals',
+                'view_my_approvals',
+                'view_pending_approvals',
                 'manage_approvals',
                 'manage_items'
             ])->get()
@@ -91,6 +100,9 @@ class RolePermissionSeeder extends Seeder
         $managerItRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
+                'view_all_approvals',
+                'view_my_approvals',
+                'view_pending_approvals',
                 'manage_approvals',
                 'manage_items'
             ])->get()
@@ -99,6 +111,9 @@ class RolePermissionSeeder extends Seeder
         $managerKeuanganRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
+                'view_all_approvals',
+                'view_my_approvals',
+                'view_pending_approvals',
                 'manage_approvals',
                 'manage_items'
             ])->get()
@@ -107,6 +122,9 @@ class RolePermissionSeeder extends Seeder
         $direkturRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
+                'view_all_approvals',
+                'view_my_approvals',
+                'view_pending_approvals',
                 'manage_approvals',
                 'manage_items'
             ])->get()
@@ -115,6 +133,8 @@ class RolePermissionSeeder extends Seeder
         $userRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
+                'view_my_approvals',
+                'view_pending_approvals',
                 'manage_approvals'
             ])->get()
         );

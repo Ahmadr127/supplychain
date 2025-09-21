@@ -3,154 +3,150 @@
 @section('title', 'Kelola Approval Workflows')
 
 @section('content')
-<div class="w-full mx-auto" x-data="{
-    ...tableFilter({
-        search: '{{ request('search') }}',
-        type: '{{ request('type') }}',
-        status: '{{ request('status') }}'
-    })
-}">
-    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-        <div class="p-6 bg-white border-b border-gray-200">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Kelola Approval Workflows</h2>
-                <a href="{{ route('approval-workflows.create') }}" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-                    Tambah Workflow
-                </a>
+<x-responsive-table 
+    title="Kelola Approval Workflows"
+    :pagination="$workflows"
+    :emptyState="$workflows->count() === 0"
+    emptyMessage="Belum ada workflow"
+    emptyIcon="fas fa-sitemap"
+    :emptyActionRoute="route('approval-workflows.create')"
+    emptyActionLabel="Tambah Workflow Pertama">
+    
+    <x-slot name="filters">
+        <form method="GET" class="flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-48">
+                <input type="text" name="search" value="{{ request('search') }}" 
+                       placeholder="Cari nama atau tipe workflow..."
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
             </div>
-        </div>
+            <div class="w-32">
+                <select name="type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="">Semua Tipe</option>
+                    <option value="purchase" {{ request('type') == 'purchase' ? 'selected' : '' }}>Purchase</option>
+                    <option value="leave" {{ request('type') == 'leave' ? 'selected' : '' }}>Leave</option>
+                    <option value="expense" {{ request('type') == 'expense' ? 'selected' : '' }}>Expense</option>
+                    <option value="travel" {{ request('type') == 'travel' ? 'selected' : '' }}>Travel</option>
+                </select>
+            </div>
+            <div class="w-32">
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="">Semua Status</option>
+                    <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Aktif</option>
+                    <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Tidak Aktif</option>
+                </select>
+            </div>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                Filter
+            </button>
+        </form>
+    </x-slot>
 
-        <!-- Filters -->
-        <div class="p-6 border-b border-gray-200 bg-gray-50">
-            <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                    <input type="text" name="search" value="{{ request('search') }}" 
-                           placeholder="Cari nama atau tipe workflow..."
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
-                    <select name="type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Semua Tipe</option>
-                        <option value="purchase" {{ request('type') == 'purchase' ? 'selected' : '' }}>Purchase Request</option>
-                        <option value="leave" {{ request('type') == 'leave' ? 'selected' : '' }}>Leave Request</option>
-                        <option value="expense" {{ request('type') == 'expense' ? 'selected' : '' }}>Expense Request</option>
-                        <option value="travel" {{ request('type') == 'travel' ? 'selected' : '' }}>Travel Request</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                    <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Semua Status</option>
-                        <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Aktif</option>
-                        <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Tidak Aktif</option>
-                    </select>
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        Filter
-                    </button>
-                </div>
-            </form>
+    <!-- Action Buttons -->
+    <div class="p-4 bg-white border-b border-gray-200">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-sitemap text-blue-600"></i>
+                <span class="text-sm font-medium text-gray-700">Total: {{ $workflows->total() }} workflows</span>
+            </div>
+            <a href="{{ route('approval-workflows.create') }}" 
+               class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center space-x-2">
+                <i class="fas fa-plus"></i>
+                <span>Tambah Workflow</span>
+            </a>
         </div>
+    </div>
 
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Nama & Tipe
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Steps
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Total Requests
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Dibuat
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Aksi
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @foreach($workflows as $workflow)
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div>
-                                <div class="text-sm font-medium text-gray-900">{{ $workflow->name }}</div>
-                                <div class="text-sm text-gray-500">
-                                    <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">
-                                        {{ $workflow->type }}
-                                    </span>
-                                    {{ Str::limit($workflow->description, 50) }}
-                                </div>
+    <div class="overflow-x-auto">
+        <table class="responsive-table min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Nama & Tipe
+                    </th>
+                    <th class="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Steps
+                    </th>
+                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total Requests
+                    </th>
+                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                    </th>
+                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Dibuat
+                    </th>
+                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Aksi
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @foreach($workflows as $workflow)
+                <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <td class="w-1/3 px-6 py-4">
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-gray-900 truncate">{{ $workflow->name }}</div>
+                            <div class="text-sm text-gray-500 truncate">
+                                <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">
+                                    {{ $workflow->type }}
+                                </span>
+                                {{ Str::limit($workflow->description, 50) }}
                             </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        </div>
+                    </td>
+                    <td class="w-1/4 px-6 py-4">
+                        <div class="min-w-0">
                             <div class="flex items-center">
                                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
                                     {{ count($workflow->workflow_steps) }} steps
                                 </span>
                             </div>
-                            <div class="text-xs text-gray-500 mt-1">
+                            <div class="text-xs text-gray-500 mt-1 truncate">
                                 @foreach($workflow->workflow_steps as $index => $step)
                                     {{ $index + 1 }}. {{ $step['name'] }}@if(!$loop->last), @endif
                                 @endforeach
                             </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $workflow->requests_count }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                {{ $workflow->is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
-                                {{ $workflow->is_active ? 'Aktif' : 'Tidak Aktif' }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ $workflow->created_at->format('d M Y') }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex space-x-2">
-                                <a href="{{ route('approval-workflows.show', $workflow) }}" 
-                                   class="text-blue-600 hover:text-blue-900">Lihat</a>
-                                <a href="{{ route('approval-workflows.edit', $workflow) }}" 
-                                   class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                <form action="{{ route('approval-workflows.toggle-status', $workflow) }}" method="POST" class="inline">
-                                    @csrf
-                                    @method('PATCH')
-                                    <button type="submit" class="text-yellow-600 hover:text-yellow-900">
-                                        {{ $workflow->is_active ? 'Nonaktifkan' : 'Aktifkan' }}
-                                    </button>
-                                </form>
-                                <form action="{{ route('approval-workflows.destroy', $workflow) }}" method="POST" class="inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:text-red-900" 
-                                            onclick="return confirm('Yakin ingin menghapus workflow ini?')">
-                                        Hapus
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-
-        @if($workflows->hasPages())
-        <div class="px-6 py-3 border-t border-gray-200">
-            {{ $workflows->links() }}
-        </div>
-        @endif
+                        </div>
+                    </td>
+                    <td class="w-1/12 px-6 py-4">
+                        <div class="text-sm text-gray-900">{{ $workflow->requests_count }}</div>
+                    </td>
+                    <td class="w-1/12 px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {{ $workflow->is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                            {{ $workflow->is_active ? 'Aktif' : 'Tidak Aktif' }}
+                        </span>
+                    </td>
+                    <td class="w-1/12 px-6 py-4 text-sm text-gray-500">
+                        {{ $workflow->created_at->format('d M Y') }}
+                    </td>
+                    <td class="w-1/12 px-6 py-4 text-sm font-medium">
+                        <div class="flex space-x-2">
+                            <a href="{{ route('approval-workflows.show', $workflow) }}" 
+                               class="text-blue-600 hover:text-blue-900 transition-colors duration-150">Lihat</a>
+                            <a href="{{ route('approval-workflows.edit', $workflow) }}" 
+                               class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150">Edit</a>
+                            <form action="{{ route('approval-workflows.toggle-status', $workflow) }}" method="POST" class="inline">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="text-yellow-600 hover:text-yellow-900 transition-colors duration-150">
+                                    {{ $workflow->is_active ? 'Nonaktifkan' : 'Aktifkan' }}
+                                </button>
+                            </form>
+                            <form action="{{ route('approval-workflows.destroy', $workflow) }}" method="POST" class="inline">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-red-600 hover:text-red-900 transition-colors duration-150" 
+                                        onclick="return confirm('Yakin ingin menghapus workflow ini?')">
+                                    Hapus
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
     </div>
-</div>
+</x-responsive-table>
 @endsection

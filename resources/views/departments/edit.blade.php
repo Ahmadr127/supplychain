@@ -3,26 +3,26 @@
 @section('title', 'Edit Department')
 
 @section('content')
-<div class="w-full mx-auto max-w-4xl">
+<div class="w-full">
     <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-        <div class="p-6 bg-white border-b border-gray-200">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Edit Department</h2>
-                <a href="{{ route('departments.index') }}" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+        <div class="p-4 bg-white border-b border-gray-200">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-900">Edit Department</h2>
+                <a href="{{ route('departments.index') }}" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
                     Kembali
                 </a>
             </div>
         </div>
 
-        <div class="p-6">
+        <div class="p-4">
             <form action="{{ route('departments.update', $department) }}" method="POST">
                 @csrf
                 @method('PUT')
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Nama Department -->
                     <div class="md:col-span-2">
-                        <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
                             Nama Department <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="name" name="name" value="{{ old('name', $department->name) }}" required
@@ -35,7 +35,7 @@
 
                     <!-- Kode Department -->
                     <div>
-                        <label for="code" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="code" class="block text-sm font-medium text-gray-700 mb-1">
                             Kode Department <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="code" name="code" value="{{ old('code', $department->code) }}" required
@@ -48,7 +48,7 @@
 
                     <!-- Parent Department -->
                     <div>
-                        <label for="parent_id" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="parent_id" class="block text-sm font-medium text-gray-700 mb-1">
                             Parent Department
                         </label>
                         <select id="parent_id" name="parent_id" 
@@ -67,7 +67,7 @@
 
                     <!-- Level -->
                     <div>
-                        <label for="level" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="level" class="block text-sm font-medium text-gray-700 mb-1">
                             Level <span class="text-red-500">*</span>
                         </label>
                         <select id="level" name="level" required
@@ -84,7 +84,7 @@
 
                     <!-- Approval Level -->
                     <div>
-                        <label for="approval_level" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="approval_level" class="block text-sm font-medium text-gray-700 mb-1">
                             Approval Level <span class="text-red-500">*</span>
                         </label>
                         <select id="approval_level" name="approval_level" required
@@ -103,7 +103,7 @@
 
                     <!-- Manager -->
                     <div>
-                        <label for="manager_id" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="manager_id" class="block text-sm font-medium text-gray-700 mb-1">
                             Manager
                         </label>
                         <select id="manager_id" name="manager_id" 
@@ -131,7 +131,7 @@
 
                     <!-- Deskripsi -->
                     <div class="md:col-span-2">
-                        <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
                             Deskripsi
                         </label>
                         <textarea id="description" name="description" rows="3"
@@ -144,22 +144,22 @@
                 </div>
 
                 <!-- Section Anggota Departemen -->
-                <div class="mt-8 border-t pt-6">
-                    <div class="flex justify-between items-center mb-4">
+                <div class="mt-6 border-t pt-4">
+                    <div class="flex justify-between items-center mb-3">
                         <h3 class="text-lg font-semibold text-gray-900">Anggota Departemen</h3>
                         <button type="button" id="addMemberBtn" 
-                                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-sm">
+                                class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded text-sm">
                             <i class="fas fa-plus mr-1"></i> Tambah Anggota
                         </button>
                     </div>
                     
-                    <div id="membersContainer" class="space-y-3">
+                    <div id="membersContainer" class="space-y-2">
                         @if($department->users->count() > 0)
                             @foreach($department->users as $index => $user)
-                                <div class="member-item bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                                    <div class="flex items-center space-x-4">
+                                <div class="member-item bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+                                    <div class="flex items-center space-x-3">
                                         <div class="flex-1">
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                 <div>
                                                     <label class="block text-sm font-medium text-gray-700 mb-1">Pilih User</label>
                                                     <select name="members[{{ $index }}][user_id]" required
@@ -180,7 +180,7 @@
                                                            value="{{ $user->pivot->position }}">
                                                 </div>
                                             </div>
-                                            <div class="mt-3">
+                                            <div class="mt-2">
                                                 <label class="flex items-center">
                                                     <input type="checkbox" name="members[{{ $index }}][is_primary]" value="1"
                                                            class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
@@ -208,13 +208,13 @@
                     </div>
                 </div>
 
-                <div class="flex justify-end space-x-4 mt-8">
+                <div class="flex justify-end space-x-3 mt-6">
                     <a href="{{ route('departments.index') }}" 
-                       class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded">
+                       class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded text-sm">
                         Batal
                     </a>
                     <button type="submit" 
-                            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                            class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
                         Update Department
                     </button>
                 </div>

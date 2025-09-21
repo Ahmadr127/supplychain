@@ -72,25 +72,37 @@ Route::middleware('auth')->group(function () {
         Route::patch('approval-workflows/{approvalWorkflow}/toggle-status', [ApprovalWorkflowController::class, 'toggleStatus'])->name('approval-workflows.toggle-status');
     });
 
-    // Approval Request routes - Public access for viewing and basic actions
-    Route::get('approval-requests', [ApprovalRequestController::class, 'index'])->name('approval-requests.index');
-    Route::get('approval-requests/create', [ApprovalRequestController::class, 'create'])->name('approval-requests.create');
-    Route::post('approval-requests', [ApprovalRequestController::class, 'store'])->name('approval-requests.store');
-    Route::get('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'show'])->name('approval-requests.show');
-    Route::get('approval-requests/{approvalRequest}/edit', [ApprovalRequestController::class, 'edit'])->name('approval-requests.edit');
-    Route::put('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'update'])->name('approval-requests.update');
-    Route::post('approval-requests/{approvalRequest}/approve', [ApprovalRequestController::class, 'approve'])->name('approval-requests.approve');
-    Route::post('approval-requests/{approvalRequest}/reject', [ApprovalRequestController::class, 'reject'])->name('approval-requests.reject');
-    Route::post('approval-requests/{approvalRequest}/cancel', [ApprovalRequestController::class, 'cancel'])->name('approval-requests.cancel');
+    // Approval Request routes with specific permissions
+    Route::middleware('permission:view_all_approvals')->group(function () {
+        Route::get('approval-requests', [ApprovalRequestController::class, 'index'])->name('approval-requests.index');
+    });
     
-    // Admin-only approval routes
     Route::middleware('permission:manage_approvals')->group(function () {
+        Route::get('approval-requests/create', [ApprovalRequestController::class, 'create'])->name('approval-requests.create');
+        Route::post('approval-requests', [ApprovalRequestController::class, 'store'])->name('approval-requests.store');
+        Route::get('approval-requests/{approvalRequest}/edit', [ApprovalRequestController::class, 'edit'])->name('approval-requests.edit');
+        Route::put('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'update'])->name('approval-requests.update');
         Route::delete('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'destroy'])->name('approval-requests.destroy');
     });
+    
+    // General approval actions (approve, reject, cancel) - accessible to users with manage_approvals permission
+    Route::middleware('permission:manage_approvals')->group(function () {
+        Route::post('approval-requests/{approvalRequest}/approve', [ApprovalRequestController::class, 'approve'])->name('approval-requests.approve');
+        Route::post('approval-requests/{approvalRequest}/reject', [ApprovalRequestController::class, 'reject'])->name('approval-requests.reject');
+        Route::post('approval-requests/{approvalRequest}/cancel', [ApprovalRequestController::class, 'cancel'])->name('approval-requests.cancel');
+    });
+    
+    // Show approval request - accessible to users who can view any approval or are the requester
+    Route::get('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'show'])->name('approval-requests.show');
 
     // User-specific approval routes
-    Route::get('my-requests', [ApprovalRequestController::class, 'myRequests'])->name('approval-requests.my-requests');
-    Route::get('pending-approvals', [ApprovalRequestController::class, 'pendingApprovals'])->name('approval-requests.pending-approvals');
+    Route::middleware('permission:view_my_approvals')->group(function () {
+        Route::get('my-requests', [ApprovalRequestController::class, 'myRequests'])->name('approval-requests.my-requests');
+    });
+    
+    Route::middleware('permission:view_pending_approvals')->group(function () {
+        Route::get('pending-approvals', [ApprovalRequestController::class, 'pendingApprovals'])->name('approval-requests.pending-approvals');
+    });
 
     // Master Items Management routes
     Route::middleware('permission:manage_items')->group(function () {
@@ -106,5 +118,9 @@ Route::middleware('auth')->group(function () {
     Route::get('api/master-items/by-type/{typeId}', [MasterItemController::class, 'getByType'])->name('api.master-items.by-type');
     Route::get('api/master-items/by-category/{categoryId}', [MasterItemController::class, 'getByCategory'])->name('api.master-items.by-category');
     Route::get('api/master-items/search', [MasterItemController::class, 'search'])->name('api.master-items.search');
+    Route::get('api/approval-requests/master-items', [ApprovalRequestController::class, 'getMasterItems'])->name('api.approval-requests.master-items');
+    
+    // File download routes
+    Route::get('approval-requests/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');
 
 });

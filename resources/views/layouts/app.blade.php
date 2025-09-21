@@ -13,8 +13,18 @@
     <div x-data="{
             sidebarOpen: false,
             sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === '1',
+            toggleSidebar() {
+                this.sidebarCollapsed = !this.sidebarCollapsed;
+                localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed ? '1' : '0');
+                // Dispatch custom event for responsive table components
+                document.dispatchEvent(new CustomEvent('sidebar-toggled'));
+            }
         }"
-        x-init="$watch('sidebarCollapsed', v => localStorage.setItem('sidebarCollapsed', v ? '1' : '0'))"
+        x-init="$watch('sidebarCollapsed', v => {
+            localStorage.setItem('sidebarCollapsed', v ? '1' : '0');
+            // Dispatch custom event for responsive table components
+            document.dispatchEvent(new CustomEvent('sidebar-toggled'));
+        })"
         class="min-h-screen flex">
         <!-- Sidebar -->
         <div :class="[
@@ -94,11 +104,11 @@
                     </li>
                     @endif
 
-                    @if(auth()->user()->hasPermission('manage_approvals'))
+                    @if(auth()->user()->hasPermission('view_all_approvals'))
                     <li>
-                        <a href="{{ route('approval-requests.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Approval Requests">
+                        <a href="{{ route('approval-requests.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.index') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="All Approval Requests">
                             <i class="fas fa-clipboard-check w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                            <span x-show="!sidebarCollapsed">Approval Requests</span>
+                            <span x-show="!sidebarCollapsed">All Approval Requests</span>
                         </a>
                     </li>
                     @endif
@@ -139,23 +149,29 @@
                 </ul>
 
                 <!-- Approval Section -->
+                @if(auth()->user()->hasPermission('view_my_approvals') || auth()->user()->hasPermission('view_pending_approvals'))
                 <div class="mt-6">
                     <h3 class="px-4 py-2 text-xs font-semibold text-green-200 uppercase tracking-wider" x-show="!sidebarCollapsed">Approval</h3>
                     <ul class="mt-2 space-y-1">
+                        @if(auth()->user()->hasPermission('view_my_approvals'))
                         <li>
                             <a href="{{ route('approval-requests.my-requests') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.my-requests') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="My Requests">
                                 <i class="fas fa-file-alt w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
                                 <span x-show="!sidebarCollapsed">My Requests</span>
                             </a>
                         </li>
+                        @endif
+                        @if(auth()->user()->hasPermission('view_pending_approvals'))
                         <li>
                             <a href="{{ route('approval-requests.pending-approvals') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.pending-approvals') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Pending Approvals">
                                 <i class="fas fa-clock w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
                                 <span x-show="!sidebarCollapsed">Pending Approvals</span>
                             </a>
                         </li>
+                        @endif
                     </ul>
                 </div>
+                @endif
 
                 <!-- User Profile Section -->
                 <div class="mt-8 pt-6 border-t border-green-600">
@@ -179,7 +195,7 @@
             <header class="bg-white shadow-sm border-b border-gray-200">
                 <div class="flex items-center justify-between h-16 px-6">
                     <div class="flex items-center">
-                        <button @click="window.innerWidth >= 1024 ? sidebarCollapsed = !sidebarCollapsed : sidebarOpen = !sidebarOpen" class="mr-4 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors" :title="window.innerWidth >= 1024 ? (sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar') : (sidebarOpen ? 'Close menu' : 'Open menu')">
+                        <button @click="window.innerWidth >= 1024 ? toggleSidebar() : sidebarOpen = !sidebarOpen" class="mr-4 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors" :title="window.innerWidth >= 1024 ? (sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar') : (sidebarOpen ? 'Close menu' : 'Open menu')">
                             <!-- Mobile icon -->
                             <i class="fas" :class="sidebarOpen ? 'fa-xmark' : 'fa-bars'" class="lg:hidden"></i>
                             <!-- Desktop icon -->

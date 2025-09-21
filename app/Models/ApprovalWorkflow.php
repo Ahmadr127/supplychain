@@ -28,6 +28,26 @@ class ApprovalWorkflow extends Model
         return $this->hasMany(ApprovalRequest::class, 'workflow_id');
     }
 
+    // Method untuk mendapatkan workflow steps sebagai collection
+    public function getStepsAttribute()
+    {
+        if (!$this->workflow_steps) {
+            return collect();
+        }
+
+        return collect($this->workflow_steps)->map(function ($step, $index) {
+            return (object) [
+                'step_number' => $index + 1,
+                'step_name' => $step['name'],
+                'approver_type' => $step['approver_type'],
+                'approver_id' => $step['approver_id'] ?? null,
+                'approver_role_id' => $step['approver_role_id'] ?? null,
+                'approver_department_id' => $step['approver_department_id'] ?? null,
+                'approver_level' => $step['approver_level'] ?? null,
+            ];
+        });
+    }
+
     // Scope untuk workflow aktif
     public function scopeActive($query)
     {
@@ -35,7 +55,7 @@ class ApprovalWorkflow extends Model
     }
 
     // Method untuk membuat approval request
-    public function createRequest($requesterId, $title, $description = null, $data = null)
+    public function createRequest($requesterId, $title, $description = null)
     {
         $requestNumber = $this->generateRequestNumber();
         
@@ -44,7 +64,6 @@ class ApprovalWorkflow extends Model
             'requester_id' => $requesterId,
             'title' => $title,
             'description' => $description,
-            'data' => $data,
             'total_steps' => count($this->workflow_steps),
             'status' => 'pending'
         ]);

@@ -3,193 +3,170 @@
 @section('title', 'Kelola Approval Requests')
 
 @section('content')
-<div class="w-full mx-auto" x-data="{
-    ...tableFilter({
-        search: '{{ request('search') }}',
-        status: '{{ request('status') }}',
-        workflow_id: '{{ request('workflow_id') }}',
-        dateFrom: '{{ request('date_from') }}',
-        dateTo: '{{ request('date_to') }}'
-    })
-}">
-    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-        <div class="p-6 bg-white border-b border-gray-200">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Kelola Approval Requests</h2>
-                <div class="flex space-x-2">
-                    <a href="{{ route('approval-requests.my-requests') }}" 
-                       class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        My Requests
-                    </a>
-                    <a href="{{ route('approval-requests.pending-approvals') }}" 
-                       class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded">
-                        Pending Approvals
-                    </a>
-                    <a href="{{ route('approval-requests.create') }}" 
-                       class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-                        Buat Request
-                    </a>
-                </div>
+<x-responsive-table 
+    title="Kelola Approval Requests"
+    :pagination="$requests"
+    :emptyState="$requests->count() === 0"
+    emptyMessage="Belum ada approval request"
+    emptyIcon="fas fa-clipboard-check"
+    :emptyActionRoute="route('approval-requests.create')"
+    emptyActionLabel="Buat Request Pertama">
+    
+    <x-slot name="filters">
+        <form method="GET" class="flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-48">
+                <input type="text" name="search" value="{{ request('search') }}" 
+                       placeholder="Cari nomor request, judul, atau requester..."
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
             </div>
-        </div>
+            <div class="w-32">
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="">Semua Status</option>
+                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
+                    <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
+                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                </select>
+            </div>
+            <div class="w-40">
+                <select name="workflow_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="">Semua Workflow</option>
+                    @foreach($workflows as $workflow)
+                        <option value="{{ $workflow->id }}" {{ request('workflow_id') == $workflow->id ? 'selected' : '' }}>
+                            {{ $workflow->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="w-32">
+                <input type="date" name="date_from" value="{{ request('date_from') }}" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+            </div>
+            <div class="w-32">
+                <input type="date" name="date_to" value="{{ request('date_to') }}" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+            </div>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                Filter
+            </button>
+        </form>
+    </x-slot>
 
-        <!-- Filters -->
-        <div class="p-6 border-b border-gray-200 bg-gray-50">
-            <form method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                    <input type="text" name="search" value="{{ request('search') }}" 
-                           placeholder="Cari nomor request, judul, atau requester..."
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                    <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Semua Status</option>
-                        <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
-                        <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
-                        <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Workflow</label>
-                    <select name="workflow_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Semua Workflow</option>
-                        @foreach($workflows as $workflow)
-                            <option value="{{ $workflow->id }}" {{ request('workflow_id') == $workflow->id ? 'selected' : '' }}>
-                                {{ $workflow->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
-                    <input type="date" name="date_from" value="{{ request('date_from') }}" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
-                    <input type="date" name="date_to" value="{{ request('date_to') }}" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="md:col-span-5 flex justify-end">
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        Filter
-                    </button>
-                </div>
-            </form>
+    <!-- Action Buttons -->
+    <div class="p-6 bg-white border-b border-gray-200">
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('approval-requests.my-requests') }}" 
+               class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
+                My Requests
+            </a>
+            <a href="{{ route('approval-requests.pending-approvals') }}" 
+               class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
+                Pending Approvals
+            </a>
+            <a href="{{ route('approval-requests.create') }}" 
+               class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
+                Buat Request
+            </a>
         </div>
+    </div>
 
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Request
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Requester
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Workflow
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Progress
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Tanggal
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Aksi
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @foreach($requests as $request)
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div>
-                                <div class="text-sm font-medium text-gray-900">
-                                    <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">
-                                        {{ $request->request_number }}
+    <div class="overflow-x-auto">
+        <table class="responsive-table min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="w-16 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
+                    <th class="w-24 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                    <th class="w-1/4 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request</th>
+                    <th class="w-32 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Petugas</th>
+                    <th class="w-1/3 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                    <th class="w-20 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="w-20 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @foreach($requests as $index => $request)
+                <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <td class="w-16 px-3 py-2 text-sm text-gray-900">{{ $requests->firstItem() + $index }}</td>
+                    <td class="w-24 px-3 py-2 text-sm text-gray-500">
+                        <div>{{ $request->created_at->format('d/m/Y') }}</div>
+                        <div class="text-xs">{{ $request->created_at->format('H:i') }}</div>
+                    </td>
+                    <td class="w-1/4 px-3 py-2">
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-gray-900 truncate">
+                                <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1">
+                                    {{ $request->request_number }}
+                                </span>
+                            </div>
+                            <div class="text-sm text-gray-900 truncate">{{ $request->title }}</div>
+                            @if($request->description)
+                                <div class="text-xs text-gray-500 truncate">{{ Str::limit($request->description, 40) }}</div>
+                            @endif
+                        </div>
+                    </td>
+                    <td class="w-32 px-3 py-2">
+                        <div class="flex items-center min-w-0">
+                            <div class="flex-shrink-0 h-6 w-6">
+                                <div class="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center">
+                                    <span class="text-gray-600 text-xs font-medium">
+                                        {{ substr($request->requester->name, 0, 2) }}
                                     </span>
                                 </div>
-                                <div class="text-sm text-gray-900">{{ $request->title }}</div>
-                                @if($request->description)
-                                    <div class="text-xs text-gray-500">{{ Str::limit($request->description, 50) }}</div>
-                                @endif
                             </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0 h-8 w-8">
-                                    <div class="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
-                                        <span class="text-gray-600 text-xs font-medium">
-                                            {{ substr($request->requester->name, 0, 2) }}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="ml-4">
-                                    <div class="text-sm font-medium text-gray-900">{{ $request->requester->name }}</div>
-                                    <div class="text-sm text-gray-500">{{ $request->requester->email }}</div>
-                                </div>
+                            <div class="ml-2 min-w-0 flex-1">
+                                <div class="text-sm font-medium text-gray-900 truncate">{{ $request->requester->name }}</div>
                             </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $request->workflow->name }}</div>
-                            <div class="text-xs text-gray-500">{{ $request->workflow->type }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <div class="flex-1">
-                                    <div class="flex justify-between text-sm text-gray-600 mb-1">
-                                        <span>Step {{ $request->current_step }}</span>
-                                        <span>{{ $request->total_steps }}</span>
-                                    </div>
-                                    <div class="w-full bg-gray-200 rounded-full h-2">
-                                        <div class="bg-blue-600 h-2 rounded-full" 
-                                             style="width: {{ ($request->current_step / $request->total_steps) * 100 }}%"></div>
-                                    </div>
-                                </div>
+                        </div>
+                    </td>
+                    <td class="w-1/3 px-3 py-2">
+                        <div class="min-w-0">
+                            <div class="flex flex-nowrap gap-1 overflow-x-auto">
+                                @foreach($request->workflow->steps as $step)
+                                    @php
+                                        $stepStatus = 'pending';
+                                        $stepColor = 'bg-gray-100 text-gray-600';
+                                        
+                                        if ($step->step_number < $request->current_step) {
+                                            $stepStatus = 'completed';
+                                            $stepColor = 'bg-green-600 text-white';
+                                        } elseif ($step->step_number == $request->current_step) {
+                                            $stepStatus = 'current';
+                                            $stepColor = 'bg-blue-600 text-white';
+                                        }
+                                        
+                                        if ($request->status == 'rejected' && $step->step_number >= $request->current_step) {
+                                            $stepColor = 'bg-red-600 text-white';
+                                        }
+                                    @endphp
+                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium whitespace-nowrap flex-shrink-0 {{ $stepColor }}">
+                                        {{ $step->step_name }}
+                                    </span>
+                                @endforeach
                             </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                {{ $request->status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                   ($request->status == 'approved' ? 'bg-green-100 text-green-800' : 
-                                   ($request->status == 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800')) }}">
-                                {{ ucfirst($request->status) }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div>{{ $request->created_at->format('d M Y') }}</div>
-                            <div class="text-xs">{{ $request->created_at->format('H:i') }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex space-x-2">
-                                <a href="{{ route('approval-requests.show', $request) }}" 
-                                   class="text-blue-600 hover:text-blue-900">Lihat</a>
-                                @if($request->status == 'pending' && $request->requester_id == auth()->id())
-                                    <a href="{{ route('approval-requests.edit', $request) }}" 
-                                       class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                @endif
-                            </div>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-
-        @if($requests->hasPages())
-        <div class="px-6 py-3 border-t border-gray-200">
-            {{ $requests->links() }}
-        </div>
-        @endif
+                        </div>
+                    </td>
+                    <td class="w-20 px-3 py-2">
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+                            {{ $request->status == 'pending' ? 'bg-yellow-500 text-white' : 
+                               ($request->status == 'approved' ? 'bg-green-600 text-white' : 
+                               ($request->status == 'rejected' ? 'bg-red-600 text-white' : 'bg-gray-500 text-white')) }}">
+                            {{ ucfirst($request->status) }}
+                        </span>
+                    </td>
+                    <td class="w-20 px-3 py-2 text-sm font-medium">
+                        <div class="flex space-x-1">
+                            <a href="{{ route('approval-requests.show', $request) }}" 
+                               class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Lihat">👁</a>
+                            @if($request->status == 'pending' && $request->requester_id == auth()->id())
+                                <a href="{{ route('approval-requests.edit', $request) }}" 
+                                   class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150" title="Edit">✏️</a>
+                            @endif
+                        </div>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
     </div>
-</div>
+</x-responsive-table>
 @endsection

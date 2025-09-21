@@ -3,141 +3,126 @@
 @section('title', 'Pending Approvals')
 
 @section('content')
-<div class="w-full mx-auto" x-data="{
-    ...tableFilter({
-        search: '{{ request('search') }}'
-    })
-}">
-    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-        <div class="p-6 bg-white border-b border-gray-200">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Pending Approvals</h2>
-                <div class="flex space-x-2">
-                    <a href="{{ route('approval-requests.my-requests') }}" 
-                       class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        My Requests
-                    </a>
-                    <a href="{{ route('approval-requests.index') }}" 
-                       class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
-                        All Requests
-                    </a>
-                </div>
+<x-responsive-table 
+    title="Pending Approvals"
+    :pagination="$pendingApprovals"
+    :emptyState="$pendingApprovals->count() === 0"
+    emptyMessage="Tidak ada pending approvals"
+    emptyIcon="fas fa-check-circle"
+    :emptyActionRoute="route('approval-requests.index')"
+    emptyActionLabel="Lihat Semua Requests">
+    
+    <x-slot name="filters">
+        <form method="GET" class="flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-48">
+                <input type="text" name="search" value="{{ request('search') }}" 
+                       placeholder="Cari nomor request, judul, atau requester..."
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
             </div>
-        </div>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                Search
+            </button>
+        </form>
+    </x-slot>
 
-        <!-- Search Filter -->
-        <div class="p-6 border-b border-gray-200 bg-gray-50">
-            <form method="GET" class="flex gap-4">
-                <div class="flex-1">
-                    <input type="text" name="search" value="{{ request('search') }}" 
-                           placeholder="Cari nomor request, judul, atau requester..."
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                    Search
-                </button>
-            </form>
+    <!-- Action Buttons -->
+    <div class="p-6 bg-white border-b border-gray-200">
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('approval-requests.my-requests') }}" 
+               class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
+                My Requests
+            </a>
+            <a href="{{ route('approval-requests.index') }}" 
+               class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
+                All Requests
+            </a>
         </div>
+    </div>
 
-        @if($pendingApprovals->count() > 0)
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Request
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Requester
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Workflow
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Current Step
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Tanggal
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Aksi
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @foreach($pendingApprovals as $step)
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div>
-                                <div class="text-sm font-medium text-gray-900">
-                                    <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">
-                                        {{ $step->request->request_number }}
+    <div class="overflow-x-auto">
+        <table class="responsive-table min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="w-16 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
+                    <th class="w-24 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                    <th class="w-1/4 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request</th>
+                    <th class="w-32 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Petugas</th>
+                    <th class="w-1/3 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                    <th class="w-20 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @foreach($pendingApprovals as $index => $step)
+                <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <td class="w-16 px-3 py-2 text-sm text-gray-900">{{ $pendingApprovals->firstItem() + $index }}</td>
+                    <td class="w-24 px-3 py-2 text-sm text-gray-500">
+                        <div>{{ $step->request->created_at->format('d/m/Y') }}</div>
+                        <div class="text-xs">{{ $step->request->created_at->format('H:i') }}</div>
+                    </td>
+                    <td class="w-1/4 px-3 py-2">
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-gray-900 truncate">
+                                <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1">
+                                    {{ $step->request->request_number }}
+                                </span>
+                            </div>
+                            <div class="text-sm text-gray-900 truncate">{{ $step->request->title }}</div>
+                            @if($step->request->description)
+                                <div class="text-xs text-gray-500 truncate">{{ Str::limit($step->request->description, 40) }}</div>
+                            @endif
+                        </div>
+                    </td>
+                    <td class="w-32 px-3 py-2">
+                        <div class="flex items-center min-w-0">
+                            <div class="flex-shrink-0 h-6 w-6">
+                                <div class="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center">
+                                    <span class="text-gray-600 text-xs font-medium">
+                                        {{ substr($step->request->requester->name, 0, 2) }}
                                     </span>
                                 </div>
-                                <div class="text-sm text-gray-900">{{ $step->request->title }}</div>
-                                @if($step->request->description)
-                                    <div class="text-xs text-gray-500">{{ Str::limit($step->request->description, 50) }}</div>
-                                @endif
                             </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0 h-8 w-8">
-                                    <div class="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
-                                        <span class="text-gray-600 text-xs font-medium">
-                                            {{ substr($step->request->requester->name, 0, 2) }}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="ml-4">
-                                    <div class="text-sm font-medium text-gray-900">{{ $step->request->requester->name }}</div>
-                                    <div class="text-sm text-gray-500">{{ $step->request->requester->email }}</div>
-                                </div>
+                            <div class="ml-2 min-w-0 flex-1">
+                                <div class="text-sm font-medium text-gray-900 truncate">{{ $step->request->requester->name }}</div>
                             </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $step->request->workflow->name }}</div>
-                            <div class="text-xs text-gray-500">{{ $step->request->workflow->type }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $step->step_name }}</div>
-                            <div class="text-xs text-gray-500">Step {{ $step->step_number }} of {{ $step->request->total_steps }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div>{{ $step->request->created_at->format('d M Y') }}</div>
-                            <div class="text-xs">{{ $step->request->created_at->format('H:i') }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex space-x-2">
-                                <a href="{{ route('approval-requests.show', $step->request) }}" 
-                                   class="text-blue-600 hover:text-blue-900">Review</a>
+                        </div>
+                    </td>
+                    <td class="w-1/3 px-3 py-2">
+                        <div class="min-w-0">
+                            <div class="flex flex-nowrap gap-1 overflow-x-auto">
+                                @foreach($step->request->workflow->steps as $workflowStep)
+                                    @php
+                                        $stepStatus = 'pending';
+                                        $stepColor = 'bg-gray-100 text-gray-600';
+                                        
+                                        if ($workflowStep->step_number < $step->request->current_step) {
+                                            $stepStatus = 'completed';
+                                            $stepColor = 'bg-green-600 text-white';
+                                        } elseif ($workflowStep->step_number == $step->request->current_step) {
+                                            $stepStatus = 'current';
+                                            $stepColor = 'bg-blue-600 text-white';
+                                        }
+                                        
+                                        if ($step->request->status == 'rejected' && $workflowStep->step_number >= $step->request->current_step) {
+                                            $stepColor = 'bg-red-600 text-white';
+                                        }
+                                    @endphp
+                                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium whitespace-nowrap flex-shrink-0 {{ $stepColor }}">
+                                        {{ $workflowStep->step_name }}
+                                    </span>
+                                @endforeach
                             </div>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-
-        @if($pendingApprovals->hasPages())
-        <div class="px-6 py-3 border-t border-gray-200">
-            {{ $pendingApprovals->links() }}
-        </div>
-        @endif
-        @else
-        <div class="p-12 text-center">
-            <div class="mx-auto h-12 w-12 text-gray-400">
-                <i class="fas fa-check-circle text-4xl"></i>
-            </div>
-            <h3 class="mt-2 text-sm font-medium text-gray-900">Tidak ada pending approvals</h3>
-            <p class="mt-1 text-sm text-gray-500">Semua request yang memerlukan approval Anda sudah diproses.</p>
-            <div class="mt-6">
-                <a href="{{ route('approval-requests.index') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                    Lihat Semua Requests
-                </a>
-            </div>
-        </div>
-        @endif
+                        </div>
+                    </td>
+                    <td class="w-20 px-3 py-2 text-sm font-medium">
+                        <div class="flex space-x-1">
+                            <a href="{{ route('approval-requests.show', $step->request) }}" 
+                               class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Review">👁</a>
+                        </div>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
     </div>
-</div>
+</x-responsive-table>
 @endsection

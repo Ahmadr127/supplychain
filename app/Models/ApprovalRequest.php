@@ -15,7 +15,6 @@ class ApprovalRequest extends Model
         'requester_id',
         'title',
         'description',
-        'data',
         'status',
         'current_step',
         'total_steps',
@@ -25,7 +24,6 @@ class ApprovalRequest extends Model
     ];
 
     protected $casts = [
-        'data' => 'array',
         'approved_at' => 'datetime',
     ];
 
@@ -58,6 +56,20 @@ class ApprovalRequest extends Model
     {
         return $this->hasOne(ApprovalStep::class, 'request_id')
                     ->where('step_number', $this->current_step);
+    }
+
+    // Relasi dengan master items (many-to-many)
+    public function masterItems()
+    {
+        return $this->belongsToMany(MasterItem::class, 'approval_request_master_items')
+                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes'])
+                    ->withTimestamps();
+    }
+
+    // Relasi dengan attachments
+    public function attachments()
+    {
+        return $this->hasMany(ApprovalRequestAttachment::class);
     }
 
     // Scope untuk status tertentu
@@ -186,5 +198,63 @@ class ApprovalRequest extends Model
             default:
                 return null;
         }
+    }
+
+    // Method untuk menghitung total harga dari semua items
+    public function getTotalItemsPrice()
+    {
+        return $this->masterItems()->sum('approval_request_master_items.total_price');
+    }
+
+    // Method untuk mendapatkan jumlah total items
+    public function getTotalItemsQuantity()
+    {
+        return $this->masterItems()->sum('approval_request_master_items.quantity');
+    }
+
+    // Method untuk menambahkan item ke request
+    public function addItem($masterItemId, $quantity = 1, $unitPrice = null, $notes = null)
+    {
+        $masterItem = MasterItem::findOrFail($masterItemId);
+        $unitPrice = $unitPrice ?? $masterItem->total_price;
+        $totalPrice = $quantity * $unitPrice;
+
+        return $this->masterItems()->attach($masterItemId, [
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'total_price' => $totalPrice,
+            'notes' => $notes
+        ]);
+    }
+
+    // Method untuk update item quantity
+    public function updateItemQuantity($masterItemId, $quantity)
+    {
+        $pivot = $this->masterItems()->where('master_item_id', $masterItemId)->first();
+        if ($pivot) {
+            $totalPrice = $quantity * $pivot->pivot->unit_price;
+            $this->masterItems()->updateExistingPivot($masterItemId, [
+                'quantity' => $quantity,
+                'total_price' => $totalPrice
+            ]);
+        }
+    }
+
+    // Method untuk menghapus item dari request
+    public function removeItem($masterItemId)
+    {
+        return $this->masterItems()->detach($masterItemId);
+    }
+
+    // Method untuk check apakah user bisa approve request ini
+    public function canApprove($userId)
+    {
+        $currentStep = $this->currentStep;
+        
+        if (!$currentStep || $currentStep->status !== 'pending') {
+            return false;
+        }
+
+        return $currentStep->canApprove($userId);
     }
 }

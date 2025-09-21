@@ -29,22 +29,22 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                             Nama
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                             Username
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
                             Email
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                             Role
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                             Tanggal Dibuat
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                             Aksi
                         </th>
                     </tr>
@@ -52,7 +52,7 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @foreach($users as $user)
                     <tr>
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        <td class="px-6 py-4 w-1/6">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
                                     <div class="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
@@ -61,18 +61,18 @@
                                         </span>
                                     </div>
                                 </div>
-                                <div class="ml-4">
-                                    <div class="text-sm font-medium text-gray-900">{{ $user->name }}</div>
+                                <div class="ml-4 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900 truncate">{{ $user->name }}</div>
                                 </div>
                             </div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $user->username }}</div>
+                        <td class="px-6 py-4 w-1/6">
+                            <div class="text-sm text-gray-900 truncate">{{ $user->username }}</div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $user->email }}</div>
+                        <td class="px-6 py-4 w-1/4">
+                            <div class="text-sm text-gray-900 truncate">{{ $user->email }}</div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        <td class="px-6 py-4 w-1/6">
                             @if($user->role)
                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
                                     @if($user->role->name === 'admin') bg-red-100 text-red-800
@@ -84,10 +84,10 @@
                                 <span class="text-gray-500">Tidak ada role</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td class="px-6 py-4 w-1/6 text-sm text-gray-500">
                             {{ $user->created_at->format('d/m/Y H:i') }}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td class="px-6 py-4 w-1/6 text-sm font-medium">
                             <a href="{{ route('users.edit', $user) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
                             @if($user->id !== auth()->id())
                                 <form action="{{ route('users.destroy', $user) }}" method="POST" class="inline">

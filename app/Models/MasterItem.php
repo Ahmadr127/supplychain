@@ -55,6 +55,14 @@ class MasterItem extends Model
         return $this->belongsTo(Unit::class);
     }
 
+    // Relationship with approval requests (many-to-many)
+    public function approvalRequests()
+    {
+        return $this->belongsToMany(ApprovalRequest::class, 'approval_request_master_items')
+                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes'])
+                    ->withTimestamps();
+    }
+
     // Scopes
     public function scopeActive($query)
     {

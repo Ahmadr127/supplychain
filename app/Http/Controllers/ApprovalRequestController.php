@@ -5,17 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalWorkflow;
 use App\Models\ApprovalStep;
+use App\Models\ApprovalRequestAttachment;
+use App\Models\MasterItem;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class ApprovalRequestController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ApprovalRequest::with(['workflow', 'requester', 'currentStep']);
+        $query = ApprovalRequest::with(['workflow', 'requester', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment']);
 
         // Search filter
         if ($request->filled('search')) {
@@ -57,8 +60,9 @@ class ApprovalRequestController extends Controller
     public function create()
     {
         $workflows = ApprovalWorkflow::where('is_active', true)->get();
+        $masterItems = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit'])->get();
         
-        return view('approval-requests.create', compact('workflows'));
+        return view('approval-requests.create', compact('workflows', 'masterItems'));
     }
 
     public function store(Request $request)
@@ -67,7 +71,13 @@ class ApprovalRequestController extends Controller
             'workflow_id' => 'required|exists:approval_workflows,id',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'data' => 'nullable|array'
+            'items' => 'nullable|array',
+            'items.*.master_item_id' => 'required_with:items|exists:master_items,id',
+            'items.*.quantity' => 'required_with:items|integer|min:1',
+            'items.*.unit_price' => 'nullable|numeric|min:0',
+            'items.*.notes' => 'nullable|string|max:500',
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'file|mimes:pdf|max:10240' // Max 10MB per file
         ]);
 
         if ($validator->fails()) {
@@ -79,9 +89,47 @@ class ApprovalRequestController extends Controller
         $approvalRequest = $workflow->createRequest(
             requesterId: auth()->id(),
             title: $request->title,
-            description: $request->description,
-            data: $request->data
+            description: $request->description
         );
+
+        // Handle items
+        if ($request->has('items') && is_array($request->items)) {
+            foreach ($request->items as $itemData) {
+                if (!empty($itemData['master_item_id'])) {
+                    $masterItem = MasterItem::findOrFail($itemData['master_item_id']);
+                    $unitPrice = $itemData['unit_price'] ?? $masterItem->total_price;
+                    $totalPrice = $itemData['quantity'] * $unitPrice;
+
+                    $approvalRequest->masterItems()->attach($itemData['master_item_id'], [
+                        'quantity' => $itemData['quantity'],
+                        'unit_price' => $unitPrice,
+                        'total_price' => $totalPrice,
+                        'notes' => $itemData['notes'] ?? null
+                    ]);
+                }
+            }
+        }
+
+        // Handle file attachments
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                if ($file->isValid()) {
+                    $originalName = $file->getClientOriginalName();
+                    $fileName = time() . '_' . $originalName;
+                    $filePath = $file->storeAs('approval-attachments', $fileName, 'public');
+
+                    ApprovalRequestAttachment::create([
+                        'approval_request_id' => $approvalRequest->id,
+                        'original_name' => $originalName,
+                        'file_name' => $fileName,
+                        'file_path' => $filePath,
+                        'mime_type' => $file->getMimeType(),
+                        'file_size' => $file->getSize(),
+                        'description' => null
+                    ]);
+                }
+            }
+        }
 
         return redirect()->route('approval-requests.show', $approvalRequest)
                         ->with('success', 'Approval request berhasil dibuat!');
@@ -89,13 +137,37 @@ class ApprovalRequestController extends Controller
 
     public function show(ApprovalRequest $approvalRequest)
     {
+        // Check if user has permission to view this approval request
+        $user = auth()->user();
+        
+        // Allow if user has view_all_approvals permission
+        if ($user->hasPermission('view_all_approvals')) {
+            // User can view all approval requests
+        }
+        // Allow if user is the requester and has view_my_approvals permission
+        elseif ($user->hasPermission('view_my_approvals') && $approvalRequest->requester_id === $user->id) {
+            // User can view their own requests
+        }
+        // Allow if user can approve this request and has view_pending_approvals permission
+        elseif ($user->hasPermission('view_pending_approvals') && $approvalRequest->canApprove($user->id)) {
+            // User can view requests they can approve
+        }
+        else {
+            abort(403, 'Anda tidak memiliki akses untuk melihat approval request ini.');
+        }
+
         $approvalRequest->load([
             'workflow', 
             'requester', 
             'steps.approver', 
             'steps.approverRole', 
             'steps.approverDepartment',
-            'steps.approvedBy'
+            'steps.approvedBy',
+            'masterItems.itemType',
+            'masterItems.itemCategory',
+            'masterItems.commodity',
+            'masterItems.unit',
+            'attachments'
         ]);
         
         return view('approval-requests.show', compact('approvalRequest'));
@@ -109,8 +181,11 @@ class ApprovalRequestController extends Controller
         }
 
         $workflows = ApprovalWorkflow::where('is_active', true)->get();
+        $masterItems = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit'])->get();
         
-        return view('approval-requests.edit', compact('approvalRequest', 'workflows'));
+        $approvalRequest->load(['masterItems', 'attachments']);
+        
+        return view('approval-requests.edit', compact('approvalRequest', 'workflows', 'masterItems'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -123,7 +198,15 @@ class ApprovalRequestController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'data' => 'nullable|array'
+            'items' => 'nullable|array',
+            'items.*.master_item_id' => 'required_with:items|exists:master_items,id',
+            'items.*.quantity' => 'required_with:items|integer|min:1',
+            'items.*.unit_price' => 'nullable|numeric|min:0',
+            'items.*.notes' => 'nullable|string|max:500',
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'file|mimes:pdf|max:10240', // Max 10MB per file
+            'remove_attachments' => 'nullable|array',
+            'remove_attachments.*' => 'exists:approval_request_attachments,id'
         ]);
 
         if ($validator->fails()) {
@@ -132,9 +215,61 @@ class ApprovalRequestController extends Controller
 
         $approvalRequest->update([
             'title' => $request->title,
-            'description' => $request->description,
-            'data' => $request->data
+            'description' => $request->description
         ]);
+
+        // Handle items update
+        if ($request->has('items') && is_array($request->items)) {
+            // Remove existing items
+            $approvalRequest->masterItems()->detach();
+            
+            // Add new items
+            foreach ($request->items as $itemData) {
+                if (!empty($itemData['master_item_id'])) {
+                    $masterItem = MasterItem::findOrFail($itemData['master_item_id']);
+                    $unitPrice = $itemData['unit_price'] ?? $masterItem->total_price;
+                    $totalPrice = $itemData['quantity'] * $unitPrice;
+
+                    $approvalRequest->masterItems()->attach($itemData['master_item_id'], [
+                        'quantity' => $itemData['quantity'],
+                        'unit_price' => $unitPrice,
+                        'total_price' => $totalPrice,
+                        'notes' => $itemData['notes'] ?? null
+                    ]);
+                }
+            }
+        }
+
+        // Handle file attachments
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                if ($file->isValid()) {
+                    $originalName = $file->getClientOriginalName();
+                    $fileName = time() . '_' . $originalName;
+                    $filePath = $file->storeAs('approval-attachments', $fileName, 'public');
+
+                    ApprovalRequestAttachment::create([
+                        'approval_request_id' => $approvalRequest->id,
+                        'original_name' => $originalName,
+                        'file_name' => $fileName,
+                        'file_path' => $filePath,
+                        'mime_type' => $file->getMimeType(),
+                        'file_size' => $file->getSize(),
+                        'description' => null
+                    ]);
+                }
+            }
+        }
+
+        // Handle removal of attachments
+        if ($request->has('remove_attachments') && is_array($request->remove_attachments)) {
+            foreach ($request->remove_attachments as $attachmentId) {
+                $attachment = ApprovalRequestAttachment::find($attachmentId);
+                if ($attachment && $attachment->approval_request_id == $approvalRequest->id) {
+                    $attachment->delete(); // This will also delete the file from storage
+                }
+            }
+        }
 
         return redirect()->route('approval-requests.show', $approvalRequest)
                         ->with('success', 'Approval request berhasil diperbarui!');
@@ -233,7 +368,7 @@ class ApprovalRequestController extends Controller
 
     public function myRequests(Request $request)
     {
-        $query = auth()->user()->approvalRequests()->with(['workflow', 'currentStep']);
+        $query = auth()->user()->approvalRequests()->with(['workflow', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment']);
 
         // Search filter
         if ($request->filled('search')) {
@@ -287,7 +422,7 @@ class ApprovalRequestController extends Controller
                                                 });
                                   });
                             })
-                            ->with(['request.workflow', 'request.requester', 'approver', 'approverRole', 'approverDepartment']);
+                            ->with(['request.workflow', 'request.requester', 'request.steps.approver', 'request.steps.approverRole', 'request.steps.approverDepartment', 'approver', 'approverRole', 'approverDepartment']);
 
         // Search filter
         if ($request->filled('search')) {
@@ -304,5 +439,74 @@ class ApprovalRequestController extends Controller
         $pendingApprovals = $query->latest()->paginate(10)->withQueryString();
         
         return view('approval-requests.pending-approvals', compact('pendingApprovals'));
+    }
+
+    // API methods for AJAX requests
+    public function getMasterItems(Request $request)
+    {
+        $query = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit']);
+
+        // Search filter
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%");
+            });
+        }
+
+        // Type filter
+        if ($request->filled('item_type_id')) {
+            $query->where('item_type_id', $request->item_type_id);
+        }
+
+        // Category filter
+        if ($request->filled('item_category_id')) {
+            $query->where('item_category_id', $request->item_category_id);
+        }
+
+        // Commodity filter
+        if ($request->filled('commodity_id')) {
+            $query->where('commodity_id', $request->commodity_id);
+        }
+
+        $items = $query->limit(20)->get();
+
+        return response()->json([
+            'success' => true,
+            'items' => $items
+        ]);
+    }
+
+    public function downloadAttachment(ApprovalRequestAttachment $attachment)
+    {
+        $user = auth()->user();
+        $approvalRequest = $attachment->approvalRequest;
+        
+        // Check if user has access to this attachment
+        $hasAccess = false;
+        
+        // Allow if user has view_all_approvals permission
+        if ($user->hasPermission('view_all_approvals')) {
+            $hasAccess = true;
+        }
+        // Allow if user is the requester and has view_my_approvals permission
+        elseif ($user->hasPermission('view_my_approvals') && $approvalRequest->requester_id === $user->id) {
+            $hasAccess = true;
+        }
+        // Allow if user can approve this request and has view_pending_approvals permission
+        elseif ($user->hasPermission('view_pending_approvals') && $approvalRequest->canApprove($user->id)) {
+            $hasAccess = true;
+        }
+        
+        if (!$hasAccess) {
+            abort(403, 'Anda tidak memiliki akses untuk mengunduh file ini.');
+        }
+
+        if (!Storage::exists($attachment->file_path)) {
+            abort(404, 'File tidak ditemukan.');
+        }
+
+        return Storage::download($attachment->file_path, $attachment->original_name);
     }
 }
