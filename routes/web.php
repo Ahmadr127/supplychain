@@ -122,5 +122,6 @@ Route::middleware('auth')->group(function () {
     
     // File download routes
     Route::get('approval-requests/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');
+    Route::get('approval-requests/attachments/{attachment}/view', [ApprovalRequestController::class, 'viewAttachment'])->name('approval-requests.view-attachment');
 
 });

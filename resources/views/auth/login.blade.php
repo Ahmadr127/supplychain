@@ -16,7 +16,7 @@
                 <div class="rounded-2xl border border-[#0f766e]/20 bg-white shadow-md p-3">
                     <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-12 object-contain" />
                 </div>
-                <p class="mt-3 text-xs font-semibold tracking-wide text-[#006D7A]">Library Management System</p>
+                <p class="mt-3 text-xs font-semibold tracking-wide text-[#006D7A]">Supply Chain Management System</p>
             </div>
 
             <!-- Title -->

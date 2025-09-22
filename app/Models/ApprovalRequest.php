@@ -15,6 +15,8 @@ class ApprovalRequest extends Model
         'requester_id',
         'title',
         'description',
+        'priority',
+        'is_cto_request',
         'status',
         'current_step',
         'total_steps',
@@ -113,6 +115,9 @@ class ApprovalRequest extends Model
                 'approved_by' => $userId,
                 'approved_at' => now()
             ]);
+            
+            // Update stock for all items in this request
+            $this->updateStockForApprovedRequest();
         } else {
             // Move to next step
             $this->update(['current_step' => $this->current_step + 1]);
@@ -256,5 +261,31 @@ class ApprovalRequest extends Model
         }
 
         return $currentStep->canApprove($userId);
+    }
+
+    // Method untuk update stock ketika request di-approve
+    public function updateStockForApprovedRequest()
+    {
+        // Load the master items with their pivot data
+        $this->load('masterItems');
+        
+        foreach ($this->masterItems as $masterItem) {
+            $requestedQuantity = $masterItem->pivot->quantity;
+            
+            // Validate quantity is positive
+            if ($requestedQuantity <= 0) {
+                continue; // Skip invalid quantities
+            }
+            
+            // Update stock: increase stock by requested quantity (for incoming items)
+            $newStock = $masterItem->stock + $requestedQuantity;
+            
+            // Ensure stock doesn't go below 0 (safety check)
+            if ($newStock < 0) {
+                $newStock = 0;
+            }
+            
+            $masterItem->update(['stock' => $newStock]);
+        }
     }
 }

@@ -13,15 +13,15 @@
 <div class="w-full mx-auto responsive-table-container" 
      x-data="{
          sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === '1',
-         tableWidth: 'calc(100vw - 16rem)', // Default: 100vw - 16rem (256px for expanded sidebar)
+         tableWidth: 'calc(100vw - 20rem)', // Default: 100vw - 20rem (320px for expanded sidebar + padding)
          updateTableWidth() {
              // Get fresh state from localStorage
              this.sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === '1';
              
              if (this.sidebarCollapsed) {
-                 this.tableWidth = 'calc(100vw - 5rem)'; // 100vw - 5rem (80px for collapsed sidebar)
+                 this.tableWidth = 'calc(100vw - 7rem)'; // 100vw - 7rem (112px for collapsed sidebar + padding)
              } else {
-                 this.tableWidth = 'calc(100vw - 16rem)'; // 100vw - 16rem (256px for expanded sidebar)
+                 this.tableWidth = 'calc(100vw - 20rem)'; // 100vw - 20rem (320px for expanded sidebar + padding)
              }
              
              // Force reflow to ensure changes are applied
@@ -269,13 +269,13 @@
 
 /* Sidebar state specific widths */
 .responsive-table-container.sidebar-expanded {
-    max-width: calc(100vw - 16rem) !important; /* 256px sidebar */
-    width: calc(100vw - 16rem) !important;
+    max-width: calc(100vw - 20rem) !important; /* 320px sidebar + padding */
+    width: calc(100vw - 20rem) !important;
 }
 
 .responsive-table-container.sidebar-collapsed {
-    max-width: calc(100vw - 5rem) !important; /* 80px sidebar */
-    width: calc(100vw - 5rem) !important;
+    max-width: calc(100vw - 7rem) !important; /* 112px sidebar + padding */
+    width: calc(100vw - 7rem) !important;
 }
 
 /* Ensure table container fills available space */
@@ -289,16 +289,16 @@
 @media (max-width: 1024px) {
     .responsive-table-container.sidebar-expanded,
     .responsive-table-container.sidebar-collapsed {
-        max-width: calc(100vw - 2rem) !important;
-        width: calc(100vw - 2rem) !important;
+        max-width: calc(100vw - 4rem) !important;
+        width: calc(100vw - 4rem) !important;
     }
 }
 
 @media (max-width: 768px) {
     .responsive-table-container.sidebar-expanded,
     .responsive-table-container.sidebar-collapsed {
-        max-width: calc(100vw - 1rem) !important;
-        width: calc(100vw - 1rem) !important;
+        max-width: calc(100vw - 2.5rem) !important;
+        width: calc(100vw - 2.5rem) !important;
     }
 }
 
@@ -311,13 +311,13 @@
 /* Ensure proper width calculation on all screen sizes */
 @media (min-width: 1025px) {
     .responsive-table-container.sidebar-expanded {
-        max-width: calc(100vw - 16rem) !important;
-        width: calc(100vw - 16rem) !important;
+        max-width: calc(100vw - 20rem) !important;
+        width: calc(100vw - 20rem) !important;
     }
     
     .responsive-table-container.sidebar-collapsed {
-        max-width: calc(100vw - 5rem) !important;
-        width: calc(100vw - 5rem) !important;
+        max-width: calc(100vw - 7rem) !important;
+        width: calc(100vw - 7rem) !important;
     }
 }
 

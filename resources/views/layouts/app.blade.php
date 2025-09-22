@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'Library RS')</title>
+    <title>@yield('title', 'Supply Chain')</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" type="image/x-icon" href="images/logo.png">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -39,7 +39,7 @@
                     <div class="bg-white rounded-xl border border-green-200 shadow-sm p-2 flex-shrink-0">
                         <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-8 w-auto object-contain">
                     </div>
-                    <h1 x-show="!sidebarCollapsed" class="text-xl font-bold text-white tracking-wide truncate">Library RS</h1>
+                    <h1 x-show="!sidebarCollapsed" class="text-xl font-bold text-white tracking-wide truncate">Supply Chain</h1>
                 </div>
                 
             </div>
@@ -203,7 +203,7 @@
                         </button>
                         <div>
                             <h2 class="text-xl font-semibold text-gray-800">@yield('title', 'Dashboard')</h2>
-                            <p class="text-sm text-gray-500">Library Management System</p>
+                            <p class="text-sm text-gray-500">Supply Chain Management System</p>
                         </div>
                     </div>
                     

@@ -51,8 +51,9 @@ class MasterItemController extends Controller
         $itemTypes = ItemType::active()->get();
         $itemCategories = ItemCategory::active()->get();
         $commodities = Commodity::active()->get();
+        $units = Unit::active()->get();
         
-        return view('master-items.index', compact('masterItems', 'itemTypes', 'itemCategories', 'commodities'));
+        return view('master-items.index', compact('masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
     }
 
     public function create()
@@ -82,6 +83,13 @@ class MasterItemController extends Controller
         ]);
 
         if ($validator->fails()) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
@@ -99,6 +107,39 @@ class MasterItemController extends Controller
             'is_active' => $request->has('is_active')
         ]);
 
+        // Load relationships for the response
+        $masterItem->load(['itemType', 'itemCategory', 'commodity', 'unit']);
+
+        // Calculate total price
+        $ppnAmount = ($masterItem->hna * $masterItem->ppn_percentage) / 100;
+        $totalPrice = $masterItem->hna + $ppnAmount;
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Master item berhasil dibuat!',
+                'item' => [
+                    'id' => $masterItem->id,
+                    'name' => $masterItem->name,
+                    'code' => $masterItem->code,
+                    'description' => $masterItem->description,
+                    'hna' => $masterItem->hna,
+                    'ppn_percentage' => $masterItem->ppn_percentage,
+                    'total_price' => $totalPrice,
+                    'item_type_id' => $masterItem->item_type_id,
+                    'item_category_id' => $masterItem->item_category_id,
+                    'commodity_id' => $masterItem->commodity_id,
+                    'unit_id' => $masterItem->unit_id,
+                    'stock' => $masterItem->stock,
+                    'is_active' => $masterItem->is_active,
+                    'item_type' => $masterItem->itemType,
+                    'item_category' => $masterItem->itemCategory,
+                    'commodity' => $masterItem->commodity,
+                    'unit' => $masterItem->unit,
+                ]
+            ]);
+        }
+
         return redirect()->route('master-items.index')->with('success', 'Master item berhasil dibuat!');
     }
 
@@ -106,7 +147,13 @@ class MasterItemController extends Controller
     {
         $masterItem->load(['itemType', 'itemCategory', 'commodity', 'unit']);
         
-        return view('master-items.show', compact('masterItem'));
+        // Get data for modal form
+        $itemTypes = ItemType::active()->get();
+        $itemCategories = ItemCategory::active()->get();
+        $commodities = Commodity::active()->get();
+        $units = Unit::active()->get();
+        
+        return view('master-items.show', compact('masterItem', 'itemTypes', 'itemCategories', 'commodities', 'units'));
     }
 
     public function edit(MasterItem $masterItem)

@@ -8,7 +8,7 @@
     <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
         <div class="p-6">
             <h2 class="text-2xl font-bold text-gray-900 mb-2">Selamat Datang, {{ $user->name }}!</h2>
-            <p class="text-gray-600">Dashboard Library RS - Sistem Manajemen Perpustakaan</p>
+            <p class="text-gray-600">Dashboard Supply Chain - Sistem Manajemen Rantai Pasok</p>
         </div>
     </div>
 

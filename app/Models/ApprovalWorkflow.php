@@ -55,15 +55,17 @@ class ApprovalWorkflow extends Model
     }
 
     // Method untuk membuat approval request
-    public function createRequest($requesterId, $title, $description = null)
+    public function createRequest($requesterId, $title, $description = null, $requestNumber = null, $priority = 'normal', $isCtoRequest = false)
     {
-        $requestNumber = $this->generateRequestNumber();
+        $requestNumber = $requestNumber ?: $this->generateRequestNumber();
         
         $request = $this->requests()->create([
             'request_number' => $requestNumber,
             'requester_id' => $requesterId,
             'title' => $title,
             'description' => $description,
+            'priority' => $priority,
+            'is_cto_request' => $isCtoRequest,
             'total_steps' => count($this->workflow_steps),
             'status' => 'pending'
         ]);

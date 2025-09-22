@@ -62,7 +62,13 @@ class ApprovalRequestController extends Controller
         $workflows = ApprovalWorkflow::where('is_active', true)->get();
         $masterItems = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit'])->get();
         
-        return view('approval-requests.create', compact('workflows', 'masterItems'));
+        // Add dropdown data for the modal
+        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        $itemCategories = \App\Models\ItemCategory::where('is_active', true)->get();
+        $commodities = \App\Models\Commodity::where('is_active', true)->get();
+        $units = \App\Models\Unit::where('is_active', true)->get();
+        
+        return view('approval-requests.create', compact('workflows', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
     }
 
     public function store(Request $request)
@@ -71,6 +77,8 @@ class ApprovalRequestController extends Controller
             'workflow_id' => 'required|exists:approval_workflows,id',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number',
+            'request_type' => 'required|in:normal,cto',
             'items' => 'nullable|array',
             'items.*.master_item_id' => 'required_with:items|exists:master_items,id',
             'items.*.quantity' => 'required_with:items|integer|min:1',
@@ -86,10 +94,27 @@ class ApprovalRequestController extends Controller
 
         $workflow = ApprovalWorkflow::findOrFail($request->workflow_id);
         
+        // Generate request number if not provided
+        $requestNumber = $request->request_number;
+        if (empty($requestNumber)) {
+            // Get user's primary department
+            $user = auth()->user();
+            $primaryDepartment = $user->departments()->wherePivot('is_primary', true)->first();
+            $departmentCode = $primaryDepartment ? $primaryDepartment->code : 'UNKNOWN';
+            
+            // Format: AZ/FARMASI/190925/PPBJ-0004
+            $dateCode = date('dmy'); // Format: 190925 (tanggal-bulan-tahun)
+            $sequenceNumber = ApprovalRequest::whereDate('created_at', today())->count() + 1;
+            $requestNumber = "AZ/{$departmentCode}/{$dateCode}/PPBJ-" . str_pad($sequenceNumber, 4, '0', STR_PAD_LEFT);
+        }
+        
         $approvalRequest = $workflow->createRequest(
             requesterId: auth()->id(),
             title: $request->title,
-            description: $request->description
+            description: $request->description,
+            requestNumber: $requestNumber,
+            priority: $request->request_type === 'cto' ? 'high' : 'normal',
+            isCtoRequest: $request->request_type === 'cto'
         );
 
         // Handle items
@@ -183,9 +208,15 @@ class ApprovalRequestController extends Controller
         $workflows = ApprovalWorkflow::where('is_active', true)->get();
         $masterItems = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit'])->get();
         
+        // Add dropdown data for the modal
+        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        $itemCategories = \App\Models\ItemCategory::where('is_active', true)->get();
+        $commodities = \App\Models\Commodity::where('is_active', true)->get();
+        $units = \App\Models\Unit::where('is_active', true)->get();
+        
         $approvalRequest->load(['masterItems', 'attachments']);
         
-        return view('approval-requests.edit', compact('approvalRequest', 'workflows', 'masterItems'));
+        return view('approval-requests.edit', compact('approvalRequest', 'workflows', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -198,6 +229,8 @@ class ApprovalRequestController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number,' . $approvalRequest->id,
+            'request_type' => 'required|in:normal,cto',
             'items' => 'nullable|array',
             'items.*.master_item_id' => 'required_with:items|exists:master_items,id',
             'items.*.quantity' => 'required_with:items|integer|min:1',
@@ -215,7 +248,10 @@ class ApprovalRequestController extends Controller
 
         $approvalRequest->update([
             'title' => $request->title,
-            'description' => $request->description
+            'description' => $request->description,
+            'request_number' => $request->request_number ?: $approvalRequest->request_number,
+            'priority' => $request->request_type === 'cto' ? 'high' : 'normal',
+            'is_cto_request' => $request->request_type === 'cto'
         ]);
 
         // Handle items update
@@ -395,12 +431,8 @@ class ApprovalRequestController extends Controller
         $userDepartments = $user->departments()->pluck('departments.id');
         $userRoles = $user->role ? [$user->role->id] : [];
         
-        // Find approval steps that are pending and user can approve
-        $query = ApprovalStep::where('status', 'pending')
-                            ->whereHas('request', function($q) {
-                                $q->where('status', 'pending'); // Only pending requests
-                            })
-                            ->where(function($q) use ($userDepartments, $userRoles, $user) {
+        // Find approval steps that user can approve (both pending and completed)
+        $query = ApprovalStep::where(function($q) use ($userDepartments, $userRoles, $user) {
                                 // User is directly assigned as approver
                                 $q->where('approver_id', $user->id)
                                   // User has the required role
@@ -423,6 +455,26 @@ class ApprovalRequestController extends Controller
                                   });
                             })
                             ->with(['request.workflow', 'request.requester', 'request.steps.approver', 'request.steps.approverRole', 'request.steps.approverDepartment', 'approver', 'approverRole', 'approverDepartment']);
+
+        // Status filter - show all by default, but allow filtering
+        if ($request->filled('status')) {
+            if ($request->status === 'pending') {
+                $query->where('status', 'pending')
+                      ->whereHas('request', function($q) {
+                          $q->where('status', 'pending');
+                      });
+            } elseif ($request->status === 'completed') {
+                $query->whereIn('status', ['approved', 'rejected'])
+                      ->whereHas('request', function($q) {
+                          $q->whereIn('status', ['approved', 'rejected']);
+                      });
+            }
+        } else {
+            // Show both pending and completed by default
+            $query->whereHas('request', function($q) {
+                $q->whereIn('status', ['pending', 'approved', 'rejected']);
+            });
+        }
 
         // Search filter
         if ($request->filled('search')) {
@@ -503,10 +555,52 @@ class ApprovalRequestController extends Controller
             abort(403, 'Anda tidak memiliki akses untuk mengunduh file ini.');
         }
 
-        if (!Storage::exists($attachment->file_path)) {
+        if (!Storage::disk('public')->exists($attachment->file_path)) {
             abort(404, 'File tidak ditemukan.');
         }
 
-        return Storage::download($attachment->file_path, $attachment->original_name);
+        return Storage::disk('public')->download($attachment->file_path, $attachment->original_name);
+    }
+
+    public function viewAttachment(ApprovalRequestAttachment $attachment)
+    {
+        $user = auth()->user();
+        $approvalRequest = $attachment->approvalRequest;
+        
+        // Check if user has access to this attachment
+        $hasAccess = false;
+        
+        // Allow if user has view_all_approvals permission
+        if ($user->hasPermission('view_all_approvals')) {
+            $hasAccess = true;
+        }
+        // Allow if user is the requester and has view_my_approvals permission
+        elseif ($user->hasPermission('view_my_approvals') && $approvalRequest->requester_id === $user->id) {
+            $hasAccess = true;
+        }
+        // Allow if user can approve this request and has view_pending_approvals permission
+        elseif ($user->hasPermission('view_pending_approvals') && $approvalRequest->canApprove($user->id)) {
+            $hasAccess = true;
+        }
+        
+        if (!$hasAccess) {
+            abort(403, 'Anda tidak memiliki akses untuk melihat file ini.');
+        }
+
+        if (!Storage::disk('public')->exists($attachment->file_path)) {
+            abort(404, 'File tidak ditemukan.');
+        }
+
+        // Check if file is PDF
+        if ($attachment->mime_type !== 'application/pdf') {
+            abort(400, 'File ini bukan PDF dan tidak dapat ditampilkan.');
+        }
+
+        $filePath = Storage::disk('public')->path($attachment->file_path);
+        
+        return response()->file($filePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $attachment->original_name . '"'
+        ]);
     }
 }

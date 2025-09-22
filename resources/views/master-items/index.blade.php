@@ -74,8 +74,16 @@
         </form>
     </x-slot>
 
-    <!-- Master Data Management Links -->
+    <!-- Add Data Button -->
     <div class="p-6 bg-white border-b border-gray-200">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">Master Barang</h2>
+            <button onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center">
+                <i class="fas fa-plus mr-2"></i>
+                Tambah Data
+            </button>
+        </div>
+        
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <a href="{{ route('item-types.index') }}" class="bg-green-100 hover:bg-green-200 p-4 rounded-lg text-center transition-colors duration-200">
                 <i class="fas fa-tags text-green-600 text-2xl mb-2"></i>
@@ -117,7 +125,19 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @foreach($masterItems as $item)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                    <tr class="hover:bg-gray-50 transition-colors duration-150" 
+                        data-item-id="{{ $item->id }}"
+                        data-item-name="{{ $item->name }}"
+                        data-item-code="{{ $item->code }}"
+                        data-item-type-id="{{ $item->item_type_id }}"
+                        data-item-category-id="{{ $item->item_category_id }}"
+                        data-commodity-id="{{ $item->commodity_id }}"
+                        data-unit-id="{{ $item->unit_id }}"
+                        data-stock="{{ $item->stock }}"
+                        data-hna="{{ $item->hna }}"
+                        data-ppn-percentage="{{ $item->ppn_percentage }}"
+                        data-is-active="{{ $item->is_active ? '1' : '0' }}"
+                        data-description="{{ $item->description }}">
                         <td class="w-1/4 px-6 py-4">
                             <div class="flex items-center min-w-0">
                                 <div class="flex-shrink-0 h-10 w-10">
@@ -166,9 +186,9 @@
                                 <a href="{{ route('master-items.show', $item) }}" class="text-blue-600 hover:text-blue-900 transition-colors duration-150">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ route('master-items.edit', $item) }}" class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150">
+                                <button onclick="openEditModalFromRow(this)" class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150">
                                     <i class="fas fa-edit"></i>
-                                </a>
+                                </button>
                                 <form action="{{ route('master-items.destroy', $item) }}" method="POST" class="inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus barang ini?')">
                                     @csrf
                                     @method('DELETE')
@@ -184,4 +204,7 @@
         </table>
     </div>
 </x-responsive-table>
+
+<!-- Include Modal Form -->
+@include('components.modals.form-master-items')
 @endsection
