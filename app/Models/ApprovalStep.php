@@ -106,7 +106,7 @@ class ApprovalStep extends Model
             case 'user':
                 return $this->approver_id == $userId;
             case 'role':
-                return $user->hasRole($this->approver_role_id);
+                return $user->role && $user->role->id == $this->approver_role_id;
             case 'department_manager':
                 $department = Department::find($this->approver_department_id);
                 return $department && $department->manager_id == $userId;

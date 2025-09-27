@@ -162,24 +162,7 @@ class ApprovalRequestController extends Controller
 
     public function show(ApprovalRequest $approvalRequest)
     {
-        // Check if user has permission to view this approval request
-        $user = auth()->user();
-        
-        // Allow if user has view_all_approvals permission
-        if ($user->hasPermission('view_all_approvals')) {
-            // User can view all approval requests
-        }
-        // Allow if user is the requester and has view_my_approvals permission
-        elseif ($user->hasPermission('view_my_approvals') && $approvalRequest->requester_id === $user->id) {
-            // User can view their own requests
-        }
-        // Allow if user can approve this request and has view_pending_approvals permission
-        elseif ($user->hasPermission('view_pending_approvals') && $approvalRequest->canApprove($user->id)) {
-            // User can view requests they can approve
-        }
-        else {
-            abort(403, 'Anda tidak memiliki akses untuk melihat approval request ini.');
-        }
+        // Allow all authenticated users to view approval requests
 
         $approvalRequest->load([
             'workflow', 
@@ -200,8 +183,8 @@ class ApprovalRequestController extends Controller
 
     public function edit(ApprovalRequest $approvalRequest)
     {
-        // Only allow edit if status is pending and user is the requester
-        if ($approvalRequest->status !== 'pending' || $approvalRequest->requester_id !== auth()->id()) {
+        // Only allow edit if status is pending or on progress and user is the requester
+        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || $approvalRequest->requester_id !== auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk mengedit request ini.');
         }
 
@@ -221,8 +204,8 @@ class ApprovalRequestController extends Controller
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
     {
-        // Only allow update if status is pending and user is the requester
-        if ($approvalRequest->status !== 'pending' || $approvalRequest->requester_id !== auth()->id()) {
+        // Only allow update if status is pending or on progress and user is the requester
+        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || $approvalRequest->requester_id !== auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk mengedit request ini.');
         }
 
@@ -313,13 +296,21 @@ class ApprovalRequestController extends Controller
 
     public function destroy(ApprovalRequest $approvalRequest)
     {
-        // Only allow delete if status is pending and user is the requester
-        if ($approvalRequest->status !== 'pending' || $approvalRequest->requester_id !== auth()->id()) {
+        // Only allow delete if status is pending or on progress and user is the requester
+        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || $approvalRequest->requester_id !== auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk menghapus request ini.');
         }
 
         $approvalRequest->delete();
-        return redirect()->route('approval-requests.index')->with('success', 'Approval request berhasil dihapus!');
+        
+        // Redirect based on user permissions
+        if (auth()->user()->hasPermission('view_all_approvals')) {
+            return redirect()->route('approval-requests.index')->with('success', 'Approval request berhasil dihapus!');
+        } elseif (auth()->user()->hasPermission('view_my_approvals')) {
+            return redirect()->route('approval-requests.my-requests')->with('success', 'Approval request berhasil dihapus!');
+        } else {
+            return redirect()->route('dashboard')->with('success', 'Approval request berhasil dihapus!');
+        }
     }
 
     public function approve(Request $request, ApprovalRequest $approvalRequest)
@@ -388,15 +379,22 @@ class ApprovalRequestController extends Controller
 
     public function cancel(ApprovalRequest $approvalRequest)
     {
-        // Only allow cancel if status is pending and user is the requester
-        if ($approvalRequest->status !== 'pending' || $approvalRequest->requester_id !== auth()->id()) {
+        // Only allow cancel if status is pending or on progress and user is the requester
+        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || $approvalRequest->requester_id !== auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk membatalkan request ini.');
         }
 
         $success = $approvalRequest->cancel(auth()->id());
 
         if ($success) {
-            return redirect()->route('approval-requests.index')->with('success', 'Request berhasil dibatalkan!');
+            // Redirect based on user permissions
+            if (auth()->user()->hasPermission('view_all_approvals')) {
+                return redirect()->route('approval-requests.index')->with('success', 'Request berhasil dibatalkan!');
+            } elseif (auth()->user()->hasPermission('view_my_approvals')) {
+                return redirect()->route('approval-requests.my-requests')->with('success', 'Request berhasil dibatalkan!');
+            } else {
+                return redirect()->route('dashboard')->with('success', 'Request berhasil dibatalkan!');
+            }
         } else {
             return redirect()->back()->with('error', 'Gagal membatalkan request.');
         }

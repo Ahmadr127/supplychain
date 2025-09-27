@@ -22,6 +22,7 @@
             <div class="w-32">
                 <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     <option value="">Semua Status</option>
+                    <option value="on progress" {{ request('status') == 'on progress' ? 'selected' : '' }}>On Progress</option>
                     <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
                     <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
                     <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
@@ -85,30 +86,38 @@
                                     @php
                                         $stepStatus = 'pending';
                                         $stepColor = 'bg-gray-100 text-gray-600';
+                                        $stepStatusText = 'Pending';
                                         
                                         if ($request->status == 'approved') {
                                             // If request is fully approved, all steps should be green
                                             $stepStatus = 'completed';
                                             $stepColor = 'bg-green-600 text-white';
+                                            $stepStatusText = 'Approved';
                                         } elseif ($request->status == 'rejected') {
                                             // If request is rejected, steps at or after current step should be red
                                             if ($step->step_number >= $request->current_step) {
                                                 $stepColor = 'bg-red-600 text-white';
+                                                $stepStatusText = 'Rejected';
                                             } else {
                                                 $stepColor = 'bg-green-600 text-white';
+                                                $stepStatusText = 'Approved';
                                             }
                                         } else {
-                                            // For pending requests
+                                            // For on progress and pending requests
                                             if ($step->step_number < $request->current_step) {
                                                 $stepStatus = 'completed';
                                                 $stepColor = 'bg-green-600 text-white';
+                                                $stepStatusText = 'Approved';
                                             } elseif ($step->step_number == $request->current_step) {
                                                 $stepStatus = 'current';
                                                 $stepColor = 'bg-blue-600 text-white';
+                                                $stepStatusText = 'On Progress';
                                             }
                                         }
                                     @endphp
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap flex-shrink-0 {{ $stepColor }}">
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap flex-shrink-0 {{ $stepColor }} cursor-pointer hover:opacity-80 transition-opacity" 
+                                          onclick="showStepStatus('{{ $step->step_name }}', '{{ $stepStatusText }}', '{{ $step->step_number }}', '{{ $request->id }}')"
+                                          title="Klik untuk melihat detail status">
                                         {{ $step->step_name }}
                                     </span>
                                 @endforeach
@@ -117,10 +126,11 @@
                     </td>
                     <td class="w-20 px-2 py-1">
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
-                            {{ $request->status == 'pending' ? 'bg-yellow-500 text-white' : 
+                            {{ $request->status == 'on progress' ? 'bg-blue-500 text-white' : 
+                               ($request->status == 'pending' ? 'bg-yellow-500 text-white' : 
                                ($request->status == 'approved' ? 'bg-green-600 text-white' : 
-                               ($request->status == 'rejected' ? 'bg-red-600 text-white' : 'bg-gray-500 text-white')) }}">
-                            {{ ucfirst($request->status) }}
+                               ($request->status == 'rejected' ? 'bg-red-600 text-white' : 'bg-gray-500 text-white'))) }}">
+                            {{ $request->status == 'on progress' ? 'On Progress' : ucfirst($request->status) }}
                         </span>
                     </td>
                     <td class="w-20 px-2 py-1 text-sm font-medium">
@@ -158,5 +168,93 @@ function deleteRequest(requestId) {
         form.submit();
     }
 }
+
+function showStepStatus(stepName, status, stepNumber, requestId) {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('stepStatusModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'stepStatusModal';
+        modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden';
+        modal.innerHTML = `
+            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-lg font-medium text-gray-900">Detail Status Step</h3>
+                        <button onclick="closeStepStatusModal()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="stepStatusContent">
+                        <!-- Content will be populated here -->
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    // Populate content
+    const content = document.getElementById('stepStatusContent');
+    content.innerHTML = `
+        <div class="space-y-3">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Nama Step</label>
+                <p class="text-sm text-gray-900">${stepName}</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Status</label>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}">
+                    ${status}
+                </span>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Step Number</label>
+                <p class="text-sm text-gray-900">${stepNumber}</p>
+            </div>
+            <div class="pt-3">
+                <button onclick="closeStepStatusModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Show modal
+    modal.classList.remove('hidden');
+}
+
+function closeStepStatusModal() {
+    const modal = document.getElementById('stepStatusModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function getStatusColor(status) {
+    switch(status.toLowerCase()) {
+        case 'approved':
+            return 'bg-green-100 text-green-800';
+        case 'rejected':
+            return 'bg-red-100 text-red-800';
+        case 'on progress':
+            return 'bg-blue-100 text-blue-800';
+        case 'pending':
+        default:
+            return 'bg-yellow-100 text-yellow-800';
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('stepStatusModal');
+    if (modal && !modal.classList.contains('hidden')) {
+        if (e.target === modal) {
+            closeStepStatusModal();
+        }
+    }
+});
 </script>
 @endsection

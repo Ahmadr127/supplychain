@@ -67,7 +67,7 @@ class ApprovalWorkflow extends Model
             'priority' => $priority,
             'is_cto_request' => $isCtoRequest,
             'total_steps' => count($this->workflow_steps),
-            'status' => 'pending'
+            'status' => 'on progress'
         ]);
 
         // Buat approval steps

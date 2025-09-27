@@ -66,7 +66,7 @@ class User extends Authenticatable
 
     public function hasPermission($permission)
     {
-        return $this->role->hasPermission($permission);
+        return $this->role && $this->role->hasPermission($permission);
     }
 
     // Relasi dengan departments melalui pivot table

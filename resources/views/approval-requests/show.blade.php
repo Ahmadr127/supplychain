@@ -13,11 +13,28 @@
                     <p class="text-sm text-gray-600">{{ $approvalRequest->request_number }}</p>
                 </div>
                 <div class="flex space-x-2">
-                    <a href="{{ route('approval-requests.index') }}" 
-                       class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
-                        Kembali
-                    </a>
-                    @if($approvalRequest->status == 'pending' && $approvalRequest->requester_id == auth()->id())
+                    @if(auth()->user()->hasPermission('view_all_approvals'))
+                        <a href="{{ route('approval-requests.index') }}" 
+                           class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
+                            Kembali ke Semua Requests
+                        </a>
+                    @elseif(auth()->user()->hasPermission('view_my_approvals'))
+                        <a href="{{ route('approval-requests.my-requests') }}" 
+                           class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
+                            Kembali ke My Requests
+                        </a>
+                    @elseif(auth()->user()->hasPermission('view_pending_approvals'))
+                        <a href="{{ route('approval-requests.pending-approvals') }}" 
+                           class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
+                            Kembali ke Pending Approvals
+                        </a>
+                    @else
+                        <a href="{{ route('dashboard') }}" 
+                           class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
+                            Kembali ke Dashboard
+                        </a>
+                    @endif
+                    @if(($approvalRequest->status == 'pending' || $approvalRequest->status == 'on progress') && $approvalRequest->requester_id == auth()->id())
                         <a href="{{ route('approval-requests.edit', $approvalRequest) }}" 
                            class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded text-sm">
                             Edit
@@ -191,8 +208,55 @@
                         </div>
                     </div>
 
+                    <!-- Request Status Info -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <h3 class="text-base font-semibold text-gray-900 mb-3">Status Request</h3>
+                        
+                        @if($approvalRequest->status == 'on progress' || $approvalRequest->status == 'pending')
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div class="flex items-center">
+                                <div class="h-3 w-3 rounded-full bg-blue-500 mr-2"></div>
+                                <span class="text-sm font-medium text-blue-900">On Progress</span>
+                            </div>
+                            <p class="text-xs text-blue-700 mt-1">Request sedang dalam proses approval</p>
+                        </div>
+                        @elseif($approvalRequest->status == 'approved')
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div class="flex items-center">
+                                <div class="h-3 w-3 rounded-full bg-green-500 mr-2"></div>
+                                <span class="text-sm font-medium text-green-900">Approved</span>
+                            </div>
+                            <p class="text-xs text-green-700 mt-1">
+                                Request telah disetujui pada {{ $approvalRequest->approved_at->format('d/m/Y H:i') }}
+                            </p>
+                        </div>
+                        @elseif($approvalRequest->status == 'rejected')
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div class="flex items-center">
+                                <div class="h-3 w-3 rounded-full bg-red-500 mr-2"></div>
+                                <span class="text-sm font-medium text-red-900">Rejected</span>
+                            </div>
+                            <p class="text-xs text-red-700 mt-1">
+                                Request ditolak pada {{ $approvalRequest->approved_at->format('d/m/Y H:i') }}
+                            </p>
+                            @if($approvalRequest->rejection_reason)
+                            <p class="text-xs text-red-600 mt-2">
+                                <strong>Alasan:</strong> {{ $approvalRequest->rejection_reason }}
+                            </p>
+                            @endif
+                        </div>
+                        @else
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <div class="flex items-center">
+                                <div class="h-3 w-3 rounded-full bg-gray-500 mr-2"></div>
+                                <span class="text-sm font-medium text-gray-900">{{ ucfirst($approvalRequest->status) }}</span>
+                            </div>
+                        </div>
+                        @endif
+                    </div>
+
                     <!-- Approval Actions -->
-                    @if($approvalRequest->status == 'pending')
+                    @if($approvalRequest->status == 'on progress' || $approvalRequest->status == 'pending')
                         @php
                             $currentStep = $approvalRequest->currentStep;
                             $canApprove = false;
@@ -205,6 +269,11 @@
                         @if($canApprove)
                         <div class="bg-white border border-gray-200 rounded-lg p-4">
                             <h3 class="text-base font-semibold text-gray-900 mb-3">Approval Actions</h3>
+                            <div class="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                                <strong>Debug Info:</strong> You can approve this request. Current step: {{ $currentStep->step_name }}, 
+                                Approver type: {{ $currentStep->approver_type }}, 
+                                User ID: {{ auth()->id() }}
+                            </div>
                             
                             <!-- Approve Form -->
                             <form action="{{ route('approval-requests.approve', $approvalRequest) }}" method="POST" class="mb-3">
@@ -251,7 +320,9 @@
                             @if($currentStep)
                                 <div class="mt-2 text-xs text-gray-500">
                                     <strong>Current Step:</strong> {{ $currentStep->step_name }}<br>
-                                    <strong>Approver Type:</strong> {{ ucfirst(str_replace('_', ' ', $currentStep->approver_type)) }}
+                                    <strong>Approver Type:</strong> {{ ucfirst(str_replace('_', ' ', $currentStep->approver_type)) }}<br>
+                                    <strong>Debug Info:</strong> User ID: {{ auth()->id() }}, 
+                                    Can Approve: {{ $currentStep->canApprove(auth()->id()) ? 'Yes' : 'No' }}
                                 </div>
                             @endif
                         </div>
@@ -281,7 +352,7 @@
                     @endif
 
                     <!-- Request Actions -->
-                    @if($approvalRequest->status == 'pending' && $approvalRequest->requester_id == auth()->id())
+                    @if(($approvalRequest->status == 'pending' || $approvalRequest->status == 'on progress') && $approvalRequest->requester_id == auth()->id())
                     <div class="bg-white border border-gray-200 rounded-lg p-4">
                         <h3 class="text-base font-semibold text-gray-900 mb-3">Request Actions</h3>
                         <form action="{{ route('approval-requests.cancel', $approvalRequest) }}" method="POST">
@@ -297,81 +368,74 @@
                 </div>
             </div>
 
-            <!-- Approval Steps -->
+            <!-- Progress Overview - Only for Request Creator -->
+            @if($approvalRequest->requester_id == auth()->id())
             <div class="mt-4">
                 <div class="bg-white border border-gray-200 rounded-lg">
                     <div class="px-4 py-2 border-b border-gray-200">
-                        <h3 class="text-sm font-semibold text-gray-900">Approval Steps</h3>
+                        <h3 class="text-sm font-semibold text-gray-900">Progress Overview</h3>
                     </div>
-                    <div class="p-3">
-                        <div class="space-y-2">
-                            @foreach($approvalRequest->steps as $step)
-                            <div class="flex items-center p-2 border border-gray-200 rounded-lg
-                                {{ $step->status == 'approved' ? 'bg-green-50 border-green-200' : 
-                                   ($step->status == 'rejected' ? 'bg-red-50 border-red-200' : 
-                                   ($step->step_number == $approvalRequest->current_step ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50')) }}">
-                                
-                                <div class="flex-shrink-0">
-                                    @if($step->status == 'approved')
-                                        <div class="h-5 w-5 rounded-full bg-green-500 flex items-center justify-center">
-                                            <i class="fas fa-check text-white text-xs"></i>
-                                        </div>
-                                    @elseif($step->status == 'rejected')
-                                        <div class="h-5 w-5 rounded-full bg-red-500 flex items-center justify-center">
-                                            <i class="fas fa-times text-white text-xs"></i>
-                                        </div>
-                                    @elseif($step->step_number == $approvalRequest->current_step)
-                                        <div class="h-5 w-5 rounded-full bg-yellow-500 flex items-center justify-center">
-                                            <i class="fas fa-clock text-white text-xs"></i>
-                                        </div>
-                                    @else
-                                        <div class="h-5 w-5 rounded-full bg-gray-300 flex items-center justify-center">
-                                            <span class="text-gray-600 text-xs font-medium">{{ $step->step_number }}</span>
-                                        </div>
-                                    @endif
-                                </div>
-                                
-                                <div class="ml-2 flex-1">
-                                    <div class="flex items-center justify-between">
-                                        <div>
-                                            <p class="text-xs font-medium text-gray-900">{{ $step->step_name }}</p>
-                                            <p class="text-xs text-gray-500">
-                                                @if($step->approver_type == 'user' && $step->approver)
-                                                    {{ $step->approver->name }}
-                                                @elseif($step->approver_type == 'role' && $step->approverRole)
-                                                    {{ $step->approverRole->display_name }}
-                                                @elseif($step->approver_type == 'department_manager' && $step->approverDepartment)
-                                                    {{ $step->approverDepartment->name }} Manager
-                                                @elseif($step->approver_type == 'department_level')
-                                                    Level {{ $step->approver_level }}
-                                                @endif
-                                            </p>
-                                        </div>
-                                        <div class="text-right">
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium
-                                                {{ $step->status == 'approved' ? 'bg-green-100 text-green-800' : 
-                                                   ($step->status == 'rejected' ? 'bg-red-100 text-red-800' : 
-                                                   ($step->step_number == $approvalRequest->current_step ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800')) }}">
-                                                {{ ucfirst($step->status) }}
-                                            </span>
-                                            @if($step->approved_at)
-                                                <p class="text-xs text-gray-500 mt-1">{{ $step->approved_at->format('d/m H:i') }}</p>
-                                            @endif
-                                        </div>
-                                    </div>
-                                    
-                                    @if($step->comments)
-                                    <div class="mt-1 p-1 bg-white border border-gray-200 rounded">
-                                        <p class="text-xs text-gray-600">{{ $step->comments }}</p>
-                                    </div>
-                                    @endif
-                                </div>
+                    <div class="p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="text-sm text-gray-600">
+                                Step {{ $approvalRequest->current_step }} dari {{ $approvalRequest->total_steps }}
                             </div>
+                            <div class="text-sm font-medium text-gray-900">
+                                {{ round(($approvalRequest->current_step / $approvalRequest->total_steps) * 100) }}% Complete
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
+                            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                 style="width: {{ ($approvalRequest->current_step / $approvalRequest->total_steps) * 100 }}%"></div>
+                        </div>
+                        
+                        <!-- Workflow Steps -->
+                        <div class="space-y-2">
+                            @foreach($approvalRequest->workflow->steps as $step)
+                                @php
+                                    $stepStatus = 'pending';
+                                    $stepColor = 'bg-gray-100 text-gray-600';
+                                    $stepStatusText = 'Pending';
+                                    
+                                    if ($approvalRequest->status == 'approved') {
+                                        $stepStatus = 'completed';
+                                        $stepColor = 'bg-green-100 text-green-800';
+                                        $stepStatusText = 'Approved';
+                                    } elseif ($approvalRequest->status == 'rejected') {
+                                        if ($step->step_number >= $approvalRequest->current_step) {
+                                            $stepColor = 'bg-red-100 text-red-800';
+                                            $stepStatusText = 'Rejected';
+                                        } else {
+                                            $stepColor = 'bg-green-100 text-green-800';
+                                            $stepStatusText = 'Approved';
+                                        }
+                                    } else {
+                                        if ($step->step_number < $approvalRequest->current_step) {
+                                            $stepStatus = 'completed';
+                                            $stepColor = 'bg-green-100 text-green-800';
+                                            $stepStatusText = 'Approved';
+                                        } elseif ($step->step_number == $approvalRequest->current_step) {
+                                            $stepStatus = 'current';
+                                            $stepColor = 'bg-blue-100 text-blue-800';
+                                            $stepStatusText = 'On Progress';
+                                        }
+                                    }
+                                @endphp
+                                <div class="flex items-center justify-between p-2 border border-gray-200 rounded-lg {{ $stepColor }}">
+                                    <div class="flex items-center">
+                                        <div class="h-2 w-2 rounded-full mr-2 {{ $stepStatus == 'completed' ? 'bg-green-500' : ($stepStatus == 'current' ? 'bg-blue-500' : 'bg-gray-300') }}"></div>
+                                        <span class="text-sm font-medium">{{ $step->step_name }}</span>
+                                    </div>
+                                    <span class="text-xs font-medium">{{ $stepStatusText }}</span>
+                                </div>
                             @endforeach
                         </div>
                     </div>
                 </div>
             </div>
+            @endif
         </div>
     </div>
 </div>

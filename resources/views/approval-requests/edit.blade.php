@@ -106,6 +106,18 @@
 
                     <!-- Right Column - Request Info & Status (40%) -->
                     <div class="lg:col-span-2 space-y-4">
+                        <!-- Request Status Info -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-3">
+                            <h3 class="text-base font-semibold text-gray-900 mb-2">Status Request</h3>
+                            <div class="space-y-2">
+                                <div class="flex items-center">
+                                    <div class="h-3 w-3 rounded-full bg-blue-500 mr-2"></div>
+                                    <span class="text-sm text-gray-700">Request saat ini dalam status "{{ ucfirst($approvalRequest->status) }}"</span>
+                                </div>
+                                <p class="text-xs text-gray-500">Status akan berubah otomatis sesuai dengan tahap approval yang telah ditentukan.</p>
+                            </div>
+                        </div>
+
                         <!-- Request Type -->
                         <div class="bg-white border border-gray-200 rounded-lg p-3">
                             <h3 class="text-base font-semibold text-gray-900 mb-2">Tipe Request</h3>

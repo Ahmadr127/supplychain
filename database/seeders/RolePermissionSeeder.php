@@ -78,7 +78,6 @@ class RolePermissionSeeder extends Seeder
         $technicalExpertRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
-                'view_all_approvals',
                 'view_my_approvals',
                 'view_pending_approvals',
                 'manage_approvals',
@@ -89,7 +88,6 @@ class RolePermissionSeeder extends Seeder
         $managerPemintaRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
-                'view_all_approvals',
                 'view_my_approvals',
                 'view_pending_approvals',
                 'manage_approvals',
@@ -100,7 +98,6 @@ class RolePermissionSeeder extends Seeder
         $managerItRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
-                'view_all_approvals',
                 'view_my_approvals',
                 'view_pending_approvals',
                 'manage_approvals',
@@ -111,7 +108,6 @@ class RolePermissionSeeder extends Seeder
         $managerKeuanganRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
-                'view_all_approvals',
                 'view_my_approvals',
                 'view_pending_approvals',
                 'manage_approvals',
@@ -122,7 +118,6 @@ class RolePermissionSeeder extends Seeder
         $direkturRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_dashboard',
-                'view_all_approvals',
                 'view_my_approvals',
                 'view_pending_approvals',
                 'manage_approvals',

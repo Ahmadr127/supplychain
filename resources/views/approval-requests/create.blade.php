@@ -100,38 +100,41 @@
 
                     </div>
 
-                    <!-- Right Column - Workflow & Info (40%) -->
+                    <!-- Right Column - Request Info (40%) -->
                     <div class="lg:col-span-2 space-y-4">
-                    <!-- Workflow Selection -->
+                        <!-- Request Status Info -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-3">
+                            <h3 class="text-base font-semibold text-gray-900 mb-2">Status Request</h3>
+                            <div class="space-y-2">
+                                <div class="flex items-center">
+                                    <div class="h-3 w-3 rounded-full bg-blue-500 mr-2"></div>
+                                    <span class="text-sm text-gray-700">Request akan dimulai dengan status "On Progress"</span>
+                                </div>
+                                <p class="text-xs text-gray-500">Status akan berubah otomatis sesuai dengan tahap approval yang telah ditentukan.</p>
+                            </div>
+                        </div>
+
+                        <!-- Workflow Selection -->
                         <div class="bg-white border border-gray-200 rounded-lg p-3">
                             <h3 class="text-base font-semibold text-gray-900 mb-2">Workflow Approval</h3>
-                    <div>
+                            <div>
                                 <label for="workflow_id" class="block text-sm font-medium text-gray-700 mb-1">
-                            Pilih Workflow <span class="text-red-500">*</span>
-                        </label>
-                        <select id="workflow_id" name="workflow_id" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('workflow_id') border-red-500 @enderror"
-                                onchange="loadWorkflowSteps(this.value)">
-                            <option value="">Pilih Workflow</option>
-                            @foreach($workflows as $workflow)
-                                <option value="{{ $workflow->id }}" {{ old('workflow_id') == $workflow->id ? 'selected' : '' }}>
-                                    {{ $workflow->name }} ({{ $workflow->type }})
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('workflow_id')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <!-- Workflow Steps Preview -->
-                            <div id="workflowStepsPreview" class="hidden mt-3">
-                                <h4 class="text-sm font-medium text-gray-900 mb-2">Tahap Approval</h4>
-                                <div id="stepsList" class="space-y-1">
-                            <!-- Steps will be loaded here -->
+                                    Pilih Workflow <span class="text-red-500">*</span>
+                                </label>
+                                <select id="workflow_id" name="workflow_id" required
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('workflow_id') border-red-500 @enderror">
+                                    <option value="">Pilih Workflow</option>
+                                    @foreach($workflows as $workflow)
+                                        <option value="{{ $workflow->id }}" {{ old('workflow_id') == $workflow->id ? 'selected' : '' }}>
+                                            {{ $workflow->name }} ({{ $workflow->type }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('workflow_id')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
                         </div>
-                    </div>
-                    </div>
 
                         <!-- Request Type -->
                         <div class="bg-white border border-gray-200 rounded-lg p-3">
@@ -211,79 +214,12 @@ let allMasterItems = {!! json_encode($masterItems, JSON_HEX_APOS | JSON_HEX_QUOT
 
 // Initialize the page
 document.addEventListener('DOMContentLoaded', function() {
-    const workflowId = document.getElementById('workflow_id').value;
-    if (workflowId) {
-        loadWorkflowSteps(workflowId);
-    }
-    
     // Initialize item search functionality
     initializeItemSearch();
     
     // Initialize file preview
     initializeFilePreview();
 });
-
-function loadWorkflowSteps(workflowId) {
-    if (!workflowId) {
-        document.getElementById('workflowStepsPreview').classList.add('hidden');
-        return;
-    }
-
-    // Get workflow data from the select option
-    const select = document.getElementById('workflow_id');
-    const selectedOption = select.options[select.selectedIndex];
-    const workflowName = selectedOption.text.split(' (')[0];
-    
-    // Show loading state
-    const stepsList = document.getElementById('stepsList');
-    stepsList.innerHTML = `
-        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div class="flex items-center">
-                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                <p class="text-sm text-gray-600">Memuat workflow steps...</p>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('workflowStepsPreview').classList.remove('hidden');
-    
-    // Fetch workflow steps via AJAX
-    fetch(`/api/workflows/${workflowId}/steps`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.steps) {
-                let stepsHtml = '<div class="flex flex-wrap gap-2">';
-                data.steps.forEach((step, index) => {
-                    stepsHtml += `
-                        <div class="flex items-center p-2 border border-gray-200 rounded-lg bg-white min-w-0 flex-1">
-                            <div class="min-w-0 flex-1">
-                                <p class="text-xs font-medium text-gray-900 break-words">${step.name}</p>
-                            </div>
-                        </div>
-                    `;
-                });
-                stepsHtml += '</div>';
-                
-                stepsList.innerHTML = stepsHtml;
-            } else {
-                stepsList.innerHTML = `
-                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <p class="text-sm text-yellow-800">Tidak dapat memuat workflow steps.</p>
-                        <p class="text-xs text-yellow-600 mt-1">Request akan melalui tahap approval sesuai dengan workflow yang dipilih.</p>
-                    </div>
-                `;
-            }
-        })
-        .catch(error => {
-            console.error('Error loading workflow steps:', error);
-            stepsList.innerHTML = `
-                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p class="text-sm text-red-800">Error memuat workflow steps.</p>
-                    <p class="text-xs text-red-600 mt-1">Request akan melalui tahap approval sesuai dengan workflow yang dipilih.</p>
-                </div>
-            `;
-        });
-}
 
 
 // Item search and selection functionality

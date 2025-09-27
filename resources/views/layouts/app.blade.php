@@ -173,19 +173,6 @@
                 </div>
                 @endif
 
-                <!-- User Profile Section -->
-                <div class="mt-8 pt-6 border-t border-green-600">
-                    <div class="flex items-center px-4 py-3 text-white" :class="sidebarCollapsed ? 'justify-center' : ''">
-                        <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center" :class="sidebarCollapsed ? '' : 'mr-3'">
-                            <i class="fas fa-user text-sm"></i>
-                        </div>
-                        <div x-show="!sidebarCollapsed" class="flex-1 overflow-hidden">
-                            <div class="text-sm font-medium truncate">{{ auth()->user()->name }}</div>
-                            <div class="text-xs text-green-200 truncate">{{ auth()->user()->role->display_name ?? 'User' }}</div>
-                        </div>
-                        <i x-show="!sidebarCollapsed" class="fas fa-chevron-down text-xs text-green-200"></i>
-                    </div>
-                </div>
             </nav>
         </div>
 
@@ -194,29 +181,87 @@
             <!-- Top Navigation Bar -->
             <header class="bg-white shadow-sm border-b border-gray-200">
                 <div class="flex items-center justify-between h-16 px-6">
-                    <div class="flex items-center">
-                        <button @click="window.innerWidth >= 1024 ? toggleSidebar() : sidebarOpen = !sidebarOpen" class="mr-4 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors" :title="window.innerWidth >= 1024 ? (sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar') : (sidebarOpen ? 'Close menu' : 'Open menu')">
+                    <div class="flex items-center space-x-4">
+                        <button @click="window.innerWidth >= 1024 ? toggleSidebar() : sidebarOpen = !sidebarOpen" 
+                                class="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50" 
+                                :title="window.innerWidth >= 1024 ? (sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar') : (sidebarOpen ? 'Close menu' : 'Open menu')">
                             <!-- Mobile icon -->
-                            <i class="fas" :class="sidebarOpen ? 'fa-xmark' : 'fa-bars'" class="lg:hidden"></i>
+                            <i class="fas text-lg" :class="sidebarOpen ? 'fa-xmark' : 'fa-bars'" class="lg:hidden"></i>
                             <!-- Desktop icon -->
-                            <i class="fas hidden lg:inline" :class="sidebarCollapsed ? 'fa-angles-right' : 'fa-angles-left'"></i>
+                            <i class="fas text-lg hidden lg:inline" :class="sidebarCollapsed ? 'fa-angles-right' : 'fa-angles-left'"></i>
                         </button>
-                        <div>
+                        
+                        <div class="hidden sm:block">
                             <h2 class="text-xl font-semibold text-gray-800">@yield('title', 'Dashboard')</h2>
                             <p class="text-sm text-gray-500">Supply Chain Management System</p>
                         </div>
+                        
+                        <!-- Mobile Title -->
+                        <div class="sm:hidden">
+                            <h2 class="text-lg font-semibold text-gray-800">@yield('title', 'Dashboard')</h2>
+                        </div>
                     </div>
                     
-                    <div class="flex items-center space-x-4">
-                        <div class="text-sm text-gray-600">
+                    <div class="flex items-center space-x-3">
+                        <div class="text-sm text-gray-500">
                             {{ now()->format('d M Y, H:i') }}
                         </div>
-                        <form method="POST" action="{{ route('logout') }}" class="inline">
-                            @csrf
-                            <button type="submit" class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors" onclick="return confirm('Apakah Anda yakin ingin keluar?')">
-                                <i class="fas fa-sign-out-alt"></i>
+                        
+                        <!-- User Dropdown -->
+                        <div class="relative" x-data="{ open: false }" @click.away="open = false">
+                            <button @click="open = !open" class="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+                                <div class="w-7 h-7 bg-green-600 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-user text-xs text-white"></i>
+                                </div>
+                                <div class="text-sm font-medium text-gray-700">{{ auth()->user()->name }}</div>
+                                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform" :class="{ 'rotate-180': open }"></i>
                             </button>
-                        </form>
+                            
+                            <!-- Dropdown Menu -->
+                            <div x-show="open" 
+                                 x-transition:enter="transition ease-out duration-100"
+                                 x-transition:enter-start="transform opacity-0 scale-95"
+                                 x-transition:enter-end="transform opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-75"
+                                 x-transition:leave-start="transform opacity-100 scale-100"
+                                 x-transition:leave-end="transform opacity-0 scale-95"
+                                 class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                
+                                <!-- Menu Items -->
+                                <div class="py-1">
+                                    <a href="{{ route('dashboard') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                                        <i class="fas fa-home w-4 h-4 mr-2 text-gray-400"></i>
+                                        Dashboard
+                                    </a>
+                                    
+                                    @if(auth()->user()->hasPermission('view_my_approvals'))
+                                    <a href="{{ route('approval-requests.my-requests') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                                        <i class="fas fa-file-alt w-4 h-4 mr-2 text-gray-400"></i>
+                                        My Requests
+                                    </a>
+                                    @endif
+                                    
+                                    @if(auth()->user()->hasPermission('view_pending_approvals'))
+                                    <a href="{{ route('approval-requests.pending-approvals') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                                        <i class="fas fa-clock w-4 h-4 mr-2 text-gray-400"></i>
+                                        Pending Approvals
+                                    </a>
+                                    @endif
+                                    
+                                    <div class="border-t border-gray-100 my-1"></div>
+                                    
+                                    <form method="POST" action="{{ route('logout') }}" class="block">
+                                        @csrf
+                                        <button type="submit" 
+                                                class="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                                onclick="return confirm('Apakah Anda yakin ingin keluar?')">
+                                            <i class="fas fa-sign-out-alt w-4 h-4 mr-2"></i>
+                                            Logout
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </header>
