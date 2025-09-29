@@ -70,6 +70,31 @@
                                 <label class="block text-sm font-medium text-gray-700">Dibuat</label>
                                 <p class="mt-1 text-sm text-gray-900">{{ $approvalWorkflow->created_at->format('d M Y H:i') }}</p>
                             </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Tipe Barang</label>
+                                <p class="mt-1">
+                                    @if($approvalWorkflow->itemType)
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                            {{ $approvalWorkflow->itemType->name }}
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            Umum (Semua Tipe)
+                                        </span>
+                                    @endif
+                                </p>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Jenis Workflow</label>
+                                <p class="mt-1">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                        {{ $approvalWorkflow->is_specific_type ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800' }}">
+                                        {{ $approvalWorkflow->is_specific_type ? 'Khusus' : 'Umum' }}
+                                    </span>
+                                </p>
+                            </div>
                         </div>
                         
                         @if($approvalWorkflow->description)

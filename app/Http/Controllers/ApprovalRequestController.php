@@ -59,26 +59,43 @@ class ApprovalRequestController extends Controller
 
     public function create()
     {
-        $workflows = ApprovalWorkflow::where('is_active', true)->get();
+        // Get all active item types for radio button selection
+        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        
+        // Get default general workflow (not specific to any item type)
+        $defaultWorkflow = ApprovalWorkflow::where('is_active', true)
+            ->where('is_specific_type', false)
+            ->where('type', 'standard')
+            ->first();
+            
+        if (!$defaultWorkflow) {
+            // If no general workflow exists, get the first active workflow
+            $defaultWorkflow = ApprovalWorkflow::where('is_active', true)->first();
+        }
+        
+        if (!$defaultWorkflow) {
+            abort(500, 'Tidak ada workflow yang tersedia. Silakan hubungi administrator.');
+        }
+        
+        // Get all master items for search
         $masterItems = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit'])->get();
         
         // Add dropdown data for the modal
-        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
         $itemCategories = \App\Models\ItemCategory::where('is_active', true)->get();
         $commodities = \App\Models\Commodity::where('is_active', true)->get();
         $units = \App\Models\Unit::where('is_active', true)->get();
         
-        return view('approval-requests.create', compact('workflows', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
+        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
     }
 
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'workflow_id' => 'required|exists:approval_workflows,id',
+            'item_type_id' => 'required|exists:item_types,id',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number',
-            'request_type' => 'required|in:normal,cto',
             'items' => 'nullable|array',
             'items.*.master_item_id' => 'required_with:items|exists:master_items,id',
             'items.*.quantity' => 'required_with:items|integer|min:1',
@@ -93,6 +110,9 @@ class ApprovalRequestController extends Controller
         }
 
         $workflow = ApprovalWorkflow::findOrFail($request->workflow_id);
+        
+        // All requests are now specific to item type
+        $isSpecificType = true;
         
         // Generate request number if not provided
         $requestNumber = $request->request_number;
@@ -113,9 +133,15 @@ class ApprovalRequestController extends Controller
             title: $request->title,
             description: $request->description,
             requestNumber: $requestNumber,
-            priority: $request->request_type === 'cto' ? 'high' : 'normal',
-            isCtoRequest: $request->request_type === 'cto'
+            priority: 'normal',
+            isCtoRequest: false
         );
+
+        // Update approval request with item type information
+        $approvalRequest->update([
+            'item_type_id' => $request->item_type_id,
+            'is_specific_type' => $isSpecificType
+        ]);
 
         // Handle items
         if ($request->has('items') && is_array($request->items)) {
@@ -188,18 +214,46 @@ class ApprovalRequestController extends Controller
             abort(403, 'Anda tidak memiliki akses untuk mengedit request ini.');
         }
 
-        $workflows = ApprovalWorkflow::where('is_active', true)->get();
+        // Get all active item types for radio button selection
+        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        
+        // Get workflow based on item type or default general workflow
+        $defaultWorkflow = null;
+        if ($approvalRequest->item_type_id) {
+            // Try to get specific workflow for this item type
+            $defaultWorkflow = ApprovalWorkflow::where('is_active', true)
+                ->where('item_type_id', $approvalRequest->item_type_id)
+                ->where('is_specific_type', true)
+                ->first();
+        }
+        
+        // If no specific workflow found, get general workflow
+        if (!$defaultWorkflow) {
+            $defaultWorkflow = ApprovalWorkflow::where('is_active', true)
+                ->where('is_specific_type', false)
+                ->where('type', 'standard')
+                ->first();
+                
+            if (!$defaultWorkflow) {
+                // If no general workflow exists, get the first active workflow
+                $defaultWorkflow = ApprovalWorkflow::where('is_active', true)->first();
+            }
+        }
+        
+        if (!$defaultWorkflow) {
+            abort(500, 'Tidak ada workflow yang tersedia. Silakan hubungi administrator.');
+        }
+        
         $masterItems = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit'])->get();
         
         // Add dropdown data for the modal
-        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
         $itemCategories = \App\Models\ItemCategory::where('is_active', true)->get();
         $commodities = \App\Models\Commodity::where('is_active', true)->get();
         $units = \App\Models\Unit::where('is_active', true)->get();
         
-        $approvalRequest->load(['masterItems', 'attachments']);
+        $approvalRequest->load(['masterItems', 'attachments', 'itemType']);
         
-        return view('approval-requests.edit', compact('approvalRequest', 'workflows', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
+        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -210,10 +264,10 @@ class ApprovalRequestController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
+            'item_type_id' => 'required|exists:item_types,id',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number,' . $approvalRequest->id,
-            'request_type' => 'required|in:normal,cto',
             'items' => 'nullable|array',
             'items.*.master_item_id' => 'required_with:items|exists:master_items,id',
             'items.*.quantity' => 'required_with:items|integer|min:1',
@@ -229,12 +283,17 @@ class ApprovalRequestController extends Controller
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
+        // All requests are now specific to item type
+        $isSpecificType = true;
+
         $approvalRequest->update([
             'title' => $request->title,
             'description' => $request->description,
             'request_number' => $request->request_number ?: $approvalRequest->request_number,
-            'priority' => $request->request_type === 'cto' ? 'high' : 'normal',
-            'is_cto_request' => $request->request_type === 'cto'
+            'priority' => 'normal',
+            'is_cto_request' => false,
+            'item_type_id' => $request->item_type_id,
+            'is_specific_type' => $isSpecificType
         ]);
 
         // Handle items update
@@ -323,9 +382,9 @@ class ApprovalRequestController extends Controller
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        // Check if request is still pending
-        if ($approvalRequest->status !== 'pending') {
-            return redirect()->back()->with('error', 'Request ini sudah tidak dalam status pending.');
+        // Check if request is still pending or on progress
+        if (!in_array($approvalRequest->status, ['pending', 'on progress'])) {
+            return redirect()->back()->with('error', 'Request ini sudah tidak dalam status yang dapat di-approve.');
         }
 
         // Check if user can approve
@@ -357,9 +416,9 @@ class ApprovalRequestController extends Controller
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        // Check if request is still pending
-        if ($approvalRequest->status !== 'pending') {
-            return redirect()->back()->with('error', 'Request ini sudah tidak dalam status pending.');
+        // Check if request is still pending or on progress
+        if (!in_array($approvalRequest->status, ['pending', 'on progress'])) {
+            return redirect()->back()->with('error', 'Request ini sudah tidak dalam status yang dapat di-reject.');
         }
 
         // Check if user can approve
@@ -429,7 +488,7 @@ class ApprovalRequestController extends Controller
         $userDepartments = $user->departments()->pluck('departments.id');
         $userRoles = $user->role ? [$user->role->id] : [];
         
-        // Find approval steps that user can approve (both pending and completed)
+        // Find approval steps that user can approve - show ALL steps regardless of status
         $query = ApprovalStep::where(function($q) use ($userDepartments, $userRoles, $user) {
                                 // User is directly assigned as approver
                                 $q->where('approver_id', $user->id)
@@ -452,25 +511,16 @@ class ApprovalRequestController extends Controller
                                                 });
                                   });
                             })
+                            ->whereHas('request', function($q) {
+                                // Show requests with any status by default
+                                $q->whereIn('status', ['pending', 'on progress', 'approved', 'rejected', 'cancelled']);
+                            })
                             ->with(['request.workflow', 'request.requester', 'request.steps.approver', 'request.steps.approverRole', 'request.steps.approverDepartment', 'approver', 'approverRole', 'approverDepartment']);
 
-        // Status filter - show all by default, but allow filtering
+        // Status filter
         if ($request->filled('status')) {
-            if ($request->status === 'pending') {
-                $query->where('status', 'pending')
-                      ->whereHas('request', function($q) {
-                          $q->where('status', 'pending');
-                      });
-            } elseif ($request->status === 'completed') {
-                $query->whereIn('status', ['approved', 'rejected'])
-                      ->whereHas('request', function($q) {
-                          $q->whereIn('status', ['approved', 'rejected']);
-                      });
-            }
-        } else {
-            // Show both pending and completed by default
-            $query->whereHas('request', function($q) {
-                $q->whereIn('status', ['pending', 'approved', 'rejected']);
+            $query->whereHas('request', function($q) use ($request) {
+                $q->where('status', $request->status);
             });
         }
 
@@ -505,7 +555,7 @@ class ApprovalRequestController extends Controller
             });
         }
 
-        // Type filter
+        // Item type filter (for specific type requests)
         if ($request->filled('item_type_id')) {
             $query->where('item_type_id', $request->item_type_id);
         }
@@ -544,8 +594,8 @@ class ApprovalRequestController extends Controller
         elseif ($user->hasPermission('view_my_approvals') && $approvalRequest->requester_id === $user->id) {
             $hasAccess = true;
         }
-        // Allow if user can approve this request and has view_pending_approvals permission
-        elseif ($user->hasPermission('view_pending_approvals') && $approvalRequest->canApprove($user->id)) {
+        // Allow if user can approve this request and has approval permission
+        elseif ($user->hasPermission('approval') && $approvalRequest->canApprove($user->id)) {
             $hasAccess = true;
         }
         
@@ -576,8 +626,8 @@ class ApprovalRequestController extends Controller
         elseif ($user->hasPermission('view_my_approvals') && $approvalRequest->requester_id === $user->id) {
             $hasAccess = true;
         }
-        // Allow if user can approve this request and has view_pending_approvals permission
-        elseif ($user->hasPermission('view_pending_approvals') && $approvalRequest->canApprove($user->id)) {
+        // Allow if user can approve this request and has approval permission
+        elseif ($user->hasPermission('approval') && $approvalRequest->canApprove($user->id)) {
             $hasAccess = true;
         }
         
@@ -599,6 +649,148 @@ class ApprovalRequestController extends Controller
         return response()->file($filePath, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="' . $attachment->original_name . '"'
+        ]);
+    }
+
+    public function getStepDetails($requestId, $stepNumber)
+    {
+        $step = ApprovalStep::where('request_id', $requestId)
+            ->where('step_number', $stepNumber)
+            ->with('approvedBy')
+            ->first();
+
+        if (!$step) {
+            return response()->json(['error' => 'Step not found'], 404);
+        }
+
+        return response()->json([
+            'step_name' => $step->step_name,
+            'status' => $step->status,
+            'approved_at' => $step->approved_at,
+            'approved_by_name' => $step->approvedBy ? $step->approvedBy->name : null,
+            'comments' => $step->comments
+        ]);
+    }
+
+    /**
+     * Get workflow for specific item type
+     */
+    public function getWorkflowForItemType($itemTypeId)
+    {
+        // Try to get specific workflow for this item type
+        $workflow = ApprovalWorkflow::where('is_active', true)
+            ->where('item_type_id', $itemTypeId)
+            ->where('is_specific_type', true)
+            ->first();
+            
+        // If no specific workflow found, get general workflow
+        if (!$workflow) {
+            $workflow = ApprovalWorkflow::where('is_active', true)
+                ->where('is_specific_type', false)
+                ->where('type', 'standard')
+                ->first();
+        }
+        
+        if (!$workflow) {
+            return response()->json(['error' => 'No workflow found'], 404);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'workflow' => [
+                'id' => $workflow->id,
+                'name' => $workflow->name,
+                'type' => $workflow->type,
+                'is_specific_type' => $workflow->is_specific_type,
+                'item_type_id' => $workflow->item_type_id
+            ]
+        ]);
+    }
+
+    public function updateStepStatus(Request $request, $requestId, $stepNumber)
+    {
+        // Debug logging
+        \Log::info('UpdateStepStatus called', [
+            'requestId' => $requestId,
+            'stepNumber' => $stepNumber,
+            'requestData' => $request->all(),
+            'user_id' => auth()->id()
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|in:pending,approved,rejected',
+            'comments' => 'nullable|string|max:1000',
+            'rejection_reason' => 'nullable|string|max:1000'
+        ]);
+
+        if ($validator->fails()) {
+            \Log::info('Validation failed', ['errors' => $validator->errors()]);
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $step = ApprovalStep::where('request_id', $requestId)
+            ->where('step_number', $stepNumber)
+            ->first();
+
+        \Log::info('Step lookup result', [
+            'step' => $step ? $step->toArray() : null,
+            'requestId' => $requestId,
+            'stepNumber' => $stepNumber
+        ]);
+
+        if (!$step) {
+            \Log::error('Step not found', ['requestId' => $requestId, 'stepNumber' => $stepNumber]);
+            return response()->json(['error' => 'Step not found'], 404);
+        }
+
+        // Check if user can edit this step
+        $currentStep = $step->request->currentStep;
+        if (!$currentStep || !$currentStep->canApprove(auth()->id())) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $approvalRequest = $step->request;
+
+        // Update the step
+        $step->update([
+            'status' => $request->status,
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+            'comments' => $request->comments
+        ]);
+
+        // Update approval request based on action
+        if ($request->status === 'approved') {
+            // Check if this is the last step
+            if ($stepNumber >= $approvalRequest->total_steps) {
+                // This is the final approval
+                $approvalRequest->update([
+                    'status' => 'approved',
+                    'approved_by' => auth()->id(),
+                    'approved_at' => now()
+                ]);
+            } else {
+                // Move to next step
+                $approvalRequest->update([
+                    'current_step' => $stepNumber + 1,
+                    'status' => 'on progress'
+                ]);
+            }
+        } elseif ($request->status === 'rejected') {
+            // Reject the entire request
+            $approvalRequest->update([
+                'status' => 'rejected',
+                'approved_by' => auth()->id(),
+                'approved_at' => now(),
+                'rejection_reason' => $request->rejection_reason
+            ]);
+        } elseif ($request->status === 'pending') {
+            // Keep as pending - no changes to approval request
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status updated successfully'
         ]);
     }
 }

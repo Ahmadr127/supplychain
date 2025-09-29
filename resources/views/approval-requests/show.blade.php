@@ -13,27 +13,35 @@
                     <p class="text-sm text-gray-600">{{ $approvalRequest->request_number }}</p>
                 </div>
                 <div class="flex space-x-2">
-                    @if(auth()->user()->hasPermission('view_all_approvals'))
-                        <a href="{{ route('approval-requests.index') }}" 
-                           class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
-                            Kembali ke Semua Requests
-                        </a>
-                    @elseif(auth()->user()->hasPermission('view_my_approvals'))
-                        <a href="{{ route('approval-requests.my-requests') }}" 
-                           class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
-                            Kembali ke My Requests
-                        </a>
-                    @elseif(auth()->user()->hasPermission('view_pending_approvals'))
-                        <a href="{{ route('approval-requests.pending-approvals') }}" 
-                           class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
-                            Kembali ke Pending Approvals
-                        </a>
-                    @else
-                        <a href="{{ route('dashboard') }}" 
-                           class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
-                            Kembali ke Dashboard
-                        </a>
-                    @endif
+                    @php
+                        $referer = request()->header('referer');
+                        $backUrl = route('dashboard');
+                        $backText = 'Kembali ke Dashboard';
+                        
+                        if ($referer) {
+                            if (str_contains($referer, '/pending-approvals')) {
+                                $backUrl = route('approval-requests.pending-approvals');
+                                $backText = 'Kembali ke Approval';
+                            } elseif (str_contains($referer, '/my-requests')) {
+                                $backUrl = route('approval-requests.my-requests');
+                                $backText = 'Kembali ke My Requests';
+                            }
+                        } else {
+                            // Fallback based on permissions if no referer
+                            if (auth()->user()->hasPermission('view_my_approvals')) {
+                                $backUrl = route('approval-requests.my-requests');
+                                $backText = 'Kembali ke My Requests';
+                            } elseif (auth()->user()->hasPermission('approval')) {
+                                $backUrl = route('approval-requests.pending-approvals');
+                                $backText = 'Kembali ke Approval';
+                            }
+                        }
+                    @endphp
+                    
+                    <a href="{{ $backUrl }}" 
+                       class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
+                        {{ $backText }}
+                    </a>
                     @if(($approvalRequest->status == 'pending' || $approvalRequest->status == 'on progress') && $approvalRequest->requester_id == auth()->id())
                         <a href="{{ route('approval-requests.edit', $approvalRequest) }}" 
                            class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded text-sm">
@@ -80,6 +88,27 @@
                             <div>
                                 <label class="block text-xs font-medium text-gray-700">Dibuat</label>
                                 <p class="mt-1 text-xs text-gray-900">{{ $approvalRequest->created_at->format('d/m/Y H:i') }}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Requester Details -->
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700">Requester</label>
+                                <p class="mt-1 text-xs text-gray-900">{{ $approvalRequest->requester->name }}</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700">Department & Position</label>
+                                <p class="mt-1 text-xs text-gray-900">
+                                    @php
+                                        $primaryDepartment = $approvalRequest->requester->departments()->wherePivot('is_primary', true)->first();
+                                        $role = $approvalRequest->requester->role;
+                                    @endphp
+                                    {{ $primaryDepartment ? $primaryDepartment->name : 'No Department' }}
+                                    @if($role)
+                                        • {{ $role->display_name }}
+                                    @endif
+                                </p>
                             </div>
                         </div>
                         
@@ -203,7 +232,16 @@
                             </div>
                             <div class="ml-2">
                                 <p class="text-xs font-medium text-gray-900">{{ $approvalRequest->requester->name }}</p>
-                                <p class="text-xs text-gray-500">{{ $approvalRequest->requester->departments()->wherePivot('is_primary', true)->first()->name ?? 'No Department' }}</p>
+                                @php
+                                    $primaryDepartment = $approvalRequest->requester->departments()->wherePivot('is_primary', true)->first();
+                                    $role = $approvalRequest->requester->role;
+                                @endphp
+                                <p class="text-xs text-gray-500">
+                                    {{ $primaryDepartment ? $primaryDepartment->name : 'No Department' }}
+                                    @if($role)
+                                        • {{ $role->display_name }}
+                                    @endif
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -227,8 +265,23 @@
                                 <span class="text-sm font-medium text-green-900">Approved</span>
                             </div>
                             <p class="text-xs text-green-700 mt-1">
-                                Request telah disetujui pada {{ $approvalRequest->approved_at->format('d/m/Y H:i') }}
+                                Request telah disetujui oleh {{ $approvalRequest->approver->name ?? 'System' }} 
+                                pada {{ $approvalRequest->approved_at->format('d/m/Y H:i') }}
                             </p>
+                            @if($approvalRequest->approver)
+                            <div class="mt-2">
+                                <p class="text-xs text-green-600">
+                                    @php
+                                        $approverDepartment = $approvalRequest->approver->departments()->wherePivot('is_primary', true)->first();
+                                        $approverRole = $approvalRequest->approver->role;
+                                    @endphp
+                                    {{ $approverDepartment ? $approverDepartment->name : 'No Department' }}
+                                    @if($approverRole)
+                                        • {{ $approverRole->display_name }}
+                                    @endif
+                                </p>
+                            </div>
+                            @endif
                         </div>
                         @elseif($approvalRequest->status == 'rejected')
                         <div class="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -237,12 +290,28 @@
                                 <span class="text-sm font-medium text-red-900">Rejected</span>
                             </div>
                             <p class="text-xs text-red-700 mt-1">
-                                Request ditolak pada {{ $approvalRequest->approved_at->format('d/m/Y H:i') }}
+                                Request ditolak oleh {{ $approvalRequest->approver->name ?? 'System' }} 
+                                pada {{ $approvalRequest->approved_at->format('d/m/Y H:i') }}
                             </p>
+                            @if($approvalRequest->approver)
+                            <div class="mt-2">
+                                <p class="text-xs text-red-600">
+                                    @php
+                                        $approverDepartment = $approvalRequest->approver->departments()->wherePivot('is_primary', true)->first();
+                                        $approverRole = $approvalRequest->approver->role;
+                                    @endphp
+                                    {{ $approverDepartment ? $approverDepartment->name : 'No Department' }}
+                                    @if($approverRole)
+                                        • {{ $approverRole->display_name }}
+                                    @endif
+                                </p>
+                            </div>
+                            @endif
                             @if($approvalRequest->rejection_reason)
-                            <p class="text-xs text-red-600 mt-2">
-                                <strong>Alasan:</strong> {{ $approvalRequest->rejection_reason }}
-                            </p>
+                            <div class="mt-2">
+                                <label class="block text-xs font-medium text-gray-700">Alasan Penolakan</label>
+                                <p class="text-xs text-gray-900 mt-1">{{ $approvalRequest->rejection_reason }}</p>
+                            </div>
                             @endif
                         </div>
                         @else
@@ -268,87 +337,69 @@
                         
                         @if($canApprove)
                         <div class="bg-white border border-gray-200 rounded-lg p-4">
-                            <h3 class="text-base font-semibold text-gray-900 mb-3">Approval Actions</h3>
-                            <div class="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-                                <strong>Debug Info:</strong> You can approve this request. Current step: {{ $currentStep->step_name }}, 
-                                Approver type: {{ $currentStep->approver_type }}, 
-                                User ID: {{ auth()->id() }}
-                            </div>
-                            
-                            <!-- Approve Form -->
-                            <form action="{{ route('approval-requests.approve', $approvalRequest) }}" method="POST" class="mb-3">
+                            <h3 class="text-base font-semibold text-gray-900 mb-4">Approval Actions</h3>
+
+                            <!-- Simplified Approval Form -->
+                            <form id="approvalForm" class="space-y-4">
                                 @csrf
-                                <div class="mb-3">
-                                    <label for="approve_comments" class="block text-xs font-medium text-gray-700 mb-1">
-                                        Comments (Optional)
-                                    </label>
-                                    <textarea id="approve_comments" name="comments" rows="2"
-                                              class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500"
-                                              placeholder="Komentar approval..."></textarea>
+                                
+                                <!-- Action Selection -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Action</label>
+                                    <div class="space-y-2">
+                                        <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                                            <input type="radio" name="action" value="approve" class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300" required>
+                                            <span class="ml-2 text-sm text-gray-900">Approve</span>
+                                        </label>
+                                        <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                                            <input type="radio" name="action" value="reject" class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300" required>
+                                            <span class="ml-2 text-sm text-gray-900">Reject</span>
+                                        </label>
+                                        <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                                            <input type="radio" name="action" value="pending" class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300" required>
+                                            <span class="ml-2 text-sm text-gray-900">Set Pending</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <button type="submit" 
-                                        class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded text-sm"
-                                        onclick="return confirm('Yakin ingin approve request ini?')">
-                                    <i class="fas fa-check mr-1"></i>Approve
-                                </button>
-                            </form>
-                            
-                            <!-- Reject Form -->
-                            <form action="{{ route('approval-requests.reject', $approvalRequest) }}" method="POST">
-                                @csrf
-                                <div class="mb-3">
-                                    <label for="reject_reason" class="block text-xs font-medium text-gray-700 mb-1">
+
+                                <!-- Comments Section (Hidden when reject is selected) -->
+                                <div id="comments-section">
+                                    <label for="comments" class="block text-sm font-medium text-gray-700 mb-1">Comments</label>
+                                    <textarea id="comments" name="comments" rows="3"
+                                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                              placeholder="Comments..."></textarea>
+                                </div>
+
+                                <!-- Rejection Reason (Hidden by default, shown only when reject is selected) -->
+                                <div id="rejection-reason" class="hidden">
+                                    <label for="rejection_reason" class="block text-sm font-medium text-gray-700 mb-1">
                                         Rejection Reason <span class="text-red-500">*</span>
                                     </label>
-                                    <textarea id="reject_reason" name="reason" rows="2" required
-                                              class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500"
-                                              placeholder="Alasan penolakan..."></textarea>
+                                    <textarea id="rejection_reason" name="rejection_reason" rows="2"
+                                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm"
+                                              placeholder="Reason for rejection..."></textarea>
                                 </div>
-                                <button type="submit" 
-                                        class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded text-sm"
-                                        onclick="return confirm('Yakin ingin reject request ini?')">
-                                    <i class="fas fa-times mr-1"></i>Reject
-                                </button>
+
+                                <!-- Action Buttons -->
+                                <div class="flex gap-2 pt-2">
+                                    <button type="submit" 
+                                            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                                        Submit
+                                    </button>
+                                    <button type="button" 
+                                            onclick="resetForm()"
+                                            class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded text-sm">
+                                        Reset
+                                    </button>
+                                </div>
                             </form>
                         </div>
                         @else
                         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                             <h3 class="text-base font-semibold text-gray-900 mb-2">Waiting for Approval</h3>
-                            <p class="text-xs text-gray-600">
-                                Request ini sedang menunggu approval dari approver yang ditentukan untuk step ini.
-                            </p>
-                            @if($currentStep)
-                                <div class="mt-2 text-xs text-gray-500">
-                                    <strong>Current Step:</strong> {{ $currentStep->step_name }}<br>
-                                    <strong>Approver Type:</strong> {{ ucfirst(str_replace('_', ' ', $currentStep->approver_type)) }}<br>
-                                    <strong>Debug Info:</strong> User ID: {{ auth()->id() }}, 
-                                    Can Approve: {{ $currentStep->canApprove(auth()->id()) ? 'Yes' : 'No' }}
-                                </div>
-                            @endif
+                            <p class="text-sm text-gray-600">Request sedang menunggu approval dari approver yang ditentukan untuk step ini.</p>
                         </div>
                         @endif
-                    @elseif($approvalRequest->status == 'approved')
-                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <h3 class="text-base font-semibold text-gray-900 mb-2">Request Approved</h3>
-                        <p class="text-xs text-gray-600">
-                            Request ini telah disetujui oleh {{ $approvalRequest->approver->name ?? 'System' }} 
-                            pada {{ $approvalRequest->approved_at->format('d/m/Y H:i') }}.
-                        </p>
-                    </div>
-                    @elseif($approvalRequest->status == 'rejected')
-                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-                        <h3 class="text-base font-semibold text-gray-900 mb-2">Request Rejected</h3>
-                        <p class="text-xs text-gray-600 mb-2">
-                            Request ini ditolak oleh {{ $approvalRequest->approver->name ?? 'System' }} 
-                            pada {{ $approvalRequest->approved_at->format('d/m/Y H:i') }}.
-                        </p>
-                        @if($approvalRequest->rejection_reason)
-                        <div class="mt-2">
-                            <label class="block text-xs font-medium text-gray-700">Alasan Penolakan</label>
-                            <p class="text-xs text-gray-900 mt-1">{{ $approvalRequest->rejection_reason }}</p>
-                        </div>
-                        @endif
-                    </div>
                     @endif
 
                     <!-- Request Actions -->
@@ -439,4 +490,209 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const approvalForm = document.getElementById('approvalForm');
+    const commentsSection = document.getElementById('comments-section');
+    const rejectionReasonDiv = document.getElementById('rejection-reason');
+    const rejectionReasonTextarea = document.getElementById('rejection_reason');
+    const actionRadios = document.querySelectorAll('input[name="action"]');
+    
+    if (approvalForm) {
+        // Show/hide fields based on action selection and handle styling
+        actionRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                // Remove active styling from all labels
+                actionRadios.forEach(r => {
+                    const label = r.closest('label');
+                    label.classList.remove('bg-green-50', 'border-green-300', 'bg-red-50', 'border-red-300', 'bg-yellow-50', 'border-yellow-300');
+                    label.classList.add('border-gray-200');
+                });
+                
+                // Add active styling to selected label
+                const selectedLabel = this.closest('label');
+                selectedLabel.classList.remove('border-gray-200');
+                
+                if (this.value === 'approve') {
+                    selectedLabel.classList.add('bg-green-50', 'border-green-300');
+                } else if (this.value === 'reject') {
+                    selectedLabel.classList.add('bg-red-50', 'border-red-300');
+                } else if (this.value === 'pending') {
+                    selectedLabel.classList.add('bg-yellow-50', 'border-yellow-300');
+                }
+                
+                // Handle field visibility based on action
+                if (this.value === 'reject') {
+                    // Show only rejection reason, hide comments
+                    commentsSection.classList.add('hidden');
+                    rejectionReasonDiv.classList.remove('hidden');
+                    rejectionReasonTextarea.required = true;
+                } else {
+                    // Show comments, hide rejection reason
+                    commentsSection.classList.remove('hidden');
+                    rejectionReasonDiv.classList.add('hidden');
+                    rejectionReasonTextarea.required = false;
+                    rejectionReasonTextarea.value = '';
+                }
+            });
+        });
+
+        // Handle form submission
+        approvalForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const action = formData.get('action');
+            const requestId = {{ $approvalRequest->id }};
+            const stepNumber = {{ $approvalRequest->current_step }};
+            
+            // Validate rejection reason if reject is selected
+            if (action === 'reject' && !formData.get('rejection_reason').trim()) {
+                alert('Please provide a rejection reason.');
+                rejectionReasonTextarea.focus();
+                return;
+            }
+            
+            // Show confirmation dialog
+            let confirmMessage = '';
+            switch(action) {
+                case 'approve':
+                    confirmMessage = 'Are you sure you want to approve this request?';
+                    break;
+                case 'reject':
+                    confirmMessage = 'Are you sure you want to reject this request?';
+                    break;
+                case 'pending':
+                    confirmMessage = 'Are you sure you want to set this request as pending?';
+                    break;
+            }
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // Show loading state
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Processing...';
+            submitBtn.disabled = true;
+            
+            // Prepare data for API
+            const apiData = new FormData();
+            
+            // Map action values to controller expected values
+            const statusMap = {
+                'approve': 'approved',
+                'reject': 'rejected',
+                'pending': 'pending'
+            };
+            
+            apiData.append('status', statusMap[action]);
+            apiData.append('comments', formData.get('comments') || '');
+            if (action === 'reject') {
+                apiData.append('rejection_reason', formData.get('rejection_reason'));
+            }
+            
+            // Get CSRF token from the form or meta tag
+            let csrfToken = formData.get('_token');
+            if (!csrfToken) {
+                const metaTag = document.querySelector('meta[name="csrf-token"]');
+                if (metaTag) {
+                    csrfToken = metaTag.getAttribute('content');
+                }
+            }
+            if (csrfToken) {
+                apiData.append('_token', csrfToken);
+            }
+            
+            // Debug logging
+            console.log('Sending data:', {
+                action: action,
+                status: statusMap[action],
+                comments: formData.get('comments'),
+                rejection_reason: formData.get('rejection_reason'),
+                csrfToken: csrfToken
+            });
+            
+            fetch(`/api/approval-steps/${requestId}/${stepNumber}/update-status`, {
+                method: 'POST',
+                body: apiData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json().then(data => {
+                    console.log('Response data:', data);
+                    
+                    if (!response.ok) {
+                        // Handle validation errors
+                        if (response.status === 422 && data.errors) {
+                            let errorMessage = 'Validation errors:\n';
+                            for (const field in data.errors) {
+                                errorMessage += `${field}: ${data.errors[field].join(', ')}\n`;
+                            }
+                            alert(errorMessage);
+                        } else {
+                            alert(`HTTP error! status: ${response.status}\nError: ${data.error || 'Unknown error'}`);
+                        }
+                        // Restore button state
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
+                        return;
+                    }
+                    
+                    if (data.success) {
+                        // Show success message
+                        const successMessages = {
+                            'approve': 'Request has been approved successfully!',
+                            'reject': 'Request has been rejected successfully!',
+                            'pending': 'Request status has been updated to pending!'
+                        };
+                        alert(successMessages[action] || 'Action completed successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to update status'));
+                        // Restore button state
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your request');
+                // Restore button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        });
+    }
+});
+
+// Reset form function
+function resetForm() {
+    const form = document.getElementById('approvalForm');
+    if (form) {
+        form.reset();
+        
+        // Reset field visibility
+        document.getElementById('comments-section').classList.remove('hidden');
+        document.getElementById('rejection-reason').classList.add('hidden');
+        document.getElementById('rejection_reason').required = false;
+        document.getElementById('rejection_reason').value = '';
+        
+        // Reset radio button styling
+        const actionRadios = document.querySelectorAll('input[name="action"]');
+        actionRadios.forEach(radio => {
+            const label = radio.closest('label');
+            label.classList.remove('bg-green-50', 'border-green-300', 'bg-red-50', 'border-red-300', 'bg-yellow-50', 'border-yellow-300');
+            label.classList.add('border-gray-200');
+        });
+    }
+}
+</script>
 @endsection

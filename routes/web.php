@@ -100,7 +100,7 @@ Route::middleware('auth')->group(function () {
         Route::get('my-requests', [ApprovalRequestController::class, 'myRequests'])->name('approval-requests.my-requests');
     });
     
-    Route::middleware('permission:view_pending_approvals')->group(function () {
+    Route::middleware('permission:approval')->group(function () {
         Route::get('pending-approvals', [ApprovalRequestController::class, 'pendingApprovals'])->name('approval-requests.pending-approvals');
     });
 
@@ -119,6 +119,11 @@ Route::middleware('auth')->group(function () {
     Route::get('api/master-items/by-category/{categoryId}', [MasterItemController::class, 'getByCategory'])->name('api.master-items.by-category');
     Route::get('api/master-items/search', [MasterItemController::class, 'search'])->name('api.master-items.search');
     Route::get('api/approval-requests/master-items', [ApprovalRequestController::class, 'getMasterItems'])->name('api.approval-requests.master-items');
+    Route::get('api/approval-requests/workflow-for-item-type/{itemTypeId}', [ApprovalRequestController::class, 'getWorkflowForItemType'])->name('api.approval-requests.workflow-for-item-type');
+    
+    // API routes for step details and status updates
+    Route::get('api/approval-steps/{requestId}/{stepNumber}', [ApprovalRequestController::class, 'getStepDetails'])->name('api.approval-steps.details');
+    Route::post('api/approval-steps/{requestId}/{stepNumber}/update-status', [ApprovalRequestController::class, 'updateStepStatus'])->name('api.approval-steps.update-status');
     
     // File download routes
     Route::get('approval-requests/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');

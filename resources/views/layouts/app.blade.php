@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Supply Chain')</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" type="image/x-icon" href="images/logo.png">
@@ -149,7 +150,7 @@
                 </ul>
 
                 <!-- Approval Section -->
-                @if(auth()->user()->hasPermission('view_my_approvals') || auth()->user()->hasPermission('view_pending_approvals'))
+                @if(auth()->user()->hasPermission('view_my_approvals') || auth()->user()->hasPermission('approval'))
                 <div class="mt-6">
                     <h3 class="px-4 py-2 text-xs font-semibold text-green-200 uppercase tracking-wider" x-show="!sidebarCollapsed">Approval</h3>
                     <ul class="mt-2 space-y-1">
@@ -161,11 +162,11 @@
                             </a>
                         </li>
                         @endif
-                        @if(auth()->user()->hasPermission('view_pending_approvals'))
+                        @if(auth()->user()->hasPermission('approval'))
                         <li>
-                            <a href="{{ route('approval-requests.pending-approvals') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.pending-approvals') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Pending Approvals">
-                                <i class="fas fa-clock w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                                <span x-show="!sidebarCollapsed">Pending Approvals</span>
+                            <a href="{{ route('approval-requests.pending-approvals') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.pending-approvals') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Approval">
+                                <i class="fas fa-check-circle w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                                <span x-show="!sidebarCollapsed">Approval</span>
                             </a>
                         </li>
                         @endif
@@ -203,17 +204,25 @@
                     </div>
                     
                     <div class="flex items-center space-x-3">
-                        <div class="text-sm text-gray-500">
-                            {{ now()->format('d M Y, H:i') }}
-                        </div>
-                        
                         <!-- User Dropdown -->
                         <div class="relative" x-data="{ open: false }" @click.away="open = false">
                             <button @click="open = !open" class="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
-                                <div class="w-7 h-7 bg-green-600 rounded-full flex items-center justify-center">
-                                    <i class="fas fa-user text-xs text-white"></i>
+                                <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-user text-sm text-white"></i>
                                 </div>
-                                <div class="text-sm font-medium text-gray-700">{{ auth()->user()->name }}</div>
+                                <div class="text-left">
+                                    <div class="text-sm font-medium text-gray-700">{{ auth()->user()->name }}</div>
+                                    <div class="text-xs text-gray-500">
+                                        @php
+                                            $primaryDepartment = auth()->user()->departments()->wherePivot('is_primary', true)->first();
+                                            $role = auth()->user()->role;
+                                        @endphp
+                                        {{ $primaryDepartment ? $primaryDepartment->name : 'No Department' }}
+                                        @if($role)
+                                            • {{ $role->display_name }}
+                                        @endif
+                                    </div>
+                                </div>
                                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform" :class="{ 'rotate-180': open }"></i>
                             </button>
                             
@@ -241,10 +250,10 @@
                                     </a>
                                     @endif
                                     
-                                    @if(auth()->user()->hasPermission('view_pending_approvals'))
+                                    @if(auth()->user()->hasPermission('approval'))
                                     <a href="{{ route('approval-requests.pending-approvals') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                                        <i class="fas fa-clock w-4 h-4 mr-2 text-gray-400"></i>
-                                        Pending Approvals
+                                        <i class="fas fa-check-circle w-4 h-4 mr-2 text-gray-400"></i>
+                                        Approval
                                     </a>
                                     @endif
                                     

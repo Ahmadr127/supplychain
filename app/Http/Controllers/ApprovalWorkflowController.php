@@ -35,7 +35,7 @@ class ApprovalWorkflowController extends Controller
             $query->where('is_active', $request->status === 'active');
         }
 
-        $workflows = $query->latest()->paginate(10)->withQueryString();
+        $workflows = $query->with('itemType')->latest()->paginate(10)->withQueryString();
         
         return view('approval-workflows.index', compact('workflows'));
     }
@@ -45,8 +45,9 @@ class ApprovalWorkflowController extends Controller
         $roles = Role::all();
         $departments = Department::where('is_active', true)->get();
         $users = User::with('role')->get();
+        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
         
-        return view('approval-workflows.create', compact('roles', 'departments', 'users'));
+        return view('approval-workflows.create', compact('roles', 'departments', 'users', 'itemTypes'));
     }
 
     public function store(Request $request)
@@ -55,6 +56,7 @@ class ApprovalWorkflowController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'item_type_id' => 'nullable|exists:item_types,id',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,department_level',
@@ -76,6 +78,8 @@ class ApprovalWorkflowController extends Controller
             'name' => $request->name,
             'type' => $request->type,
             'description' => $request->description,
+            'item_type_id' => $request->item_type_id ?: null,
+            'is_specific_type' => !empty($request->item_type_id),
             'workflow_steps' => $workflowSteps,
             'is_active' => $request->has('is_active')
         ]);
@@ -85,7 +89,7 @@ class ApprovalWorkflowController extends Controller
 
     public function show(ApprovalWorkflow $approvalWorkflow)
     {
-        $approvalWorkflow->load('requests.requester');
+        $approvalWorkflow->load('requests.requester', 'itemType');
         
         return view('approval-workflows.show', compact('approvalWorkflow'));
     }
@@ -95,8 +99,9 @@ class ApprovalWorkflowController extends Controller
         $roles = Role::all();
         $departments = Department::where('is_active', true)->get();
         $users = User::with('role')->get();
+        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
         
-        return view('approval-workflows.edit', compact('approvalWorkflow', 'roles', 'departments', 'users'));
+        return view('approval-workflows.edit', compact('approvalWorkflow', 'roles', 'departments', 'users', 'itemTypes'));
     }
 
     public function update(Request $request, ApprovalWorkflow $approvalWorkflow)
@@ -105,6 +110,7 @@ class ApprovalWorkflowController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'item_type_id' => 'nullable|exists:item_types,id',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,department_level',
@@ -126,6 +132,8 @@ class ApprovalWorkflowController extends Controller
             'name' => $request->name,
             'type' => $request->type,
             'description' => $request->description,
+            'item_type_id' => $request->item_type_id ?: null,
+            'is_specific_type' => !empty($request->item_type_id),
             'workflow_steps' => $workflowSteps,
             'is_active' => $request->has('is_active')
         ]);

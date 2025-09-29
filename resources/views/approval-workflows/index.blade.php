@@ -60,10 +60,13 @@
         <table class="responsive-table min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Nama & Tipe
                     </th>
-                    <th class="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tipe Barang
+                    </th>
+                    <th class="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Steps
                     </th>
                     <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -83,18 +86,31 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @foreach($workflows as $workflow)
                 <tr class="hover:bg-gray-50 transition-colors duration-150">
-                    <td class="w-1/3 px-6 py-4">
+                    <td class="w-1/4 px-6 py-4">
                         <div class="min-w-0">
                             <div class="text-sm font-medium text-gray-900 truncate">{{ $workflow->name }}</div>
                             <div class="text-sm text-gray-500 truncate">
                                 <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">
                                     {{ $workflow->type }}
                                 </span>
-                                {{ Str::limit($workflow->description, 50) }}
+                                {{ Str::limit($workflow->description, 30) }}
                             </div>
                         </div>
                     </td>
-                    <td class="w-1/4 px-6 py-4">
+                    <td class="w-1/6 px-6 py-4">
+                        <div class="min-w-0">
+                            @if($workflow->itemType)
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                    {{ $workflow->itemType->name }}
+                                </span>
+                            @else
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    Umum
+                                </span>
+                            @endif
+                        </div>
+                    </td>
+                    <td class="w-1/6 px-6 py-4">
                         <div class="min-w-0">
                             <div class="flex items-center">
                                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
@@ -150,3 +166,4 @@
     </div>
 </x-responsive-table>
 @endsection
+

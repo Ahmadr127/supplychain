@@ -41,20 +41,34 @@
                             @enderror
                         </div>
 
-
-
-                        <!-- Description -->
+                        <!-- Item Type Selection -->
                         <div>
-                            <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
-                                Deskripsi
+                            <label class="block text-sm font-medium text-gray-700 mb-3">
+                                Tipe Barang <span class="text-red-500">*</span>
                             </label>
-                            <textarea id="description" name="description" rows="3"
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('description') border-red-500 @enderror"
-                                      placeholder="Masukkan deskripsi detail request">{{ old('description', $approvalRequest->description) }}</textarea>
-                            @error('description')
+                            <div class="space-y-2">
+                                @foreach($itemTypes as $itemType)
+                                <div class="flex items-center">
+                                    <input type="radio" id="item_type_{{ $itemType->id }}" name="item_type_id" value="{{ $itemType->id }}" 
+                                           class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300" 
+                                           {{ old('item_type_id', $approvalRequest->item_type_id) == $itemType->id ? 'checked' : '' }}
+                                           required>
+                                    <label for="item_type_{{ $itemType->id }}" class="ml-2 text-sm text-gray-700">
+                                        <span class="font-medium">{{ $itemType->name }}</span>
+                                        @if($itemType->description)
+                                            - {{ $itemType->description }}
+                                        @endif
+                                    </label>
+                                </div>
+                                @endforeach
+                            </div>
+                            @error('item_type_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
+
+
+
 
 
                         <!-- Master Items Selection -->
@@ -106,34 +120,25 @@
 
                     <!-- Right Column - Request Info & Status (40%) -->
                     <div class="lg:col-span-2 space-y-4">
-                        <!-- Request Status Info -->
-                        <div class="bg-white border border-gray-200 rounded-lg p-3">
-                            <h3 class="text-base font-semibold text-gray-900 mb-2">Status Request</h3>
-                            <div class="space-y-2">
-                                <div class="flex items-center">
-                                    <div class="h-3 w-3 rounded-full bg-blue-500 mr-2"></div>
-                                    <span class="text-sm text-gray-700">Request saat ini dalam status "{{ ucfirst($approvalRequest->status) }}"</span>
-                                </div>
-                                <p class="text-xs text-gray-500">Status akan berubah otomatis sesuai dengan tahap approval yang telah ditentukan.</p>
-                            </div>
-                        </div>
+                        <!-- Hidden workflow selection - will use default standard workflow -->
+                        <input type="hidden" name="workflow_id" value="{{ $defaultWorkflow->id }}">
+                        
+                        <!-- Request Type - Hidden, default to normal -->
+                        <input type="hidden" name="request_type" value="normal">
 
-                        <!-- Request Type -->
-                        <div class="bg-white border border-gray-200 rounded-lg p-3">
-                            <h3 class="text-base font-semibold text-gray-900 mb-2">Tipe Request</h3>
-                            <div class="space-y-2">
-                                <label class="flex items-center">
-                                    <input type="radio" id="request_type_normal" name="request_type" value="normal" 
-                                           {{ old('request_type', $approvalRequest->is_cto_request ? 'cto' : 'normal') == 'normal' ? 'checked' : '' }}
-                                           class="text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm font-medium text-gray-700">Request Normal</span>
+                        <!-- Description -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-4">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-3">Deskripsi</h3>
+                            <div>
+                                <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Detail Request
                                 </label>
-                                <label class="flex items-center">
-                                    <input type="radio" id="request_type_cto" name="request_type" value="cto" 
-                                           {{ old('request_type', $approvalRequest->is_cto_request ? 'cto' : 'normal') == 'cto' ? 'checked' : '' }}
-                                           class="text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm font-medium text-gray-700">Request CTO (Chief Technology Officer)</span>
-                                </label>
+                                <textarea id="description" name="description" rows="4"
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('description') border-red-500 @enderror"
+                                          placeholder="Masukkan deskripsi detail request">{{ old('description', $approvalRequest->description) }}</textarea>
+                                @error('description')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
                             </div>
                         </div>
 
@@ -229,6 +234,7 @@ let selectedItems = {!! json_encode($approvalRequest->masterItems->map(function(
         'name' => $item->name,
         'code' => $item->code,
         'item_type' => $item->itemType,
+        'item_type_id' => $item->item_type_id,
         'item_category' => $item->itemCategory,
         'commodity' => $item->commodity,
         'unit' => $item->unit,
@@ -239,6 +245,7 @@ let selectedItems = {!! json_encode($approvalRequest->masterItems->map(function(
     ];
 }), JSON_HEX_APOS | JSON_HEX_QUOT) !!};
 let allMasterItems = {!! json_encode($masterItems, JSON_HEX_APOS | JSON_HEX_QUOT) !!};
+let currentItemTypeId = {{ $approvalRequest->item_type_id }};
 
 // Initialize the page
 document.addEventListener('DOMContentLoaded', function() {
@@ -247,6 +254,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize file preview
     initializeFilePreview();
+    
+    // Initialize item type selection
+    initializeItemTypeSelection();
     
     // Load existing selected items
     updateSelectedItemsDisplay();
@@ -286,8 +296,14 @@ function handleSearch() {
     }
     
     let filteredItems = allMasterItems.filter(item => {
-        return item.name.toLowerCase().includes(search) || 
-               item.code.toLowerCase().includes(search);
+        // Filter by search term
+        const matchesSearch = item.name.toLowerCase().includes(search) || 
+                             item.code.toLowerCase().includes(search);
+        
+        // Filter by item type if selected
+        const matchesType = currentItemTypeId ? item.item_type_id == currentItemTypeId : true;
+        
+        return matchesSearch && matchesType;
     }).slice(0, 10); // Limit to 10 results
     
     displaySearchResults(filteredItems);
@@ -339,6 +355,86 @@ function displaySearchResults(items) {
 // Function to open add item modal
 function openAddItemModal() {
     openAddModal();
+}
+
+// Initialize item type selection
+function initializeItemTypeSelection() {
+    const itemTypeRadios = document.querySelectorAll('input[name="item_type_id"]');
+    
+    itemTypeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            currentItemTypeId = this.value;
+            
+            // Clear current search and selected items
+            document.getElementById('itemSearch').value = '';
+            document.getElementById('searchResults').classList.add('hidden');
+            
+            // Clear selected items if they don't match the new type
+            if (currentItemTypeId) {
+                selectedItems = selectedItems.filter(item => item.item_type_id == currentItemTypeId);
+                updateSelectedItemsDisplay();
+            }
+            
+            // Update workflow based on item type
+            updateWorkflowForItemType(currentItemTypeId);
+        });
+    });
+    
+    // Set initial value
+    const checkedRadio = document.querySelector('input[name="item_type_id"]:checked');
+    if (checkedRadio) {
+        currentItemTypeId = checkedRadio.value;
+    }
+}
+
+// Update workflow based on item type
+function updateWorkflowForItemType(itemTypeId) {
+    if (!itemTypeId) {
+        return;
+    }
+    
+    fetch(`/approval-requests/workflow-for-item-type/${itemTypeId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update hidden workflow input
+                document.querySelector('input[name="workflow_id"]').value = data.workflow.id;
+                
+                // Show workflow info to user
+                showWorkflowInfo(data.workflow);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching workflow:', error);
+        });
+}
+
+// Show workflow information to user
+function showWorkflowInfo(workflow) {
+    // Create or update workflow info display
+    let workflowInfo = document.getElementById('workflowInfo');
+    if (!workflowInfo) {
+        workflowInfo = document.createElement('div');
+        workflowInfo.id = 'workflowInfo';
+        workflowInfo.className = 'mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg';
+        
+        // Insert after item type selection
+        const itemTypeDiv = document.querySelector('input[name="item_type_id"]').closest('div');
+        itemTypeDiv.parentNode.insertBefore(workflowInfo, itemTypeDiv.nextSibling);
+    }
+    
+    const workflowType = workflow.is_specific_type ? 'Khusus' : 'Umum';
+    workflowInfo.innerHTML = `
+        <div class="flex items-center">
+            <svg class="h-5 w-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+                <p class="text-sm font-medium text-blue-900">Workflow: ${workflow.name}</p>
+                <p class="text-xs text-blue-700">Tipe: ${workflowType}</p>
+            </div>
+        </div>
+    `;
 }
 
 function selectItem(itemId) {

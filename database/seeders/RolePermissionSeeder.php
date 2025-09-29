@@ -20,7 +20,7 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_workflows', 'display_name' => 'Kelola Workflows', 'description' => 'Mengelola approval workflows'],
             ['name' => 'view_all_approvals', 'display_name' => 'Lihat Semua Approvals', 'description' => 'Melihat semua approval requests'],
             ['name' => 'view_my_approvals', 'display_name' => 'Lihat My Requests', 'description' => 'Melihat approval requests yang dibuat sendiri'],
-            ['name' => 'view_pending_approvals', 'display_name' => 'Lihat Pending Approvals', 'description' => 'Melihat approval requests yang menunggu persetujuan'],
+            ['name' => 'approval', 'display_name' => 'Approval', 'description' => 'Mengakses halaman approval untuk menyetujui atau menolak requests'],
             ['name' => 'manage_approvals', 'display_name' => 'Kelola Approvals', 'description' => 'Mengelola approval requests (create, edit, delete)'],
             ['name' => 'manage_items', 'display_name' => 'Kelola Master Barang', 'description' => 'Mengelola master barang dan data pendukungnya'],
         ];
@@ -79,9 +79,8 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_dashboard',
                 'view_my_approvals',
-                'view_pending_approvals',
-                'manage_approvals',
-                'manage_items'
+                'approval',
+                'manage_approvals'
             ])->get()
         );
         
@@ -89,9 +88,8 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_dashboard',
                 'view_my_approvals',
-                'view_pending_approvals',
-                'manage_approvals',
-                'manage_items'
+                'approval',
+                'manage_approvals'
             ])->get()
         );
         
@@ -99,9 +97,8 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_dashboard',
                 'view_my_approvals',
-                'view_pending_approvals',
-                'manage_approvals',
-                'manage_items'
+                'approval',
+                'manage_approvals'
             ])->get()
         );
         
@@ -109,9 +106,8 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_dashboard',
                 'view_my_approvals',
-                'view_pending_approvals',
-                'manage_approvals',
-                'manage_items'
+                'approval',
+                'manage_approvals'
             ])->get()
         );
         
@@ -119,9 +115,8 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_dashboard',
                 'view_my_approvals',
-                'view_pending_approvals',
-                'manage_approvals',
-                'manage_items'
+                'approval',
+                'manage_approvals'
             ])->get()
         );
         
@@ -129,7 +124,7 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_dashboard',
                 'view_my_approvals',
-                'view_pending_approvals',
+                'approval',
                 'manage_approvals'
             ])->get()
         );

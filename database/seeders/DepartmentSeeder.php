@@ -191,22 +191,22 @@ class DepartmentSeeder extends Seeder
             'description' => 'Workflow standar untuk semua permintaan approval',
             'workflow_steps' => [
                 [
-                    'name' => 'Technical Expert Approval',
+                    'name' => 'Technical Expert',
                     'approver_type' => 'role',
                     'approver_role_id' => Role::where('name', 'technical_expert')->first()->id,
                 ],
                 [
-                    'name' => 'Manager IT Approval',
+                    'name' => 'Manager IT',
                     'approver_type' => 'role',
                     'approver_role_id' => Role::where('name', 'manager_it')->first()->id,
                 ],
                 [
-                    'name' => 'Manager Keuangan Approval',
+                    'name' => 'Manager Keuangan',
                     'approver_type' => 'role',
                     'approver_role_id' => Role::where('name', 'manager_keuangan')->first()->id,
                 ],
                 [
-                    'name' => 'Direktur Approval',
+                    'name' => 'Direktur',
                     'approver_type' => 'role',
                     'approver_role_id' => Role::where('name', 'direktur')->first()->id,
                 ],

@@ -22,11 +22,11 @@
             <div class="w-32">
                 <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     <option value="">Semua Status</option>
-                    <option value="on progress" {{ request('status') == 'on progress' ? 'selected' : '' }}>On Progress</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
-                    <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
-                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                    <option value="on progress" {{ request('status') === 'on progress' ? 'selected' : '' }}>On Progress</option>
+                    <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                    <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
+                    <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                    <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
                 </select>
             </div>
             <div class="w-40">
@@ -162,12 +162,29 @@
                         </div>
                     </td>
                     <td class="w-20 px-2 py-1">
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
-                            {{ $request->status == 'on progress' ? 'bg-blue-500 text-white' : 
-                               ($request->status == 'pending' ? 'bg-yellow-500 text-white' : 
-                               ($request->status == 'approved' ? 'bg-green-600 text-white' : 
-                               ($request->status == 'rejected' ? 'bg-red-600 text-white' : 'bg-gray-500 text-white'))) }}">
-                            {{ $request->status == 'on progress' ? 'On Progress' : ucfirst($request->status) }}
+                        @php
+                            $displayStatus = $request->status;
+                            $statusColor = 'bg-gray-500 text-white';
+                            
+                            if ($request->status == 'on progress') {
+                                $statusColor = 'bg-blue-500 text-white';
+                                $displayStatus = 'On Progress';
+                            } elseif ($request->status == 'pending') {
+                                $statusColor = 'bg-yellow-500 text-white';
+                                $displayStatus = 'Pending';
+                            } elseif ($request->status == 'approved') {
+                                $statusColor = 'bg-green-600 text-white';
+                                $displayStatus = 'Approved';
+                            } elseif ($request->status == 'rejected') {
+                                $statusColor = 'bg-red-600 text-white';
+                                $displayStatus = 'Rejected';
+                            } elseif ($request->status == 'cancelled') {
+                                $statusColor = 'bg-gray-500 text-white';
+                                $displayStatus = 'Cancelled';
+                            }
+                        @endphp
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $statusColor }}">
+                            {{ $displayStatus }}
                         </span>
                     </td>
                     <td class="w-20 px-2 py-1 text-sm font-medium">
@@ -233,31 +250,80 @@ function showStepStatus(stepName, status, stepNumber, requestId) {
         document.body.appendChild(modal);
     }
     
-    // Populate content
-    const content = document.getElementById('stepStatusContent');
-    content.innerHTML = `
-        <div class="space-y-3">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Nama Step</label>
-                <p class="text-sm text-gray-900">${stepName}</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Status</label>
-                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}">
-                    ${status}
-                </span>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Step Number</label>
-                <p class="text-sm text-gray-900">${stepNumber}</p>
-            </div>
-            <div class="pt-3">
-                <button onclick="closeStepStatusModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
-                    Tutup
-                </button>
-            </div>
-        </div>
-    `;
+    // Fetch step details via AJAX
+    fetch(`/api/approval-steps/${requestId}/${stepNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            const content = document.getElementById('stepStatusContent');
+            content.innerHTML = `
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Nama Step</label>
+                        <p class="text-sm text-gray-900">${stepName}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Status</label>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}">
+                            ${status}
+                        </span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Step Number</label>
+                        <p class="text-sm text-gray-900">${stepNumber}</p>
+                    </div>
+                    ${data.approved_at ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Waktu Aksi</label>
+                        <p class="text-sm text-gray-900">${new Date(data.approved_at).toLocaleString('id-ID')}</p>
+                    </div>
+                    ` : ''}
+                    ${data.approved_by_name ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Diapprove Oleh</label>
+                        <p class="text-sm text-gray-900">${data.approved_by_name}</p>
+                    </div>
+                    ` : ''}
+                    ${data.comments ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Komentar</label>
+                        <p class="text-sm text-gray-900">${data.comments}</p>
+                    </div>
+                    ` : ''}
+                    <div class="pt-3">
+                        <button onclick="closeStepStatusModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            `;
+        })
+        .catch(error => {
+            console.error('Error fetching step details:', error);
+            const content = document.getElementById('stepStatusContent');
+            content.innerHTML = `
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Nama Step</label>
+                        <p class="text-sm text-gray-900">${stepName}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Status</label>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}">
+                            ${status}
+                        </span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Step Number</label>
+                        <p class="text-sm text-gray-900">${stepNumber}</p>
+                    </div>
+                    <div class="pt-3">
+                        <button onclick="closeStepStatusModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
     
     // Show modal
     modal.classList.remove('hidden');

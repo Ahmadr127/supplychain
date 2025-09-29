@@ -58,6 +58,26 @@
                         @enderror
                     </div>
 
+                    <!-- Item Type Selection -->
+                    <div>
+                        <label for="item_type_id" class="block text-sm font-medium text-gray-700 mb-2">
+                            Tipe Barang
+                        </label>
+                        <select id="item_type_id" name="item_type_id" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('item_type_id') border-red-500 @enderror">
+                            <option value="">Pilih Tipe Barang (Opsional)</option>
+                            @foreach(\App\Models\ItemType::where('is_active', true)->get() as $itemType)
+                                <option value="{{ $itemType->id }}" {{ old('item_type_id') == $itemType->id ? 'selected' : '' }}>
+                                    {{ $itemType->name }} - {{ $itemType->description }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('item_type_id')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                        <p class="mt-1 text-xs text-gray-500">Kosongkan jika workflow untuk semua tipe barang</p>
+                    </div>
+
                     <!-- Status -->
                     <div class="md:col-span-2">
                         <label class="flex items-center">

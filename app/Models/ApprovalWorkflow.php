@@ -14,18 +14,27 @@ class ApprovalWorkflow extends Model
         'type',
         'description',
         'workflow_steps',
-        'is_active'
+        'is_active',
+        'item_type_id',
+        'is_specific_type'
     ];
 
     protected $casts = [
         'workflow_steps' => 'array',
         'is_active' => 'boolean',
+        'is_specific_type' => 'boolean',
     ];
 
     // Relasi dengan approval requests
     public function requests()
     {
         return $this->hasMany(ApprovalRequest::class, 'workflow_id');
+    }
+
+    // Relasi dengan item type
+    public function itemType()
+    {
+        return $this->belongsTo(\App\Models\ItemType::class);
     }
 
     // Method untuk mendapatkan workflow steps sebagai collection
@@ -54,6 +63,27 @@ class ApprovalWorkflow extends Model
         return $query->where('is_active', true);
     }
 
+    // Scope untuk workflow berdasarkan item type
+    public function scopeForItemType($query, $itemTypeId)
+    {
+        return $query->where(function($q) use ($itemTypeId) {
+            $q->where('item_type_id', $itemTypeId)
+              ->orWhere('is_specific_type', false);
+        });
+    }
+
+    // Scope untuk workflow umum (tidak specific ke item type)
+    public function scopeGeneral($query)
+    {
+        return $query->where('is_specific_type', false);
+    }
+
+    // Scope untuk workflow specific
+    public function scopeSpecific($query)
+    {
+        return $query->where('is_specific_type', true);
+    }
+
     // Method untuk membuat approval request
     public function createRequest($requesterId, $title, $description = null, $requestNumber = null, $priority = 'normal', $isCtoRequest = false)
     {
@@ -67,6 +97,7 @@ class ApprovalWorkflow extends Model
             'priority' => $priority,
             'is_cto_request' => $isCtoRequest,
             'total_steps' => count($this->workflow_steps),
+            'current_step' => 1,
             'status' => 'on progress'
         ]);
 

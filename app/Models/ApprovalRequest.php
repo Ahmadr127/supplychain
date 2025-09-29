@@ -22,11 +22,14 @@ class ApprovalRequest extends Model
         'total_steps',
         'approved_by',
         'approved_at',
-        'rejection_reason'
+        'rejection_reason',
+        'item_type_id',
+        'is_specific_type'
     ];
 
     protected $casts = [
         'approved_at' => 'datetime',
+        'is_specific_type' => 'boolean',
     ];
 
     // Relasi dengan workflow
@@ -72,6 +75,12 @@ class ApprovalRequest extends Model
     public function attachments()
     {
         return $this->hasMany(ApprovalRequestAttachment::class);
+    }
+
+    // Relasi dengan item type
+    public function itemType()
+    {
+        return $this->belongsTo(\App\Models\ItemType::class);
     }
 
     // Scope untuk status tertentu

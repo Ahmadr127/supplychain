@@ -233,13 +233,20 @@ class MasterItemController extends Controller
     public function search(Request $request)
     {
         $query = $request->get('q', '');
+        $itemTypeId = $request->get('item_type_id');
         
-            $items = MasterItem::active()
-                ->where(function($q) use ($query) {
-                    $q->where('name', 'like', "%{$query}%")
-                      ->orWhere('code', 'like', "%{$query}%");
-                })
-            ->with(['itemType', 'itemCategory', 'commodity', 'unit'])
+        $itemsQuery = MasterItem::active()
+            ->where(function($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                  ->orWhere('code', 'like', "%{$query}%");
+            });
+            
+        // Filter by item type if specified
+        if ($itemTypeId) {
+            $itemsQuery->where('item_type_id', $itemTypeId);
+        }
+        
+        $items = $itemsQuery->with(['itemType', 'itemCategory', 'commodity', 'unit'])
             ->limit(10)
             ->get();
             

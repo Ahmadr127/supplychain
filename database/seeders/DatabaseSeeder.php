@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             RolePermissionSeeder::class,
             DepartmentSeeder::class,
             MasterItemSeeder::class,
+            ApprovalWorkflowSeeder::class,
         ]);
     }
 }
