@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Department;
 use App\Models\ApprovalWorkflow;
 use App\Models\ApprovalRequest;
+use App\Models\SubmissionType;
 
 class TestApprovalSystem extends Command
 {
@@ -67,14 +68,11 @@ class TestApprovalSystem extends Command
         
         if ($requester && $workflow) {
             try {
+                $stype = SubmissionType::firstOrCreate(['code' => 'BRG'], ['name' => 'Barang', 'description' => 'Barang', 'is_active' => true]);
                 $request = $workflow->createRequest(
                     requesterId: $requester->id,
-                    title: 'Test Purchase Request',
-                    description: 'This is a test request created by the command',
-                    data: [
-                        'amount' => 1000000,
-                        'items' => ['Laptop', 'Mouse', 'Keyboard']
-                    ]
+                    submissionTypeId: $stype->id,
+                    description: 'This is a test request created by the command'
                 );
                 
                 $this->line("   Created request: {$request->request_number}");

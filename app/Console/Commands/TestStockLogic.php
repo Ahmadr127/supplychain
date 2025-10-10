@@ -8,6 +8,7 @@ use App\Models\ApprovalWorkflow;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalStep;
 use App\Models\MasterItem;
+use App\Models\SubmissionType;
 use App\Models\ItemType;
 use App\Models\ItemCategory;
 use App\Models\Commodity;
@@ -96,11 +97,18 @@ class TestStockLogic extends Command
 
         $this->line("   Created workflow: {$workflow->name}");
 
+        // Prepare submission type
+        $submissionType = SubmissionType::firstOrCreate(['code' => 'BRG'], [
+            'name' => 'Barang',
+            'description' => 'Pengajuan pengadaan barang',
+            'is_active' => true,
+        ]);
+
         // 4. Test 1: Create approval request and approve it
         $this->info('4. Test 1: Creating and approving request...');
         $request = $workflow->createRequest(
             requesterId: $requester->id,
-            title: 'Test Stock Increase Request',
+            submissionTypeId: $submissionType->id,
             description: 'Testing stock increase when approved',
             requestNumber: 'TEST-' . date('Ymd') . '-001'
         );
@@ -131,7 +139,7 @@ class TestStockLogic extends Command
         $this->info('5. Test 2: Creating and rejecting request...');
         $request2 = $workflow->createRequest(
             requesterId: $requester->id,
-            title: 'Test Stock Reject Request',
+            submissionTypeId: $submissionType->id,
             description: 'Testing stock unchanged when rejected',
             requestNumber: 'TEST-' . date('Ymd') . '-002'
         );
@@ -176,7 +184,7 @@ class TestStockLogic extends Command
 
         $request3 = $workflow->createRequest(
             requesterId: $requester->id,
-            title: 'Test Multiple Items Request',
+            submissionTypeId: $submissionType->id,
             description: 'Testing stock update with multiple items',
             requestNumber: 'TEST-' . date('Ymd') . '-003'
         );
@@ -217,7 +225,7 @@ class TestStockLogic extends Command
         // Test with zero quantity
         $request4 = $workflow->createRequest(
             requesterId: $requester->id,
-            title: 'Test Zero Quantity Request',
+            submissionTypeId: $submissionType->id,
             description: 'Testing with zero quantity',
             requestNumber: 'TEST-' . date('Ymd') . '-004'
         );
@@ -240,7 +248,7 @@ class TestStockLogic extends Command
         // Test with negative quantity (should be handled gracefully)
         $request5 = $workflow->createRequest(
             requesterId: $requester->id,
-            title: 'Test Negative Quantity Request',
+            submissionTypeId: $submissionType->id,
             description: 'Testing with negative quantity',
             requestNumber: 'TEST-' . date('Ymd') . '-005'
         );

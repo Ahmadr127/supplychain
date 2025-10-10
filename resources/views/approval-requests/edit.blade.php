@@ -15,15 +15,21 @@
                 <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
                     <!-- Left Column - Main Form (60%) -->
                     <div class="lg:col-span-3 space-y-4">
-                        <!-- Title -->
+                        <!-- Jenis Pengajuan -->
                         <div>
-                            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">
-                                Judul Request <span class="text-red-500">*</span>
+                            <label for="submission_type_id" class="block text-sm font-medium text-gray-700 mb-1">
+                                Jenis Pengajuan <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" id="title" name="title" value="{{ old('title', $approvalRequest->title) }}" required
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('title') border-red-500 @enderror"
-                                   placeholder="Masukkan judul request">
-                            @error('title')
+                            <select id="submission_type_id" name="submission_type_id" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('submission_type_id') border-red-500 @enderror">
+                                <option value="">Pilih Jenis Pengajuan</option>
+                                @foreach($submissionTypes as $stype)
+                                    <option value="{{ $stype->id }}" {{ old('submission_type_id', $approvalRequest->submission_type_id) == $stype->id ? 'selected' : '' }}>
+                                        {{ $stype->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('submission_type_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>

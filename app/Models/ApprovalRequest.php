@@ -13,7 +13,7 @@ class ApprovalRequest extends Model
         'request_number',
         'workflow_id',
         'requester_id',
-        'title',
+        'submission_type_id',
         'description',
         'priority',
         'is_cto_request',
@@ -75,6 +75,12 @@ class ApprovalRequest extends Model
     public function attachments()
     {
         return $this->hasMany(ApprovalRequestAttachment::class);
+    }
+
+    // Relasi dengan submission type (Jenis Pengajuan)
+    public function submissionType()
+    {
+        return $this->belongsTo(\App\Models\SubmissionType::class);
     }
 
     // Relasi dengan item type

@@ -18,14 +18,17 @@ class ApprovalRequestController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ApprovalRequest::with(['workflow', 'requester', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment']);
+        $query = ApprovalRequest::with(['workflow', 'requester', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment', 'submissionType']);
 
         // Search filter
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('request_number', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhereHas('submissionType', function($st) use ($search) {
+                      $st->where('name', 'like', "%{$search}%");
+                  })
                   ->orWhereHas('requester', function($q) use ($search) {
                       $q->where('name', 'like', "%{$search}%");
                   });
@@ -61,6 +64,8 @@ class ApprovalRequestController extends Controller
     {
         // Get all active item types for radio button selection
         $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        // Get submission types
+        $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
         // Get default general workflow (not specific to any item type)
         $defaultWorkflow = ApprovalWorkflow::where('is_active', true)
@@ -77,6 +82,17 @@ class ApprovalRequestController extends Controller
             abort(500, 'Tidak ada workflow yang tersedia. Silakan hubungi administrator.');
         }
         
+        // Generate preview request number based on user's primary department and current date
+        $previewRequestNumber = null;
+        $user = auth()->user();
+        if ($user) {
+            $primaryDepartment = $user->departments()->wherePivot('is_primary', true)->first();
+            $departmentCode = $primaryDepartment ? $primaryDepartment->code : 'UNKNOWN';
+            $dateCode = date('dmy');
+            $sequenceNumber = ApprovalRequest::whereDate('created_at', today())->count() + 1;
+            $previewRequestNumber = "AZ/{$departmentCode}/{$dateCode}/PPBJ-" . str_pad($sequenceNumber, 4, '0', STR_PAD_LEFT);
+        }
+
         // Get all master items for search
         $masterItems = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit'])->get();
         
@@ -85,7 +101,7 @@ class ApprovalRequestController extends Controller
         $commodities = \App\Models\Commodity::where('is_active', true)->get();
         $units = \App\Models\Unit::where('is_active', true)->get();
         
-        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
+        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber'));
     }
 
     public function store(Request $request)
@@ -93,7 +109,7 @@ class ApprovalRequestController extends Controller
         $validator = Validator::make($request->all(), [
             'workflow_id' => 'required|exists:approval_workflows,id',
             'item_type_id' => 'required|exists:item_types,id',
-            'title' => 'required|string|max:255',
+            'submission_type_id' => 'required|exists:submission_types,id',
             'description' => 'nullable|string',
             'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number',
             'items' => 'nullable|array',
@@ -111,8 +127,8 @@ class ApprovalRequestController extends Controller
 
         $workflow = ApprovalWorkflow::findOrFail($request->workflow_id);
         
-        // All requests are now specific to item type
-        $isSpecificType = true;
+        // Determine specific type from selected workflow
+        $isSpecificType = (bool) $workflow->is_specific_type;
         
         // Generate request number if not provided
         $requestNumber = $request->request_number;
@@ -130,7 +146,7 @@ class ApprovalRequestController extends Controller
         
         $approvalRequest = $workflow->createRequest(
             requesterId: auth()->id(),
-            title: $request->title,
+            submissionTypeId: $request->submission_type_id,
             description: $request->description,
             requestNumber: $requestNumber,
             priority: 'normal',
@@ -140,6 +156,7 @@ class ApprovalRequestController extends Controller
         // Update approval request with item type information
         $approvalRequest->update([
             'item_type_id' => $request->item_type_id,
+            'submission_type_id' => $request->submission_type_id,
             'is_specific_type' => $isSpecificType
         ]);
 
@@ -201,7 +218,8 @@ class ApprovalRequestController extends Controller
             'masterItems.itemCategory',
             'masterItems.commodity',
             'masterItems.unit',
-            'attachments'
+            'attachments',
+            'submissionType'
         ]);
         
         return view('approval-requests.show', compact('approvalRequest'));
@@ -251,9 +269,9 @@ class ApprovalRequestController extends Controller
         $commodities = \App\Models\Commodity::where('is_active', true)->get();
         $units = \App\Models\Unit::where('is_active', true)->get();
         
-        $approvalRequest->load(['masterItems', 'attachments', 'itemType']);
+        $approvalRequest->load(['masterItems', 'attachments', 'itemType', 'submissionType']);
         
-        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units'));
+        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -265,7 +283,7 @@ class ApprovalRequestController extends Controller
 
         $validator = Validator::make($request->all(), [
             'item_type_id' => 'required|exists:item_types,id',
-            'title' => 'required|string|max:255',
+            'submission_type_id' => 'required|exists:submission_types,id',
             'description' => 'nullable|string',
             'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number,' . $approvalRequest->id,
             'items' => 'nullable|array',
@@ -287,12 +305,12 @@ class ApprovalRequestController extends Controller
         $isSpecificType = true;
 
         $approvalRequest->update([
-            'title' => $request->title,
             'description' => $request->description,
             'request_number' => $request->request_number ?: $approvalRequest->request_number,
             'priority' => 'normal',
             'is_cto_request' => false,
             'item_type_id' => $request->item_type_id,
+            'submission_type_id' => $request->submission_type_id,
             'is_specific_type' => $isSpecificType
         ]);
 
@@ -461,14 +479,17 @@ class ApprovalRequestController extends Controller
 
     public function myRequests(Request $request)
     {
-        $query = auth()->user()->approvalRequests()->with(['workflow', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment']);
+        $query = auth()->user()->approvalRequests()->with(['workflow', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment', 'submissionType']);
 
         // Search filter
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('request_number', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%");
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhereHas('submissionType', function($st) use ($search) {
+                      $st->where('name', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -515,7 +536,7 @@ class ApprovalRequestController extends Controller
                                 // Show requests with any status by default
                                 $q->whereIn('status', ['pending', 'on progress', 'approved', 'rejected', 'cancelled']);
                             })
-                            ->with(['request.workflow', 'request.requester', 'request.steps.approver', 'request.steps.approverRole', 'request.steps.approverDepartment', 'approver', 'approverRole', 'approverDepartment']);
+                            ->with(['request.workflow', 'request.requester', 'request.steps.approver', 'request.steps.approverRole', 'request.steps.approverDepartment', 'request.submissionType', 'approver', 'approverRole', 'approverDepartment']);
 
         // Status filter
         if ($request->filled('status')) {
@@ -529,7 +550,10 @@ class ApprovalRequestController extends Controller
             $search = $request->search;
             $query->whereHas('request', function($q) use ($search) {
                 $q->where('request_number', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhereHas('submissionType', function($st) use ($search) {
+                      $st->where('name', 'like', "%{$search}%");
+                  })
                   ->orWhereHas('requester', function($q) use ($search) {
                       $q->where('name', 'like', "%{$search}%");
                   });

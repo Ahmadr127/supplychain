@@ -9,7 +9,7 @@
         <div class="p-4 bg-white border-b border-gray-200">
             <div class="flex justify-between items-center">
                 <div>
-                    <h2 class="text-xl font-bold text-gray-900">{{ $approvalRequest->title }}</h2>
+                    <h2 class="text-xl font-bold text-gray-900">{{ $approvalRequest->submissionType->name ?? 'Request' }}</h2>
                     <p class="text-sm text-gray-600">{{ $approvalRequest->request_number }}</p>
                 </div>
                 <div class="flex space-x-2">

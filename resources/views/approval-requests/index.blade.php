@@ -16,7 +16,7 @@
         <form method="GET" class="flex flex-wrap gap-3 items-end">
             <div class="flex-1 min-w-48">
                 <input type="text" name="search" value="{{ request('search') }}" 
-                       placeholder="Cari nomor request, judul, atau requester..."
+                       placeholder="Cari nomor request, jenis pengajuan, deskripsi, atau requester..."
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
             </div>
             <div class="w-32">
@@ -99,7 +99,7 @@
                                     {{ $request->request_number }}
                                 </span>
                             </div>
-                            <div class="text-sm text-gray-900 truncate">{{ $request->title }}</div>
+                            <div class="text-sm text-gray-900 truncate">{{ $request->submissionType->name ?? '-' }}</div>
                         </div>
                     </td>
                     <td class="w-32 px-2 py-1">

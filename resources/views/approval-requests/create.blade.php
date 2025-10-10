@@ -12,27 +12,38 @@
                 <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
                     <!-- Left Column - Main Form (60%) -->
                     <div class="lg:col-span-3 space-y-4">
-                        <!-- Title -->
+                        <!-- Jenis Pengajuan (Radio) -->
                         <div>
-                            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">
-                                Judul Request <span class="text-red-500">*</span>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Jenis Pengajuan <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" id="title" name="title" value="{{ old('title') }}" required
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('title') border-red-500 @enderror"
-                                   placeholder="Masukkan judul request">
-                            @error('title')
+                            <div class="space-y-2">
+                                @foreach($submissionTypes as $stype)
+                                <div class="flex items-center">
+                                    <input type="radio" id="submission_type_{{ $stype->id }}" name="submission_type_id" value="{{ $stype->id }}"
+                                           class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                           {{ old('submission_type_id') == $stype->id ? 'checked' : '' }} required>
+                                    <label for="submission_type_{{ $stype->id }}" class="ml-2 text-sm text-gray-700">
+                                        <span class="font-medium">{{ $stype->name }}</span>
+                                        @if($stype->description)
+                                            - {{ $stype->description }}
+                                        @endif
+                                    </label>
+                                </div>
+                                @endforeach
+                            </div>
+                            @error('submission_type_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
-
                         <!-- Request Number -->
                         <div>
                             <label for="request_number" class="block text-sm font-medium text-gray-700 mb-1">
                                 Nomor Request
                             </label>
-                            <input type="text" id="request_number" name="request_number" value="{{ old('request_number') }}"
+                            <input type="text" id="request_number" name="request_number" value="{{ old('request_number', $previewRequestNumber ?? '') }}"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('request_number') border-red-500 @enderror"
-                                   placeholder="Auto-generated jika kosong">
+                                   placeholder="Kosongkan untuk generate otomatis">
                             @error('request_number')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -40,7 +51,7 @@
 
                         <!-- Item Type Selection -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Tipe Barang <span class="text-red-500">*</span>
                             </label>
                             <div class="space-y-2">
@@ -62,6 +73,7 @@
                             @error('item_type_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
+                            
                         </div>
 
 
@@ -117,7 +129,7 @@
                     <!-- Right Column - Request Info (40%) -->
                     <div class="lg:col-span-2 space-y-4">
                         <!-- Hidden workflow selection - will use default standard workflow -->
-                        <input type="hidden" name="workflow_id" value="{{ $defaultWorkflow->id }}">
+                        <input type="hidden" name="workflow_id" id="workflow_id" value="{{ $defaultWorkflow->id }}">
                         
                         <!-- Request Type - Hidden, default to normal -->
                         <input type="hidden" name="request_type" value="normal">
@@ -174,6 +186,46 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const itemTypeRadios = document.querySelectorAll('input[name="item_type_id"]');
+    const workflowIdInput = document.getElementById('workflow_id');
+    const workflowNameSpan = document.getElementById('workflow_name');
+
+    function updateWorkflowByItemType(itemTypeId) {
+        if (!itemTypeId) return;
+        const url = "{{ route('api.approval-requests.workflow-for-item-type', ['itemTypeId' => 'ITEM_TYPE_ID']) }}".replace('ITEM_TYPE_ID', itemTypeId);
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.success && data.workflow) {
+                    workflowIdInput.value = data.workflow.id;
+                    if (workflowNameSpan) workflowNameSpan.textContent = data.workflow.name;
+                }
+            })
+            .catch(() => {});
+    }
+
+    itemTypeRadios.forEach(r => {
+        r.addEventListener('change', (e) => {
+            updateWorkflowByItemType(e.target.value);
+        });
+        if (r.checked) {
+            updateWorkflowByItemType(r.value);
+        }
+    });
+
+    // Hook into item search to pass item_type_id if there is code using fetch to api.approval-requests.master-items
+    // If you have a function to load items, ensure it adds ?item_type_id=<selectedId>
+    window.getSelectedItemTypeId = function() {
+        const checked = document.querySelector('input[name="item_type_id"]:checked');
+        return checked ? checked.value : '';
+    };
+});
+</script>
+@endpush
 
 <!-- Include Modal Form for Adding Items -->
 @include('components.modals.form-master-items')
@@ -330,6 +382,7 @@ function initializeItemTypeSelection() {
     const checkedRadio = document.querySelector('input[name="item_type_id"]:checked');
     if (checkedRadio) {
         currentItemTypeId = checkedRadio.value;
+        updateWorkflowForItemType(currentItemTypeId);
     }
 }
 
@@ -339,7 +392,7 @@ function updateWorkflowForItemType(itemTypeId) {
         return;
     }
     
-    fetch(`/approval-requests/workflow-for-item-type/${itemTypeId}`)
+    fetch("{{ route('api.approval-requests.workflow-for-item-type', ['itemTypeId' => 'ITEM_TYPE_ID']) }}".replace('ITEM_TYPE_ID', itemTypeId))
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -347,7 +400,7 @@ function updateWorkflowForItemType(itemTypeId) {
                 document.querySelector('input[name="workflow_id"]').value = data.workflow.id;
                 
                 // Show workflow info to user
-                showWorkflowInfo(data.workflow);
+                showWorkflowInfo(data.workflow, itemTypeId);
             }
         })
         .catch(error => {
@@ -355,32 +408,31 @@ function updateWorkflowForItemType(itemTypeId) {
         });
 }
 
-// Show workflow information to user
-function showWorkflowInfo(workflow) {
-    // Create or update workflow info display
-    let workflowInfo = document.getElementById('workflowInfo');
-    if (!workflowInfo) {
-        workflowInfo = document.createElement('div');
-        workflowInfo.id = 'workflowInfo';
-        workflowInfo.className = 'mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg';
-        
-        // Insert after item type selection
-        const itemTypeDiv = document.querySelector('input[name="item_type_id"]').closest('div');
-        itemTypeDiv.parentNode.insertBefore(workflowInfo, itemTypeDiv.nextSibling);
-    }
-    
-    const workflowType = workflow.is_specific_type ? 'Khusus' : 'Umum';
+// Show workflow information to user under the selected item type radio
+function showWorkflowInfo(workflow, itemTypeId) {
+    // Remove any existing workflow info boxes
+    document.querySelectorAll('.workflow-info-box').forEach(el => el.remove());
+
+    const radio = document.getElementById('item_type_' + itemTypeId);
+    if (!radio) return;
+    // Find the container div for this radio (its closest .flex.items-center)
+    const container = radio.closest('div');
+    if (!container) return;
+
+    const workflowInfo = document.createElement('div');
+    workflowInfo.className = 'workflow-info-box mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded';
+
     workflowInfo.innerHTML = `
-        <div class="flex items-center">
-            <svg class="h-5 w-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex items-center text-sm text-blue-900">
+            <svg class="h-4 w-4 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
-            <div>
-                <p class="text-sm font-medium text-blue-900">Workflow: ${workflow.name}</p>
-                <p class="text-xs text-blue-700">Tipe: ${workflowType}</p>
-            </div>
+            <span>Workflow: ${escapeHtml(workflow.name)}</span>
         </div>
     `;
+
+    // Insert after the radio's container
+    container.parentNode.insertBefore(workflowInfo, container.nextSibling);
 }
 
 function selectItem(itemId) {
