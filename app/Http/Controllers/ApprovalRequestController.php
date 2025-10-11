@@ -389,11 +389,21 @@ class ApprovalRequestController extends Controller
                 $quantity = (int) ($itemData['quantity'] ?? 1);
                 $totalPrice = $quantity * $unitPrice;
 
+                // Resolve supplier if only name provided
+                $supplierId = isset($itemData['supplier_id']) ? (int) $itemData['supplier_id'] : null;
+                if (!$supplierId && !empty($itemData['supplier_name'])) {
+                    $supplierId = $this->resolveOrCreateSupplierByName($itemData['supplier_name']);
+                }
+
                 $approvalRequest->masterItems()->attach($masterItemId, [
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'total_price' => $totalPrice,
-                    'notes' => $itemData['notes'] ?? null
+                    'notes' => $itemData['notes'] ?? null,
+                    'specification' => $itemData['specification'] ?? null,
+                    'brand' => $itemData['brand'] ?? null,
+                    'supplier_id' => $supplierId,
+                    'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
                 ]);
             }
         }

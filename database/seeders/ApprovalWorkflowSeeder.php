@@ -19,14 +19,11 @@ class ApprovalWorkflowSeeder extends Seeder
         $medisType = ItemType::where('name', 'Medis')->first();
         $nonMedisType = ItemType::where('name', 'Non Medis')->first();
         
-        // Get roles and departments for workflow steps
-        $adminRole = Role::where('name', 'Admin')->first();
-        $managerRole = Role::where('name', 'Manager')->first();
-        $supervisorRole = Role::where('name', 'Supervisor')->first();
-        
-        $farmasiDept = Department::where('name', 'Farmasi')->first();
-        $gudangDept = Department::where('name', 'Gudang')->first();
-        $keuanganDept = Department::where('name', 'Keuangan')->first();
+        // Get roles and departments for workflow steps (matching the actual data from other seeders)
+        $technicalExpertRole = Role::where('name', 'technical_expert')->first();
+        $managerItRole = Role::where('name', 'manager_it')->first();
+        $managerKeuanganRole = Role::where('name', 'manager_keuangan')->first();
+        $direkturRole = Role::where('name', 'direktur')->first();
 
         // 1. Medical Items Workflow (specific for medical items)
         if ($medisType) {
@@ -39,24 +36,24 @@ class ApprovalWorkflowSeeder extends Seeder
                     'description' => 'Workflow khusus untuk barang medis dan farmasi',
                     'workflow_steps' => [
                         [
-                            'name' => 'Approval Farmasi',
-                            'approver_type' => 'department_manager',
-                            'approver_department_id' => $farmasiDept ? $farmasiDept->id : null,
-                        ],
-                        [
-                            'name' => 'Approval Gudang Medis',
-                            'approver_type' => 'department_manager',
-                            'approver_department_id' => $gudangDept ? $gudangDept->id : null,
-                        ],
-                        [
-                            'name' => 'Approval Keuangan',
-                            'approver_type' => 'department_manager',
-                            'approver_department_id' => $keuanganDept ? $keuanganDept->id : null,
-                        ],
-                        [
-                            'name' => 'Final Approval Manager',
+                            'name' => 'Technical Expert Review',
                             'approver_type' => 'role',
-                            'approver_role_id' => $managerRole ? $managerRole->id : null,
+                            'approver_role_id' => $technicalExpertRole ? $technicalExpertRole->id : null,
+                        ],
+                        [
+                            'name' => 'Manager IT Approval',
+                            'approver_type' => 'role',
+                            'approver_role_id' => $managerItRole ? $managerItRole->id : null,
+                        ],
+                        [
+                            'name' => 'Manager Keuangan Approval',
+                            'approver_type' => 'role',
+                            'approver_role_id' => $managerKeuanganRole ? $managerKeuanganRole->id : null,
+                        ],
+                        [
+                            'name' => 'Final Approval Direktur',
+                            'approver_type' => 'role',
+                            'approver_role_id' => $direkturRole ? $direkturRole->id : null,
                         ]
                     ],
                     'is_active' => true,
@@ -66,7 +63,7 @@ class ApprovalWorkflowSeeder extends Seeder
             );
         }
 
-        // 2. Non-Medical Items Workflow (specific for non-medical items)
+        // 2. Non-Medical Items Workflow (simplified - only 2 steps like standard approval)
         if ($nonMedisType) {
             $nonMedicalWorkflow = ApprovalWorkflow::firstOrCreate(
                 [
@@ -74,22 +71,17 @@ class ApprovalWorkflowSeeder extends Seeder
                     'type' => 'non_medical'
                 ],
                 [
-                    'description' => 'Workflow khusus untuk barang non medis dan umum',
+                    'description' => 'Workflow sederhana untuk barang non medis dan umum (2 langkah approval)',
                     'workflow_steps' => [
                         [
-                            'name' => 'Approval Supervisor',
+                            'name' => 'Manager IT Approval',
                             'approver_type' => 'role',
-                            'approver_role_id' => $supervisorRole ? $supervisorRole->id : null,
+                            'approver_role_id' => $managerItRole ? $managerItRole->id : null,
                         ],
                         [
-                            'name' => 'Approval Gudang',
-                            'approver_type' => 'department_manager',
-                            'approver_department_id' => $gudangDept ? $gudangDept->id : null,
-                        ],
-                        [
-                            'name' => 'Final Approval Manager',
+                            'name' => 'Manager Keuangan Approval',
                             'approver_type' => 'role',
-                            'approver_role_id' => $managerRole ? $managerRole->id : null,
+                            'approver_role_id' => $managerKeuanganRole ? $managerKeuanganRole->id : null,
                         ]
                     ],
                     'is_active' => true,

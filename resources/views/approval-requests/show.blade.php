@@ -3,10 +3,10 @@
 @section('title', 'Detail Approval Request')
 
 @section('content')
-<div class="w-full px-4 sm:px-6 lg:px-8">
-    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+<div class="w-full px-0">
+    <div class="bg-white overflow-visible shadow-none rounded-none">
         <!-- Header -->
-        <div class="p-4 bg-white border-b border-gray-200">
+        <div class="p-2 bg-white border-b border-gray-200">
             <div class="flex justify-between items-center">
                 <div>
                     <h2 class="text-xl font-bold text-gray-900">{{ $approvalRequest->submissionType->name ?? 'Request' }}</h2>
@@ -31,15 +31,15 @@
             </div>
         </div>
 
-        <div class="p-4">
-            <div class="grid grid-cols-1 xl:grid-cols-4 gap-4">
+        <div class="p-2">
+            <div class="grid grid-cols-1 xl:grid-cols-5 gap-3">
                 <!-- Main Content -->
-                <div class="xl:col-span-3 space-y-4">
+                <div class="xl:col-span-4 space-y-4">
                     <!-- Request Info -->
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <h3 class="text-base font-semibold text-gray-900 mb-3">Informasi Request</h3>
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <h3 class="text-base font-semibold text-gray-900 mb-2">Informasi Request</h3>
                         
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                             <div>
                                 <label class="block text-xs font-medium text-gray-700">Status</label>
                                 <p class="mt-1">
@@ -70,29 +70,10 @@
                             </div>
                         </div>
                         
-                        <!-- Requester Details -->
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700">Requester</label>
-                                <p class="mt-1 text-xs text-gray-900">{{ $approvalRequest->requester->name }}</p>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700">Department & Position</label>
-                                <p class="mt-1 text-xs text-gray-900">
-                                    @php
-                                        $primaryDepartment = $approvalRequest->requester->departments()->wherePivot('is_primary', true)->first();
-                                        $role = $approvalRequest->requester->role;
-                                    @endphp
-                                    {{ $primaryDepartment ? $primaryDepartment->name : 'No Department' }}
-                                    @if($role)
-                                        • {{ $role->display_name }}
-                                    @endif
-                                </p>
-                            </div>
-                        </div>
+                        <!-- Requester and Department removed to avoid duplication with sidebar -->
                         
                         @if($approvalRequest->description)
-                        <div class="mt-3">
+                        <div class="mt-2">
                             <label class="block text-xs font-medium text-gray-700">Deskripsi</label>
                             <p class="mt-1 text-xs text-gray-900">{{ $approvalRequest->description }}</p>
                         </div>
@@ -101,93 +82,86 @@
 
                     <!-- Items Section -->
                     @if($approvalRequest->masterItems->count() > 0)
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <h3 class="text-base font-semibold text-gray-900 mb-3">Item yang Diminta</h3>
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <h3 class="text-base font-semibold text-gray-900 mb-2">Item yang Diminta</h3>
                         
-                        <div class="space-y-3">
+                        <div class="space-y-2">
                             @foreach($approvalRequest->masterItems as $item)
                             @php
                                 $qty = (int) ($item->pivot->quantity ?? 0);
                                 $unitPrice = (float) ($item->pivot->unit_price ?? ($item->total_price ?? 0));
                                 $totalPrice = (float) ($item->pivot->total_price ?? ($qty * $unitPrice));
                             @endphp
-                            <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                                <!-- Header: name and meta -->
-                                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                            <div class="bg-white border border-gray-200 rounded-xl p-2 shadow-sm">
+                                <!-- Row 1: header/meta on left, KPIs + brand/vendor on right -->
+                                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-2 leading-snug">
                                     <div>
-                                        <div class="text-base font-semibold text-gray-900">{{ $item->name }}</div>
+                                        <div class="text-[16px] font-semibold text-gray-900">{{ $item->name }}</div>
                                         <div class="text-xs text-gray-500">Kode: {{ $item->code }}</div>
                                         <div class="text-xs text-gray-400">{{ $item->itemType->name ?? '-' }} @if($item->itemCategory) • {{ $item->itemCategory->name }} @endif</div>
                                     </div>
-                                    <div class="grid grid-cols-3 gap-6 text-right">
+                                    <div class="grid grid-cols-3 md:grid-cols-5 gap-2 text-right leading-snug">
                                         <div>
-                                            <div class="text-[11px] text-gray-500">Jumlah</div>
-                                            <div class="text-sm font-medium text-gray-900">{{ $qty }} {{ $item->unit->name ?? '' }}</div>
+                                            <div class="text-xs text-gray-500">Jumlah</div>
+                                            <div class="text-base font-medium text-gray-900">{{ $qty }} {{ $item->unit->name ?? '' }}</div>
                                         </div>
                                         <div>
-                                            <div class="text-[11px] text-gray-500">Harga Satuan</div>
-                                            <div class="text-sm font-medium text-gray-900">Rp {{ number_format($unitPrice, 0, ',', '.') }}</div>
+                                            <div class="text-xs text-gray-500">Harga Satuan</div>
+                                            <div class="text-base font-medium text-gray-900">Rp {{ number_format($unitPrice, 0, ',', '.') }}</div>
                                         </div>
                                         <div>
-                                            <div class="text-[11px] text-gray-500">Total</div>
-                                            <div class="text-sm font-bold text-gray-900">Rp {{ number_format($totalPrice, 0, ',', '.') }}</div>
+                                            <div class="text-xs text-gray-500">Total</div>
+                                            <div class="text-base font-bold text-gray-900">Rp {{ number_format($totalPrice, 0, ',', '.') }}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-gray-500">Merk</div>
+                                            <div class="text-sm text-gray-900 leading-snug">{{ $item->pivot->brand ?? '-' }}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-gray-500">Vendor Alternatif</div>
+                                            <div class="text-sm text-gray-900 truncate max-w-[12rem] md:max-w-[10rem] leading-snug">{{ $item->pivot->alternative_vendor ?? '-' }}</div>
                                         </div>
                                     </div>
                                 </div>
 
-                                @if(!empty($item->pivot->notes))
-                                <div class="mt-4 text-xs text-gray-700">
-                                    <span class="font-medium">Catatan:</span> {{ $item->pivot->notes }}
+                                <div class="my-2 border-t border-gray-200"></div>
+
+                                <!-- Row 2: Spesifikasi, Catatan, Dokumen Pendukung -->
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs leading-snug">
+                                    <div>
+                                        <div class="text-xs text-gray-500">Spesifikasi</div>
+                                        <div class="text-sm text-gray-900 leading-snug">{{ $item->pivot->specification ?? '-' }}</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-500">Catatan</div>
+                                        <div class="text-sm text-gray-900 leading-snug">{{ $item->pivot->notes ?? '-' }}</div>
+                                    </div>
+                                    <div>
+                                        @php
+                                            $filesForItem = isset($itemFiles) ? ($itemFiles->get($item->id) ?? collect()) : collect();
+                                        @endphp
+                                        <div class="text-xs text-gray-500">Dokumen Pendukung</div>
+                                        @if($filesForItem->count())
+                                            <ul class="divide-y divide-gray-200 rounded-md border border-gray-200 overflow-hidden">
+                                                @foreach($filesForItem as $f)
+                                                    <li class="flex items-center justify-between px-2 py-1.5 text-xs bg-gray-50 gap-2">
+                                                        <a href="{{ route('approval-requests.view-attachment', $f->id) }}" target="_blank" class="text-blue-700 hover:underline truncate mr-2 max-w-[12rem] md:max-w-[10rem]" title="{{ $f->original_name }}">
+                                                            {{ $f->original_name }}
+                                                        </a>
+                                                        <a href="{{ route('approval-requests.download-attachment', $f->id) }}" class="text-gray-600 hover:text-gray-900 whitespace-nowrap px-2 py-1 rounded border border-gray-300 hover:bg-gray-100">Download</a>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        @else
+                                            <div class="text-gray-400">-</div>
+                                        @endif
+                                    </div>
                                 </div>
-                                @endif
-
-                                <div class="my-4 border-t border-gray-200"></div>
-
-                                <!-- Details: definition list for better scanability -->
-                                <dl class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                                    @if(!empty($item->pivot->specification))
-                                    <div>
-                                        <dt class="text-[11px] text-gray-500">Spesifikasi</dt>
-                                        <dd class="text-gray-900 leading-relaxed">{{ $item->pivot->specification }}</dd>
-                                    </div>
-                                    @endif
-                                    @if(!empty($item->pivot->brand))
-                                    <div>
-                                        <dt class="text-[11px] text-gray-500">Merk</dt>
-                                        <dd class="text-gray-900">{{ $item->pivot->brand }}</dd>
-                                    </div>
-                                    @endif
-                                    @if(!empty($item->pivot->alternative_vendor))
-                                    <div>
-                                        <dt class="text-[11px] text-gray-500">Vendor Alternatif</dt>
-                                        <dd class="text-gray-900">{{ $item->pivot->alternative_vendor }}</dd>
-                                    </div>
-                                    @endif
-                                </dl>
-
-                                @php
-                                    $filesForItem = isset($itemFiles) ? ($itemFiles->get($item->id) ?? collect()) : collect();
-                                @endphp
-                                @if($filesForItem->count())
-                                <div class="mt-2">
-                                    <div class="text-[11px] text-gray-500 mb-1">Dokumen Pendukung</div>
-                                    <ul class="divide-y divide-gray-200 rounded-md border border-gray-200 overflow-hidden">
-                                        @foreach($filesForItem as $f)
-                                            <li class="flex items-center justify-between px-3 py-2 text-xs bg-gray-50">
-                                                <a href="{{ route('approval-requests.view-attachment', $f->id) }}" target="_blank" class="text-blue-700 hover:underline truncate mr-3">
-                                                    {{ $f->original_name }}
-                                                </a>
-                                                <a href="{{ route('approval-requests.download-attachment', $f->id) }}" class="text-gray-600 hover:text-gray-900 whitespace-nowrap">Download</a>
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                </div>
-                                @endif
                             </div>
                             @endforeach
                             
                             <!-- Total -->
-                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-2">
                                 <div class="flex justify-between items-center">
                                     <span class="text-sm font-medium text-gray-900">Total Keseluruhan:</span>
                                     <span class="text-sm font-bold text-blue-900">
@@ -204,7 +178,7 @@
                 </div>
 
                 <!-- Sidebar -->
-                <div class="space-y-4">
+                <div class="space-y-3">
                     <!-- Requester Info -->
                     <div>
                         <h3 class="text-sm font-semibold text-gray-900 mb-2">Requester</h3>
@@ -233,8 +207,8 @@
                     </div>
 
                     <!-- Request Status Info -->
-                    <div class="bg-white border border-gray-200 rounded-lg p-4">
-                        <h3 class="text-base font-semibold text-gray-900 mb-3">Status Request</h3>
+                    <div class="bg-white border border-gray-200 rounded-lg p-3">
+                        <h3 class="text-base font-semibold text-gray-900 mb-2">Status Request</h3>
                         
                         @if($approvalRequest->status == 'on progress' || $approvalRequest->status == 'pending')
                         <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -245,7 +219,7 @@
                             <p class="text-xs text-blue-700 mt-1">Request sedang dalam proses approval</p>
                         </div>
                         @elseif($approvalRequest->status == 'approved')
-                        <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-2">
                             <div class="flex items-center">
                                 <div class="h-3 w-3 rounded-full bg-green-500 mr-2"></div>
                                 <span class="text-sm font-medium text-green-900">Approved</span>
@@ -270,7 +244,7 @@
                             @endif
                         </div>
                         @elseif($approvalRequest->status == 'rejected')
-                        <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-2">
                             <div class="flex items-center">
                                 <div class="h-3 w-3 rounded-full bg-red-500 mr-2"></div>
                                 <span class="text-sm font-medium text-red-900">Rejected</span>
@@ -301,7 +275,7 @@
                             @endif
                         </div>
                         @else
-                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-2">
                             <div class="flex items-center">
                                 <div class="h-3 w-3 rounded-full bg-gray-500 mr-2"></div>
                                 <span class="text-sm font-medium text-gray-900">{{ ucfirst($approvalRequest->status) }}</span>
@@ -322,8 +296,8 @@
                         @endphp
                         
                         @if($canApprove)
-                        <div class="bg-white border border-gray-200 rounded-lg p-4">
-                            <h3 class="text-base font-semibold text-gray-900 mb-4">Approval Actions</h3>
+                        <div class="bg-white border border-gray-200 rounded-lg p-3">
+                            <h3 class="text-base font-semibold text-gray-900 mb-2">Approval Actions</h3>
 
                             <!-- Simplified Approval Form -->
                             <form id="approvalForm" class="space-y-4">
@@ -332,7 +306,7 @@
                                 <!-- Action Selection -->
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Action</label>
-                                    <div class="space-y-2">
+                                    <div class="space-y-1.5">
                                         <label class="flex items-center p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
                                             <input type="radio" name="action" value="approve" class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300" required>
                                             <span class="ml-2 text-sm text-gray-900">Approve</span>
@@ -367,7 +341,7 @@
                                 </div>
 
                                 <!-- Action Buttons -->
-                                <div class="flex gap-2 pt-2">
+                                <div class="flex gap-2 pt-1">
                                     <button type="submit" 
                                             class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
                                         Submit
@@ -381,7 +355,7 @@
                             </form>
                         </div>
                         @else
-                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                             <h3 class="text-base font-semibold text-gray-900 mb-2">Waiting for Approval</h3>
                             <p class="text-sm text-gray-600">Request sedang menunggu approval dari approver yang ditentukan untuk step ini.</p>
                         </div>
@@ -390,8 +364,8 @@
 
                     <!-- Request Actions -->
                     @if(($approvalRequest->status == 'pending' || $approvalRequest->status == 'on progress') && $approvalRequest->requester_id == auth()->id())
-                    <div class="bg-white border border-gray-200 rounded-lg p-4">
-                        <h3 class="text-base font-semibold text-gray-900 mb-3">Request Actions</h3>
+                    <div class="bg-white border border-gray-200 rounded-lg p-3">
+                        <h3 class="text-base font-semibold text-gray-900 mb-2">Request Actions</h3>
                         <form action="{{ route('approval-requests.cancel', $approvalRequest) }}" method="POST">
                             @csrf
                             <button type="submit" 
@@ -407,13 +381,13 @@
 
             <!-- Progress Overview - Only for Request Creator -->
             @if($approvalRequest->requester_id == auth()->id())
-            <div class="mt-4">
+            <div class="mt-3">
                 <div class="bg-white border border-gray-200 rounded-lg">
-                    <div class="px-4 py-2 border-b border-gray-200">
+                    <div class="px-3 py-2 border-b border-gray-200">
                         <h3 class="text-sm font-semibold text-gray-900">Progress Overview</h3>
                     </div>
-                    <div class="p-4">
-                        <div class="flex items-center justify-between mb-4">
+                    <div class="p-3">
+                        <div class="flex items-center justify-between mb-2">
                             <div class="text-sm text-gray-600">
                                 Step {{ $approvalRequest->current_step }} dari {{ $approvalRequest->total_steps }}
                             </div>
@@ -423,7 +397,7 @@
                         </div>
                         
                         <!-- Progress Bar -->
-                        <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
                             <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                                  style="width: {{ ($approvalRequest->current_step / $approvalRequest->total_steps) * 100 }}%"></div>
                         </div>
