@@ -276,7 +276,7 @@
             </header>
 
             <!-- Page Content -->
-            <main class="flex-1 p-6 bg-gray-50">
+            <main class="flex-1 p-3 sm:p-4 lg:p-5 bg-gray-50">
                 @if(session('success'))
                     <div class="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
                         <div class="flex items-center">

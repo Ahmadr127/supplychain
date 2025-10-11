@@ -87,7 +87,10 @@ class MasterItem extends Model
     // Accessors & Mutators
     public function getCodeAttribute($value)
     {
-        return strtoupper($value);
+        if ($value === null) {
+            return null;
+        }
+        return strtoupper((string) $value);
     }
 
     public function setCodeAttribute($value)

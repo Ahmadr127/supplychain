@@ -93,7 +93,6 @@ class ApprovalWorkflow extends Model
             'request_number' => $requestNumber,
             'requester_id' => $requesterId,
             'submission_type_id' => $submissionTypeId,
-            'description' => $description,
             'priority' => $priority,
             'is_cto_request' => $isCtoRequest,
             'total_steps' => count($this->workflow_steps),

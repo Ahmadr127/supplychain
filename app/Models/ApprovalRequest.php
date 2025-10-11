@@ -72,10 +72,7 @@ class ApprovalRequest extends Model
     }
 
     // Relasi dengan attachments
-    public function attachments()
-    {
-        return $this->hasMany(ApprovalRequestAttachment::class);
-    }
+    // attachments feature removed; relation intentionally omitted
 
     // Relasi dengan submission type (Jenis Pengajuan)
     public function submissionType()

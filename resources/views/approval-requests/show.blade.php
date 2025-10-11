@@ -127,27 +127,32 @@
                         
                         <div class="space-y-2">
                             @foreach($approvalRequest->masterItems as $item)
+                            @php
+                                $qty = (int) ($item->pivot->quantity ?? 0);
+                                $unitPrice = (float) ($item->pivot->unit_price ?? ($item->total_price ?? 0));
+                                $totalPrice = (float) ($item->pivot->total_price ?? ($qty * $unitPrice));
+                            @endphp
                             <div class="bg-white border border-gray-200 rounded-lg p-3">
                                 <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
                                     <div class="md:col-span-2">
                                         <div class="text-xs font-medium text-gray-900">{{ $item->name }}</div>
                                         <div class="text-xs text-gray-500">Kode: {{ $item->code }}</div>
-                                        <div class="text-xs text-gray-400">{{ $item->itemType->name }} - {{ $item->itemCategory->name }}</div>
+                                        <div class="text-xs text-gray-400">{{ $item->itemType->name ?? '-' }} @if($item->itemCategory) - {{ $item->itemCategory->name }} @endif</div>
                                     </div>
                                     <div class="text-xs">
                                         <div class="text-gray-500">Jumlah</div>
-                                        <div class="font-medium">{{ $item->pivot->quantity }} {{ $item->unit->name }}</div>
+                                        <div class="font-medium">{{ $qty }} {{ $item->unit->name ?? '' }}</div>
                                     </div>
                                     <div class="text-xs">
                                         <div class="text-gray-500">Harga Satuan</div>
-                                        <div class="font-medium">Rp {{ number_format($item->pivot->unit_price, 0, ',', '.') }}</div>
+                                        <div class="font-medium">Rp {{ number_format($unitPrice, 0, ',', '.') }}</div>
                                     </div>
                                     <div class="text-xs">
                                         <div class="text-gray-500">Total</div>
-                                        <div class="font-bold">Rp {{ number_format($item->pivot->total_price, 0, ',', '.') }}</div>
+                                        <div class="font-bold">Rp {{ number_format($totalPrice, 0, ',', '.') }}</div>
                                     </div>
                                 </div>
-                                @if($item->pivot->notes)
+                                @if(!empty($item->pivot->notes))
                                 <div class="mt-2 text-xs text-gray-500">
                                     <span class="font-medium">Catatan:</span> {{ $item->pivot->notes }}
                                 </div>
@@ -168,52 +173,7 @@
                     </div>
                     @endif
 
-                    <!-- Attachments Section -->
-                    @if($approvalRequest->attachments->count() > 0)
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <h3 class="text-base font-semibold text-gray-900 mb-3">Lampiran File</h3>
-                        
-                        <div class="space-y-2">
-                            @foreach($approvalRequest->attachments as $attachment)
-                            <div class="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-2">
-                                <div class="flex items-center space-x-2 flex-1 min-w-0">
-                                    <div class="flex-shrink-0">
-                                        <svg class="h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path>
-                                        </svg>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-xs font-medium text-gray-900 truncate">{{ $attachment->original_name }}</p>
-                                        <p class="text-xs text-gray-500">{{ $attachment->human_file_size }}</p>
-                                    </div>
-                                </div>
-                                <div class="flex-shrink-0 ml-2 flex space-x-1">
-                                    @if($attachment->mime_type === 'application/pdf')
-                                    <a href="{{ route('approval-requests.view-attachment', $attachment) }}" 
-                                       target="_blank"
-                                       class="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-green-700 bg-green-100 hover:bg-green-200"
-                                       title="Lihat PDF">
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
-                                            <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        View
-                                    </a>
-                                    @endif
-                                    <a href="{{ route('approval-requests.download-attachment', $attachment) }}" 
-                                       class="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200"
-                                       title="Download File">
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Download
-                                    </a>
-                                </div>
-                            </div>
-                            @endforeach
-                        </div>
-                    </div>
-                    @endif
+                    <!-- Attachments Section removed -->
 
                 </div>
 

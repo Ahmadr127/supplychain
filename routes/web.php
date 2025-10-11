@@ -14,6 +14,7 @@ use App\Http\Controllers\ItemTypeController;
 use App\Http\Controllers\ItemCategoryController;
 use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\UnitController;
+use App\Http\Controllers\ItemLookupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -120,6 +121,9 @@ Route::middleware('auth')->group(function () {
     Route::get('api/master-items/search', [MasterItemController::class, 'search'])->name('api.master-items.search');
     Route::get('api/approval-requests/master-items', [ApprovalRequestController::class, 'getMasterItems'])->name('api.approval-requests.master-items');
     Route::get('api/approval-requests/workflow-for-item-type/{itemTypeId}', [ApprovalRequestController::class, 'getWorkflowForItemType'])->name('api.approval-requests.workflow-for-item-type');
+    // Generic item lookup endpoints (suggest and resolve/create)
+    Route::get('api/items/suggest', [ItemLookupController::class, 'suggest'])->name('api.items.suggest');
+    Route::post('api/items/resolve', [ItemLookupController::class, 'resolve'])->name('api.items.resolve');
     
     // API routes for step details and status updates
     Route::get('api/approval-steps/{requestId}/{stepNumber}', [ApprovalRequestController::class, 'getStepDetails'])->name('api.approval-steps.details');

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalWorkflow;
 use App\Models\ApprovalStep;
-use App\Models\ApprovalRequestAttachment;
 use App\Models\MasterItem;
 use App\Models\User;
 use App\Models\Role;
@@ -13,6 +12,9 @@ use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use App\Services\ItemResolver;
+use Illuminate\Support\Facades\DB;
 
 class ApprovalRequestController extends Controller
 {
@@ -25,7 +27,6 @@ class ApprovalRequestController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('request_number', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
                   ->orWhereHas('submissionType', function($st) use ($search) {
                       $st->where('name', 'like', "%{$search}%");
                   })
@@ -34,7 +35,6 @@ class ApprovalRequestController extends Controller
                   });
             });
         }
-
         // Status filter
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -100,6 +100,8 @@ class ApprovalRequestController extends Controller
         $itemCategories = \App\Models\ItemCategory::where('is_active', true)->get();
         $commodities = \App\Models\Commodity::where('is_active', true)->get();
         $units = \App\Models\Unit::where('is_active', true)->get();
+        // Load submission types for the edit view (used in the form)
+        $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
         return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber'));
     }
@@ -110,19 +112,31 @@ class ApprovalRequestController extends Controller
             'workflow_id' => 'required|exists:approval_workflows,id',
             'item_type_id' => 'required|exists:item_types,id',
             'submission_type_id' => 'required|exists:submission_types,id',
-            'description' => 'nullable|string',
             'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number',
-            'items' => 'nullable|array',
-            'items.*.master_item_id' => 'required_with:items|exists:master_items,id',
+            'items' => 'required|array',
+            'items.*.master_item_id' => 'nullable|exists:master_items,id',
+            'items.*.name' => 'required_without:items.*.master_item_id|string|max:255',
             'items.*.quantity' => 'required_with:items|integer|min:1',
+            // Make unit_price optional; fallback to master item price when missing or <= 0
             'items.*.unit_price' => 'nullable|numeric|min:0',
-            'items.*.notes' => 'nullable|string|max:500',
-            'attachments' => 'nullable|array',
-            'attachments.*' => 'file|mimes:pdf|max:10240' // Max 10MB per file
+            'items.*.notes' => 'nullable|string|max:500'
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        // Ensure at least one valid item row is provided (has id or name)
+        $itemsInput = $request->input('items', []);
+        $validItems = array_filter($itemsInput, function ($row) {
+            $hasId = !empty($row['master_item_id']);
+            $hasName = !empty($row['name']);
+            return $hasId || $hasName;
+        });
+        if (count($validItems) === 0) {
+            return redirect()->back()
+                ->withErrors(['items' => 'Minimal 1 item harus diisi.'])
+                ->withInput();
         }
 
         $workflow = ApprovalWorkflow::findOrFail($request->workflow_id);
@@ -160,44 +174,37 @@ class ApprovalRequestController extends Controller
             'is_specific_type' => $isSpecificType
         ]);
 
-        // Handle items
+        // Handle items (by ID or by name)
         if ($request->has('items') && is_array($request->items)) {
             foreach ($request->items as $itemData) {
-                if (!empty($itemData['master_item_id'])) {
-                    $masterItem = MasterItem::findOrFail($itemData['master_item_id']);
-                    $unitPrice = $itemData['unit_price'] ?? $masterItem->total_price;
-                    $totalPrice = $itemData['quantity'] * $unitPrice;
+                // Skip empty rows
+                $hasId = !empty($itemData['master_item_id']);
+                $hasName = !empty($itemData['name']);
+                if (!$hasId && !$hasName) continue;
 
-                    $approvalRequest->masterItems()->attach($itemData['master_item_id'], [
-                        'quantity' => $itemData['quantity'],
-                        'unit_price' => $unitPrice,
-                        'total_price' => $totalPrice,
-                        'notes' => $itemData['notes'] ?? null
-                    ]);
+                $masterItemId = $hasId
+                    ? (int) $itemData['master_item_id']
+                    : $this->resolveOrCreateMasterItem($itemData['name'], (int) $request->item_type_id);
+
+                $masterItem = MasterItem::findOrFail($masterItemId);
+                // Fallback to master item price if unit_price is missing or not positive
+                $unitPrice = isset($itemData['unit_price']) ? (float) $itemData['unit_price'] : null;
+                if (!($unitPrice > 0)) {
+                    $unitPrice = (float) ($masterItem->total_price ?? 0);
                 }
+                $quantity = (int) ($itemData['quantity'] ?? 1);
+                $totalPrice = $quantity * $unitPrice;
+
+                $approvalRequest->masterItems()->attach($masterItemId, [
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total_price' => $totalPrice,
+                    'notes' => $itemData['notes'] ?? null
+                ]);
             }
         }
 
-        // Handle file attachments
-        if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
-                if ($file->isValid()) {
-                    $originalName = $file->getClientOriginalName();
-                    $fileName = time() . '_' . $originalName;
-                    $filePath = $file->storeAs('approval-attachments', $fileName, 'public');
-
-                    ApprovalRequestAttachment::create([
-                        'approval_request_id' => $approvalRequest->id,
-                        'original_name' => $originalName,
-                        'file_name' => $fileName,
-                        'file_path' => $filePath,
-                        'mime_type' => $file->getMimeType(),
-                        'file_size' => $file->getSize(),
-                        'description' => null
-                    ]);
-                }
-            }
-        }
+        // Upload lampiran dinonaktifkan
 
         return redirect()->route('approval-requests.show', $approvalRequest)
                         ->with('success', 'Approval request berhasil dibuat!');
@@ -218,7 +225,6 @@ class ApprovalRequestController extends Controller
             'masterItems.itemCategory',
             'masterItems.commodity',
             'masterItems.unit',
-            'attachments',
             'submissionType'
         ]);
         
@@ -268,8 +274,10 @@ class ApprovalRequestController extends Controller
         $itemCategories = \App\Models\ItemCategory::where('is_active', true)->get();
         $commodities = \App\Models\Commodity::where('is_active', true)->get();
         $units = \App\Models\Unit::where('is_active', true)->get();
+        // Submission types needed by the edit form
+        $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
-        $approvalRequest->load(['masterItems', 'attachments', 'itemType', 'submissionType']);
+        $approvalRequest->load(['masterItems', 'itemType', 'submissionType']);
         
         return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes'));
     }
@@ -284,17 +292,13 @@ class ApprovalRequestController extends Controller
         $validator = Validator::make($request->all(), [
             'item_type_id' => 'required|exists:item_types,id',
             'submission_type_id' => 'required|exists:submission_types,id',
-            'description' => 'nullable|string',
             'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number,' . $approvalRequest->id,
             'items' => 'nullable|array',
-            'items.*.master_item_id' => 'required_with:items|exists:master_items,id',
+            'items.*.master_item_id' => 'nullable|exists:master_items,id',
+            'items.*.name' => 'required_without:items.*.master_item_id|string|max:255',
             'items.*.quantity' => 'required_with:items|integer|min:1',
             'items.*.unit_price' => 'nullable|numeric|min:0',
-            'items.*.notes' => 'nullable|string|max:500',
-            'attachments' => 'nullable|array',
-            'attachments.*' => 'file|mimes:pdf|max:10240', // Max 10MB per file
-            'remove_attachments' => 'nullable|array',
-            'remove_attachments.*' => 'exists:approval_request_attachments,id'
+            'items.*.notes' => 'nullable|string|max:500'
         ]);
 
         if ($validator->fails()) {
@@ -305,7 +309,6 @@ class ApprovalRequestController extends Controller
         $isSpecificType = true;
 
         $approvalRequest->update([
-            'description' => $request->description,
             'request_number' => $request->request_number ?: $approvalRequest->request_number,
             'priority' => 'normal',
             'is_cto_request' => false,
@@ -321,51 +324,32 @@ class ApprovalRequestController extends Controller
             
             // Add new items
             foreach ($request->items as $itemData) {
-                if (!empty($itemData['master_item_id'])) {
-                    $masterItem = MasterItem::findOrFail($itemData['master_item_id']);
-                    $unitPrice = $itemData['unit_price'] ?? $masterItem->total_price;
-                    $totalPrice = $itemData['quantity'] * $unitPrice;
+                $hasId = !empty($itemData['master_item_id']);
+                $hasName = !empty($itemData['name']);
+                if (!$hasId && !$hasName) continue;
 
-                    $approvalRequest->masterItems()->attach($itemData['master_item_id'], [
-                        'quantity' => $itemData['quantity'],
-                        'unit_price' => $unitPrice,
-                        'total_price' => $totalPrice,
-                        'notes' => $itemData['notes'] ?? null
-                    ]);
+                $masterItemId = $hasId
+                    ? (int) $itemData['master_item_id']
+                    : $this->resolveOrCreateMasterItem($itemData['name'], (int) $request->item_type_id);
+
+                $masterItem = MasterItem::findOrFail($masterItemId);
+                $unitPrice = isset($itemData['unit_price']) ? (float) $itemData['unit_price'] : null;
+                if (!($unitPrice > 0)) {
+                    $unitPrice = (float) ($masterItem->total_price ?? 0);
                 }
+                $quantity = (int) ($itemData['quantity'] ?? 1);
+                $totalPrice = $quantity * $unitPrice;
+
+                $approvalRequest->masterItems()->attach($masterItemId, [
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total_price' => $totalPrice,
+                    'notes' => $itemData['notes'] ?? null
+                ]);
             }
         }
 
-        // Handle file attachments
-        if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
-                if ($file->isValid()) {
-                    $originalName = $file->getClientOriginalName();
-                    $fileName = time() . '_' . $originalName;
-                    $filePath = $file->storeAs('approval-attachments', $fileName, 'public');
-
-                    ApprovalRequestAttachment::create([
-                        'approval_request_id' => $approvalRequest->id,
-                        'original_name' => $originalName,
-                        'file_name' => $fileName,
-                        'file_path' => $filePath,
-                        'mime_type' => $file->getMimeType(),
-                        'file_size' => $file->getSize(),
-                        'description' => null
-                    ]);
-                }
-            }
-        }
-
-        // Handle removal of attachments
-        if ($request->has('remove_attachments') && is_array($request->remove_attachments)) {
-            foreach ($request->remove_attachments as $attachmentId) {
-                $attachment = ApprovalRequestAttachment::find($attachmentId);
-                if ($attachment && $attachment->approval_request_id == $approvalRequest->id) {
-                    $attachment->delete(); // This will also delete the file from storage
-                }
-            }
-        }
+        // Upload dan penghapusan lampiran dinonaktifkan
 
         return redirect()->route('approval-requests.show', $approvalRequest)
                         ->with('success', 'Approval request berhasil diperbarui!');
@@ -486,7 +470,6 @@ class ApprovalRequestController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('request_number', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
                   ->orWhereHas('submissionType', function($st) use ($search) {
                       $st->where('name', 'like', "%{$search}%");
                   });
@@ -550,7 +533,6 @@ class ApprovalRequestController extends Controller
             $search = $request->search;
             $query->whereHas('request', function($q) use ($search) {
                 $q->where('request_number', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
                   ->orWhereHas('submissionType', function($st) use ($search) {
                       $st->where('name', 'like', "%{$search}%");
                   })
@@ -602,78 +584,14 @@ class ApprovalRequestController extends Controller
         ]);
     }
 
-    public function downloadAttachment(ApprovalRequestAttachment $attachment)
+    public function downloadAttachment($attachmentId)
     {
-        $user = auth()->user();
-        $approvalRequest = $attachment->approvalRequest;
-        
-        // Check if user has access to this attachment
-        $hasAccess = false;
-        
-        // Allow if user has view_all_approvals permission
-        if ($user->hasPermission('view_all_approvals')) {
-            $hasAccess = true;
-        }
-        // Allow if user is the requester and has view_my_approvals permission
-        elseif ($user->hasPermission('view_my_approvals') && $approvalRequest->requester_id === $user->id) {
-            $hasAccess = true;
-        }
-        // Allow if user can approve this request and has approval permission
-        elseif ($user->hasPermission('approval') && $approvalRequest->canApprove($user->id)) {
-            $hasAccess = true;
-        }
-        
-        if (!$hasAccess) {
-            abort(403, 'Anda tidak memiliki akses untuk mengunduh file ini.');
-        }
-
-        if (!Storage::disk('public')->exists($attachment->file_path)) {
-            abort(404, 'File tidak ditemukan.');
-        }
-
-        return Storage::disk('public')->download($attachment->file_path, $attachment->original_name);
+        abort(404, 'Fitur upload/dokumen dinonaktifkan.');
     }
 
-    public function viewAttachment(ApprovalRequestAttachment $attachment)
+    public function viewAttachment($attachmentId)
     {
-        $user = auth()->user();
-        $approvalRequest = $attachment->approvalRequest;
-        
-        // Check if user has access to this attachment
-        $hasAccess = false;
-        
-        // Allow if user has view_all_approvals permission
-        if ($user->hasPermission('view_all_approvals')) {
-            $hasAccess = true;
-        }
-        // Allow if user is the requester and has view_my_approvals permission
-        elseif ($user->hasPermission('view_my_approvals') && $approvalRequest->requester_id === $user->id) {
-            $hasAccess = true;
-        }
-        // Allow if user can approve this request and has approval permission
-        elseif ($user->hasPermission('approval') && $approvalRequest->canApprove($user->id)) {
-            $hasAccess = true;
-        }
-        
-        if (!$hasAccess) {
-            abort(403, 'Anda tidak memiliki akses untuk melihat file ini.');
-        }
-
-        if (!Storage::disk('public')->exists($attachment->file_path)) {
-            abort(404, 'File tidak ditemukan.');
-        }
-
-        // Check if file is PDF
-        if ($attachment->mime_type !== 'application/pdf') {
-            abort(400, 'File ini bukan PDF dan tidak dapat ditampilkan.');
-        }
-
-        $filePath = Storage::disk('public')->path($attachment->file_path);
-        
-        return response()->file($filePath, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . $attachment->original_name . '"'
-        ]);
+        abort(404, 'Fitur upload/dokumen dinonaktifkan.');
     }
 
     public function getStepDetails($requestId, $stepNumber)
@@ -816,5 +734,20 @@ class ApprovalRequestController extends Controller
             'success' => true,
             'message' => 'Status updated successfully'
         ]);
+    }
+
+    /**
+     * Resolve or create a MasterItem by name and return its ID.
+     * This uses the centralized ItemResolver service to avoid duplication.
+     */
+    private function resolveOrCreateMasterItem(string $name, int $itemTypeId): int
+    {
+        /** @var ItemResolver $resolver */
+        $resolver = app(ItemResolver::class);
+        $item = $resolver->resolveOrCreate([
+            'name' => $name,
+            'item_type_id' => $itemTypeId,
+        ]);
+        return (int) $item->id;
     }
 }
