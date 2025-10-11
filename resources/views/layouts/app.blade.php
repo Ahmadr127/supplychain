@@ -147,6 +147,15 @@
                 </li>
                 @endif
 
+                @if(auth()->user()->hasPermission('manage_suppliers'))
+                <li>
+                    <a href="{{ route('suppliers.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('suppliers.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Supplier">
+                        <i class="fas fa-truck w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Suppliers</span>
+                    </a>
+                </li>
+                @endif
+
                 </ul>
 
                 <!-- Approval Section -->

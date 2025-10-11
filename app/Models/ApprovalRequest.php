@@ -67,7 +67,7 @@ class ApprovalRequest extends Model
     public function masterItems()
     {
         return $this->belongsToMany(MasterItem::class, 'approval_request_master_items')
-                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes'])
+                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes', 'specification', 'brand', 'supplier_id', 'alternative_vendor'])
                     ->withTimestamps();
     }
 

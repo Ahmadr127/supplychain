@@ -13,34 +13,13 @@
                     <p class="text-sm text-gray-600">{{ $approvalRequest->request_number }}</p>
                 </div>
                 <div class="flex space-x-2">
-                    @php
-                        $referer = request()->header('referer');
-                        $backUrl = route('dashboard');
-                        $backText = 'Kembali ke Dashboard';
-                        
-                        if ($referer) {
-                            if (str_contains($referer, '/pending-approvals')) {
-                                $backUrl = route('approval-requests.pending-approvals');
-                                $backText = 'Kembali ke Approval';
-                            } elseif (str_contains($referer, '/my-requests')) {
-                                $backUrl = route('approval-requests.my-requests');
-                                $backText = 'Kembali ke My Requests';
-                            }
-                        } else {
-                            // Fallback based on permissions if no referer
-                            if (auth()->user()->hasPermission('view_my_approvals')) {
-                                $backUrl = route('approval-requests.my-requests');
-                                $backText = 'Kembali ke My Requests';
-                            } elseif (auth()->user()->hasPermission('approval')) {
-                                $backUrl = route('approval-requests.pending-approvals');
-                                $backText = 'Kembali ke Approval';
-                            }
-                        }
-                    @endphp
-                    
-                    <a href="{{ $backUrl }}" 
+                    <a href="{{ route('approval-requests.my-requests') }}"
                        class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
-                        {{ $backText }}
+                        My Requests
+                    </a>
+                    <a href="{{ route('approval-requests.pending-approvals') }}"
+                       class="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-3 rounded text-sm">
+                        Approval
                     </a>
                     @if(($approvalRequest->status == 'pending' || $approvalRequest->status == 'on progress') && $approvalRequest->requester_id == auth()->id())
                         <a href="{{ route('approval-requests.edit', $approvalRequest) }}" 
@@ -125,36 +104,83 @@
                     <div class="bg-gray-50 rounded-lg p-4">
                         <h3 class="text-base font-semibold text-gray-900 mb-3">Item yang Diminta</h3>
                         
-                        <div class="space-y-2">
+                        <div class="space-y-3">
                             @foreach($approvalRequest->masterItems as $item)
                             @php
                                 $qty = (int) ($item->pivot->quantity ?? 0);
                                 $unitPrice = (float) ($item->pivot->unit_price ?? ($item->total_price ?? 0));
                                 $totalPrice = (float) ($item->pivot->total_price ?? ($qty * $unitPrice));
                             @endphp
-                            <div class="bg-white border border-gray-200 rounded-lg p-3">
-                                <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
-                                    <div class="md:col-span-2">
-                                        <div class="text-xs font-medium text-gray-900">{{ $item->name }}</div>
+                            <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                                <!-- Header: name and meta -->
+                                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                                    <div>
+                                        <div class="text-base font-semibold text-gray-900">{{ $item->name }}</div>
                                         <div class="text-xs text-gray-500">Kode: {{ $item->code }}</div>
-                                        <div class="text-xs text-gray-400">{{ $item->itemType->name ?? '-' }} @if($item->itemCategory) - {{ $item->itemCategory->name }} @endif</div>
+                                        <div class="text-xs text-gray-400">{{ $item->itemType->name ?? '-' }} @if($item->itemCategory) • {{ $item->itemCategory->name }} @endif</div>
                                     </div>
-                                    <div class="text-xs">
-                                        <div class="text-gray-500">Jumlah</div>
-                                        <div class="font-medium">{{ $qty }} {{ $item->unit->name ?? '' }}</div>
-                                    </div>
-                                    <div class="text-xs">
-                                        <div class="text-gray-500">Harga Satuan</div>
-                                        <div class="font-medium">Rp {{ number_format($unitPrice, 0, ',', '.') }}</div>
-                                    </div>
-                                    <div class="text-xs">
-                                        <div class="text-gray-500">Total</div>
-                                        <div class="font-bold">Rp {{ number_format($totalPrice, 0, ',', '.') }}</div>
+                                    <div class="grid grid-cols-3 gap-6 text-right">
+                                        <div>
+                                            <div class="text-[11px] text-gray-500">Jumlah</div>
+                                            <div class="text-sm font-medium text-gray-900">{{ $qty }} {{ $item->unit->name ?? '' }}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-[11px] text-gray-500">Harga Satuan</div>
+                                            <div class="text-sm font-medium text-gray-900">Rp {{ number_format($unitPrice, 0, ',', '.') }}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-[11px] text-gray-500">Total</div>
+                                            <div class="text-sm font-bold text-gray-900">Rp {{ number_format($totalPrice, 0, ',', '.') }}</div>
+                                        </div>
                                     </div>
                                 </div>
+
                                 @if(!empty($item->pivot->notes))
-                                <div class="mt-2 text-xs text-gray-500">
+                                <div class="mt-4 text-xs text-gray-700">
                                     <span class="font-medium">Catatan:</span> {{ $item->pivot->notes }}
+                                </div>
+                                @endif
+
+                                <div class="my-4 border-t border-gray-200"></div>
+
+                                <!-- Details: definition list for better scanability -->
+                                <dl class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                    @if(!empty($item->pivot->specification))
+                                    <div>
+                                        <dt class="text-[11px] text-gray-500">Spesifikasi</dt>
+                                        <dd class="text-gray-900 leading-relaxed">{{ $item->pivot->specification }}</dd>
+                                    </div>
+                                    @endif
+                                    @if(!empty($item->pivot->brand))
+                                    <div>
+                                        <dt class="text-[11px] text-gray-500">Merk</dt>
+                                        <dd class="text-gray-900">{{ $item->pivot->brand }}</dd>
+                                    </div>
+                                    @endif
+                                    @if(!empty($item->pivot->alternative_vendor))
+                                    <div>
+                                        <dt class="text-[11px] text-gray-500">Vendor Alternatif</dt>
+                                        <dd class="text-gray-900">{{ $item->pivot->alternative_vendor }}</dd>
+                                    </div>
+                                    @endif
+                                </dl>
+
+                                @php
+                                    $filesForItem = isset($itemFiles) ? ($itemFiles->get($item->id) ?? collect()) : collect();
+                                @endphp
+                                @if($filesForItem->count())
+                                <div class="mt-2">
+                                    <div class="text-[11px] text-gray-500 mb-1">Dokumen Pendukung</div>
+                                    <ul class="divide-y divide-gray-200 rounded-md border border-gray-200 overflow-hidden">
+                                        @foreach($filesForItem as $f)
+                                            <li class="flex items-center justify-between px-3 py-2 text-xs bg-gray-50">
+                                                <a href="{{ route('approval-requests.view-attachment', $f->id) }}" target="_blank" class="text-blue-700 hover:underline truncate mr-3">
+                                                    {{ $f->original_name }}
+                                                </a>
+                                                <a href="{{ route('approval-requests.download-attachment', $f->id) }}" class="text-gray-600 hover:text-gray-900 whitespace-nowrap">Download</a>
+                                            </li>
+                                        @endforeach
+                                    </ul>
                                 </div>
                                 @endif
                             </div>

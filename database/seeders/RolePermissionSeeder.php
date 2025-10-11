@@ -23,6 +23,7 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'approval', 'display_name' => 'Approval', 'description' => 'Mengakses halaman approval untuk menyetujui atau menolak requests'],
             ['name' => 'manage_approvals', 'display_name' => 'Kelola Approvals', 'description' => 'Mengelola approval requests (create, edit, delete)'],
             ['name' => 'manage_items', 'display_name' => 'Kelola Master Barang', 'description' => 'Mengelola master barang dan data pendukungnya'],
+            ['name' => 'manage_suppliers', 'display_name' => 'Kelola Supplier', 'description' => 'Mengelola data vendor/supplier'],
         ];
 
         foreach ($permissions as $permission) {
@@ -73,7 +74,7 @@ class RolePermissionSeeder extends Seeder
         ]);
 
         // Assign permissions to roles
-        $adminRole->permissions()->sync(Permission::all()); // Admin gets all permissions
+        $adminRole->permissions()->sync(Permission::all()); // Admin gets all permissions (including manage_suppliers)
         
         $technicalExpertRole->permissions()->sync(
             Permission::whereIn('name', [

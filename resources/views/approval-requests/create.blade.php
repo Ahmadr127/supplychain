@@ -92,11 +92,15 @@
                                 <div class="overflow-visible">
                                     <table class="min-w-full text-sm">
                                         <thead>
-                                            <tr class="text-left text-gray-600">
-                                                <th class="px-2 py-1 w-2/5">Item</th>
+                                            <tr class="text-left text-gray-600 align-top">
+                                                <th class="px-2 py-1 w-64">Item</th>
                                                 <th class="px-2 py-1 w-24">Jumlah</th>
-                                                <th class="px-2 py-1 w-32">Harga</th>
+                                                <th class="px-2 py-1 w-28">Harga</th>
+                                                <th class="px-2 py-1 w-56">Spesifikasi</th>
+                                                <th class="px-2 py-1 w-40">Merk</th>
+                                                <th class="px-2 py-1 w-56">Vendor Alternatif</th>
                                                 <th class="px-2 py-1">Catatan</th>
+                                                <th class="px-2 py-1 w-48">Dokumen</th>
                                                 <th class="px-2 py-1 w-10"></th>
                                             </tr>
                                         </thead>
@@ -261,6 +265,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (parseFloat(row.unit_price) > 0) {
                 form.insertAdjacentHTML('beforeend', `<input class="item-hidden" type="hidden" name="items[${idx}][unit_price]" value="${row.unit_price}">`);
             }
+            // New fields
+            form.insertAdjacentHTML('beforeend', `<input class="item-hidden" type="hidden" name="items[${idx}][specification]" value="${escapeHtml(row.specification || '')}">`);
+            form.insertAdjacentHTML('beforeend', `<input class="item-hidden" type="hidden" name="items[${idx}][brand]" value="${escapeHtml(row.brand || '')}">`);
+            if (row.supplier_id) {
+                form.insertAdjacentHTML('beforeend', `<input class="item-hidden" type="hidden" name="items[${idx}][supplier_id]" value="${row.supplier_id}">`);
+            } else if (row.alternative_vendor) {
+                // treat alternative vendor text as supplier_name for auto-create
+                form.insertAdjacentHTML('beforeend', `<input class="item-hidden" type="hidden" name="items[${idx}][supplier_name]" value="${escapeHtml(row.alternative_vendor)}">`);
+            }
+            form.insertAdjacentHTML('beforeend', `<input class="item-hidden" type="hidden" name="items[${idx}][alternative_vendor]" value="${escapeHtml(row.alternative_vendor || '')}">`);
             form.insertAdjacentHTML('beforeend', `<input class="item-hidden" type="hidden" name="items[${idx}][notes]" value="${escapeHtml(row.notes || '')}">`);
         });
 
@@ -277,6 +291,10 @@ function addRow(defaults = {}) {
         name: defaults.name || '',
         quantity: defaults.quantity || 1,
         unit_price: defaults.unit_price || 0,
+        specification: defaults.specification || '',
+        brand: defaults.brand || '',
+        supplier_id: defaults.supplier_id || '',
+        alternative_vendor: defaults.alternative_vendor || '',
         notes: defaults.notes || ''
     };
     rows.push(row);
@@ -306,7 +324,22 @@ function renderRow(row) {
             <input type="number" min="0" step="0.01" class="item-price w-32 px-2 py-1 border border-gray-300 rounded" value="${row.unit_price}" required>
         </td>
         <td class="px-2 py-1 align-top">
+            <textarea class="item-spec w-full px-2 py-1 border border-gray-300 rounded" rows="2" placeholder="Spesifikasi">${escapeHtml(row.specification)}</textarea>
+        </td>
+        <td class="px-2 py-1 align-top">
+            <input type="text" class="item-brand w-full px-2 py-1 border border-gray-300 rounded" placeholder="Merk" value="${escapeHtml(row.brand)}">
+        </td>
+        <td class="px-2 py-1 align-top">
+            <div class="relative">
+                <input type="text" class="alt-vendor w-full px-2 py-1 border border-gray-300 rounded" placeholder="Vendor alternatif" value="${escapeHtml(row.alternative_vendor)}" autocomplete="off">
+                <div class="supplier-suggestions absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg max-h-56 overflow-auto hidden z-50"></div>
+            </div>
+        </td>
+        <td class="px-2 py-1 align-top">
             <input type="text" class="item-notes w-full px-2 py-1 border border-gray-300 rounded" placeholder="Catatan" value="${escapeHtml(row.notes)}">
+        </td>
+        <td class="px-2 py-1 align-top">
+            <input type="file" name="items[${row.index}][files][]" class="item-files w-full text-sm" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
         </td>
         <td class="px-2 py-1 align-top text-right">
             <button type="button" class="text-red-600 hover:text-red-800" onclick="removeRow(${row.index})"><i class="fas fa-trash"></i></button>
@@ -322,6 +355,10 @@ function bindRowEvents(tr, row) {
     const qtyInput = tr.querySelector('.item-qty');
     const priceInput = tr.querySelector('.item-price');
     const notesInput = tr.querySelector('.item-notes');
+    const specInput = tr.querySelector('.item-spec');
+    const brandInput = tr.querySelector('.item-brand');
+    const altVendorInput = tr.querySelector('.alt-vendor');
+    const supplierSugBox = tr.querySelector('.supplier-suggestions');
     const sugBox = tr.querySelector('.suggestions');
 
     nameInput.addEventListener('input', async function() {
@@ -355,6 +392,25 @@ function bindRowEvents(tr, row) {
     qtyInput.addEventListener('change', function(){ row.quantity = parseInt(this.value)||1; });
     priceInput.addEventListener('change', function(){ row.unit_price = parseFloat(this.value)||0; });
     notesInput.addEventListener('change', function(){ row.notes = this.value; });
+    specInput.addEventListener('change', function(){ row.specification = this.value; });
+    brandInput.addEventListener('change', function(){ row.brand = this.value; });
+    altVendorInput.addEventListener('change', function(){ row.alternative_vendor = this.value; });
+
+    // Alternative vendor suggest (also used to auto-create supplier on submit)
+    altVendorInput.addEventListener('input', async function() {
+        row.alternative_vendor = this.value;
+        row.supplier_id = '';
+        if (this.value.trim().length < 2) {
+            supplierSugBox.classList.add('hidden');
+            return;
+        }
+        const url = new URL("{{ route('api.suppliers.suggest') }}", window.location.origin);
+        url.searchParams.set('search', this.value.trim());
+        const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+        const data = await res.json();
+        renderSupplierSuggestions(supplierSugBox, data.suppliers || [], row.index);
+    });
+    altVendorInput.addEventListener('blur', function(){ setTimeout(()=> supplierSugBox.classList.add('hidden'), 200); });
 }
 
 function renderSuggestions(container, items, row, nameInput, priceInput) {
@@ -372,6 +428,35 @@ function renderSuggestions(container, items, row, nameInput, priceInput) {
         </div>
     `).join('');
     container.classList.remove('hidden');
+}
+
+// Supplier suggestions for Alternative Vendor field
+function renderSupplierSuggestions(container, suppliers, rowIndex) {
+    if (!suppliers.length) {
+        container.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">Tidak ada hasil. Ketik lalu submit untuk membuat vendor baru.</div>';
+        container.classList.remove('hidden');
+        return;
+    }
+    container.innerHTML = suppliers.map(s => `
+        <div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" onclick='selectSupplierSuggestion(${JSON.stringify(s).replace(/'/g, "&#39;")}, ${rowIndex})'>
+            <div class="flex justify-between">
+                <span>${escapeHtml(s.name)} <span class="text-xs text-gray-500">${s.code? '('+escapeHtml(s.code)+')':''}</span></span>
+                <span class="text-xs text-gray-500">${escapeHtml(s.email||'')}${s.phone? ' • '+escapeHtml(s.phone):''}</span>
+            </div>
+        </div>
+    `).join('');
+    container.classList.remove('hidden');
+}
+
+function selectSupplierSuggestion(s, rowIndex) {
+    const tr = document.getElementById('row-' + rowIndex);
+    const input = tr.querySelector('.alt-vendor');
+    const sug = tr.querySelector('.supplier-suggestions');
+    const row = rows.find(r => r.index === rowIndex);
+    row.supplier_id = s.id;
+    row.alternative_vendor = s.name; // show chosen supplier name
+    input.value = s.name;
+    sug.classList.add('hidden');
 }
 
 function selectSuggestion(it, rowIndex) {

@@ -119,7 +119,13 @@ class ApprovalRequestController extends Controller
             'items.*.quantity' => 'required_with:items|integer|min:1',
             // Make unit_price optional; fallback to master item price when missing or <= 0
             'items.*.unit_price' => 'nullable|numeric|min:0',
-            'items.*.notes' => 'nullable|string|max:500'
+            'items.*.specification' => 'nullable|string',
+            'items.*.brand' => 'nullable|string|max:100',
+            'items.*.supplier_id' => 'nullable|exists:suppliers,id',
+            'items.*.supplier_name' => 'nullable|string|max:255',
+            'items.*.alternative_vendor' => 'nullable|string|max:255',
+            'items.*.notes' => 'nullable|string|max:500',
+            'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480'
         ]);
 
         if ($validator->fails()) {
@@ -195,12 +201,40 @@ class ApprovalRequestController extends Controller
                 $quantity = (int) ($itemData['quantity'] ?? 1);
                 $totalPrice = $quantity * $unitPrice;
 
+                // Resolve supplier if only name provided
+                $supplierId = isset($itemData['supplier_id']) ? (int) $itemData['supplier_id'] : null;
+                if (!$supplierId && !empty($itemData['supplier_name'])) {
+                    $supplierId = $this->resolveOrCreateSupplierByName($itemData['supplier_name']);
+                }
+
                 $approvalRequest->masterItems()->attach($masterItemId, [
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'total_price' => $totalPrice,
-                    'notes' => $itemData['notes'] ?? null
+                    'notes' => $itemData['notes'] ?? null,
+                    'specification' => $itemData['specification'] ?? null,
+                    'brand' => $itemData['brand'] ?? null,
+                    'supplier_id' => $supplierId,
+                    'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
                 ]);
+
+                // Store per-item files if any
+                if (isset($itemData['files']) && is_array($itemData['files'])) {
+                    foreach ($itemData['files'] as $uploaded) {
+                        if (!$uploaded) continue;
+                        $path = $uploaded->store('approval_items');
+                        \DB::table('approval_request_item_files')->insert([
+                            'approval_request_id' => $approvalRequest->id,
+                            'master_item_id' => $masterItemId,
+                            'original_name' => $uploaded->getClientOriginalName(),
+                            'path' => $path,
+                            'mime' => $uploaded->getClientMimeType(),
+                            'size' => $uploaded->getSize(),
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
+                }
             }
         }
 
@@ -227,8 +261,17 @@ class ApprovalRequestController extends Controller
             'masterItems.unit',
             'submissionType'
         ]);
+
+        // Load item files grouped by master_item_id to show per item
+        $files = \DB::table('approval_request_item_files')
+            ->where('approval_request_id', $approvalRequest->id)
+            ->get()
+            ->groupBy('master_item_id');
         
-        return view('approval-requests.show', compact('approvalRequest'));
+        return view('approval-requests.show', [
+            'approvalRequest' => $approvalRequest,
+            'itemFiles' => $files,
+        ]);
     }
 
     public function edit(ApprovalRequest $approvalRequest)
@@ -298,7 +341,13 @@ class ApprovalRequestController extends Controller
             'items.*.name' => 'required_without:items.*.master_item_id|string|max:255',
             'items.*.quantity' => 'required_with:items|integer|min:1',
             'items.*.unit_price' => 'nullable|numeric|min:0',
-            'items.*.notes' => 'nullable|string|max:500'
+            'items.*.specification' => 'nullable|string',
+            'items.*.brand' => 'nullable|string|max:100',
+            'items.*.supplier_id' => 'nullable|exists:suppliers,id',
+            'items.*.supplier_name' => 'nullable|string|max:255',
+            'items.*.alternative_vendor' => 'nullable|string|max:255',
+            'items.*.notes' => 'nullable|string|max:500',
+            'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480'
         ]);
 
         if ($validator->fails()) {
@@ -586,12 +635,37 @@ class ApprovalRequestController extends Controller
 
     public function downloadAttachment($attachmentId)
     {
-        abort(404, 'Fitur upload/dokumen dinonaktifkan.');
+        $file = \DB::table('approval_request_item_files')->where('id', $attachmentId)->first();
+        if (!$file) {
+            abort(404, 'File tidak ditemukan.');
+        }
+        if (!\Storage::exists($file->path)) {
+            abort(404, 'Path file tidak ditemukan.');
+        }
+        return \Storage::download($file->path, $file->original_name);
     }
 
     public function viewAttachment($attachmentId)
     {
-        abort(404, 'Fitur upload/dokumen dinonaktifkan.');
+        $file = \DB::table('approval_request_item_files')->where('id', $attachmentId)->first();
+        if (!$file) {
+            abort(404, 'File tidak ditemukan.');
+        }
+        if (!\Storage::exists($file->path)) {
+            abort(404, 'Path file tidak ditemukan.');
+        }
+        // Only allow inline view for PDFs; others fallback to download
+        $mime = $file->mime ?: \Storage::mimeType($file->path);
+        if ($mime !== 'application/pdf') {
+            return \Storage::download($file->path, $file->original_name);
+        }
+        $stream = \Storage::readStream($file->path);
+        return response()->stream(function() use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.addslashes($file->original_name).'"'
+        ]);
     }
 
     public function getStepDetails($requestId, $stepNumber)
@@ -749,5 +823,26 @@ class ApprovalRequestController extends Controller
             'item_type_id' => $itemTypeId,
         ]);
         return (int) $item->id;
+    }
+
+    private function resolveOrCreateSupplierByName(string $name): ?int
+    {
+        $name = trim($name);
+        if ($name === '') return null;
+        $existing = \App\Models\Supplier::where('name', $name)->first();
+        if ($existing) return (int) $existing->id;
+        $base = strtoupper(\Str::slug($name, '_')) ?: 'SUP';
+        $code = substr($base, 0, 20);
+        $suffix = 1;
+        while (\App\Models\Supplier::where('code', $code)->exists()) {
+            $suffix++;
+            $code = substr($base, 0, 20 - strlen((string)$suffix)) . $suffix;
+        }
+        $supplier = \App\Models\Supplier::create([
+            'name' => $name,
+            'code' => $code,
+            'is_active' => true,
+        ]);
+        return (int) $supplier->id;
     }
 }

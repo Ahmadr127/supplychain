@@ -15,6 +15,8 @@ use App\Http\Controllers\ItemCategoryController;
 use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\ItemLookupController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierLookupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -114,6 +116,11 @@ Route::middleware('auth')->group(function () {
         Route::resource('units', UnitController::class);
     });
 
+    // Suppliers Management routes
+    Route::middleware('permission:manage_suppliers')->group(function () {
+        Route::resource('suppliers', SupplierController::class);
+    });
+
     // API routes for AJAX requests
     Route::get('api/workflows/{workflow}/steps', [ApprovalWorkflowController::class, 'getSteps'])->name('api.workflows.steps');
     Route::get('api/master-items/by-type/{typeId}', [MasterItemController::class, 'getByType'])->name('api.master-items.by-type');
@@ -124,6 +131,10 @@ Route::middleware('auth')->group(function () {
     // Generic item lookup endpoints (suggest and resolve/create)
     Route::get('api/items/suggest', [ItemLookupController::class, 'suggest'])->name('api.items.suggest');
     Route::post('api/items/resolve', [ItemLookupController::class, 'resolve'])->name('api.items.resolve');
+
+    // Supplier lookup endpoints
+    Route::get('api/suppliers/suggest', [SupplierLookupController::class, 'suggest'])->name('api.suppliers.suggest');
+    Route::post('api/suppliers/resolve', [SupplierLookupController::class, 'resolve'])->name('api.suppliers.resolve');
     
     // API routes for step details and status updates
     Route::get('api/approval-steps/{requestId}/{stepNumber}', [ApprovalRequestController::class, 'getStepDetails'])->name('api.approval-steps.details');
