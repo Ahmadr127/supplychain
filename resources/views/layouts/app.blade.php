@@ -52,12 +52,14 @@
                 </div>
                 
                 <ul class="space-y-2">
+                    @if(auth()->user()->hasPermission('view_dashboard'))
                     <li>
                         <a href="{{ route('dashboard') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('dashboard') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Dashboard">
                             <i class="fas fa-tachometer-alt w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
                             <span x-show="!sidebarCollapsed">Dashboard</span>
                         </a>
                     </li>
+                    @endif
                     
 
                     @if(auth()->user()->hasPermission('manage_users'))
@@ -143,6 +145,15 @@
                     <a href="{{ route('commodities.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('commodities.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Komoditas">
                         <i class="fas fa-industry w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
                         <span x-show="!sidebarCollapsed">Komoditas</span>
+                    </a>
+                </li>
+                @endif
+
+                @if(auth()->user()->hasPermission('manage_submission_types'))
+                <li>
+                    <a href="{{ route('submission-types.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('submission-types.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Jenis Pengajuan">
+                        <i class="fas fa-list-alt w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Jenis Pengajuan</span>
                     </a>
                 </li>
                 @endif
@@ -247,10 +258,12 @@
                                 
                                 <!-- Menu Items -->
                                 <div class="py-1">
+                                    @if(auth()->user()->hasPermission('view_dashboard'))
                                     <a href="{{ route('dashboard') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                                         <i class="fas fa-home w-4 h-4 mr-2 text-gray-400"></i>
                                         Dashboard
                                     </a>
+                                    @endif
                                     
                                     @if(auth()->user()->hasPermission('view_my_approvals'))
                                     <a href="{{ route('approval-requests.my-requests') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">

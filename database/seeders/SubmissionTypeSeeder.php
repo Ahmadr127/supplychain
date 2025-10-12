@@ -12,6 +12,7 @@ class SubmissionTypeSeeder extends Seeder
         $data = [
             ['name' => 'Barang', 'code' => 'BRG', 'description' => 'Pengajuan pengadaan barang', 'is_active' => true],
             ['name' => 'Jasa', 'code' => 'JSA', 'description' => 'Pengajuan pengadaan jasa', 'is_active' => true],
+            ['name' => 'Program Kerja', 'code' => 'PK', 'description' => 'Pengajuan terkait program kerja', 'is_active' => true],
         ];
 
         foreach ($data as $row) {

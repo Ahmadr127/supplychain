@@ -24,6 +24,7 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_approvals', 'display_name' => 'Kelola Approvals', 'description' => 'Mengelola approval requests (create, edit, delete)'],
             ['name' => 'manage_items', 'display_name' => 'Kelola Master Barang', 'description' => 'Mengelola master barang dan data pendukungnya'],
             ['name' => 'manage_suppliers', 'display_name' => 'Kelola Supplier', 'description' => 'Mengelola data vendor/supplier'],
+            ['name' => 'manage_submission_types', 'display_name' => 'Kelola Jenis Pengajuan', 'description' => 'Mengelola jenis pengajuan (Barang/Jasa/Program Kerja)'],
         ];
 
         foreach ($permissions as $permission) {
@@ -74,11 +75,10 @@ class RolePermissionSeeder extends Seeder
         ]);
 
         // Assign permissions to roles
-        $adminRole->permissions()->sync(Permission::all()); // Admin gets all permissions (including manage_suppliers)
+        $adminRole->permissions()->sync(Permission::all()); // Admin gets all permissions
         
         $technicalExpertRole->permissions()->sync(
             Permission::whereIn('name', [
-                'view_dashboard',
                 'view_my_approvals',
                 'approval',
                 'manage_approvals'
@@ -87,7 +87,6 @@ class RolePermissionSeeder extends Seeder
         
         $managerPemintaRole->permissions()->sync(
             Permission::whereIn('name', [
-                'view_dashboard',
                 'view_my_approvals',
                 'approval',
                 'manage_approvals'
@@ -96,7 +95,6 @@ class RolePermissionSeeder extends Seeder
         
         $managerItRole->permissions()->sync(
             Permission::whereIn('name', [
-                'view_dashboard',
                 'view_my_approvals',
                 'approval',
                 'manage_approvals'
@@ -105,7 +103,6 @@ class RolePermissionSeeder extends Seeder
         
         $managerKeuanganRole->permissions()->sync(
             Permission::whereIn('name', [
-                'view_dashboard',
                 'view_my_approvals',
                 'approval',
                 'manage_approvals'
@@ -114,7 +111,6 @@ class RolePermissionSeeder extends Seeder
         
         $direkturRole->permissions()->sync(
             Permission::whereIn('name', [
-                'view_dashboard',
                 'view_my_approvals',
                 'approval',
                 'manage_approvals'
@@ -123,7 +119,6 @@ class RolePermissionSeeder extends Seeder
         
         $userRole->permissions()->sync(
             Permission::whereIn('name', [
-                'view_dashboard',
                 'view_my_approvals',
                 'approval',
                 'manage_approvals'

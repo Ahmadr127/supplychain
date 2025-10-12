@@ -15,6 +15,7 @@ use App\Http\Controllers\ItemCategoryController;
 use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\ItemLookupController;
+use App\Http\Controllers\SubmissionTypeController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierLookupController;
 
@@ -114,6 +115,11 @@ Route::middleware('auth')->group(function () {
         Route::resource('item-categories', ItemCategoryController::class);
         Route::resource('commodities', CommodityController::class);
         Route::resource('units', UnitController::class);
+    });
+
+    // Submission Types Management routes
+    Route::middleware('permission:manage_submission_types')->group(function () {
+        Route::resource('submission-types', SubmissionTypeController::class)->except(['show', 'create', 'edit']);
     });
 
     // Suppliers Management routes
