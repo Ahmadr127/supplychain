@@ -119,6 +119,8 @@ class ApprovalRequestController extends Controller
             'items.*.quantity' => 'required_with:items|integer|min:1',
             // Make unit_price optional; fallback to master item price when missing or <= 0
             'items.*.unit_price' => 'nullable|numeric|min:0',
+            'items.*.item_category_id' => 'nullable|integer|exists:item_categories,id',
+            'items.*.item_category_name' => 'nullable|string|max:255',
             'items.*.specification' => 'nullable|string',
             'items.*.brand' => 'nullable|string|max:100',
             'items.*.supplier_id' => 'nullable|exists:suppliers,id',
@@ -127,6 +129,21 @@ class ApprovalRequestController extends Controller
             'items.*.notes' => 'nullable|string|max:500',
             'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480'
         ]);
+
+        // Additional conditional validation: new items must include a category
+        $validator->after(function($v) use ($request) {
+            $items = $request->input('items', []);
+            foreach ($items as $idx => $row) {
+                $hasId = !empty($row['master_item_id']);
+                $hasName = !empty($row['name']);
+                if (!$hasId && $hasName) {
+                    $hasCat = !empty($row['item_category_id']) || !empty($row['item_category_name']);
+                    if (!$hasCat) {
+                        $v->errors()->add("items.$idx.item_category", 'Kategori wajib diisi untuk item baru.');
+                    }
+                }
+            }
+        });
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
@@ -190,7 +207,14 @@ class ApprovalRequestController extends Controller
 
                 $masterItemId = $hasId
                     ? (int) $itemData['master_item_id']
-                    : $this->resolveOrCreateMasterItem($itemData['name'], (int) $request->item_type_id);
+                    : $this->resolveOrCreateMasterItem(
+                        $itemData['name'],
+                        (int) $request->item_type_id,
+                        [
+                            'item_category_id' => $itemData['item_category_id'] ?? null,
+                            'item_category_name' => $itemData['item_category_name'] ?? null,
+                        ]
+                    );
 
                 $masterItem = MasterItem::findOrFail($masterItemId);
                 // Fallback to master item price if unit_price is missing or not positive
@@ -341,6 +365,8 @@ class ApprovalRequestController extends Controller
             'items.*.name' => 'required_without:items.*.master_item_id|string|max:255',
             'items.*.quantity' => 'required_with:items|integer|min:1',
             'items.*.unit_price' => 'nullable|numeric|min:0',
+            'items.*.item_category_id' => 'nullable|integer|exists:item_categories,id',
+            'items.*.item_category_name' => 'nullable|string|max:255',
             'items.*.specification' => 'nullable|string',
             'items.*.brand' => 'nullable|string|max:100',
             'items.*.supplier_id' => 'nullable|exists:suppliers,id',
@@ -349,6 +375,21 @@ class ApprovalRequestController extends Controller
             'items.*.notes' => 'nullable|string|max:500',
             'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480'
         ]);
+
+        // Additional conditional validation: new items must include a category
+        $validator->after(function($v) use ($request) {
+            $items = $request->input('items', []);
+            foreach ($items as $idx => $row) {
+                $hasId = !empty($row['master_item_id']);
+                $hasName = !empty($row['name']);
+                if (!$hasId && $hasName) {
+                    $hasCat = !empty($row['item_category_id']) || !empty($row['item_category_name']);
+                    if (!$hasCat) {
+                        $v->errors()->add("items.$idx.item_category", 'Kategori wajib diisi untuk item baru.');
+                    }
+                }
+            }
+        });
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
@@ -572,6 +613,21 @@ class ApprovalRequestController extends Controller
                                                               ->whereIn('id', $userDepartments)
                                                               ->where('level', '>=', \DB::raw('approval_steps.approver_level'));
                                                 });
+                                  })
+                                  // For requester_department_manager approver type - user must be manager of requester's primary department
+                                  ->orWhere(function($reqMgrQuery) use ($user) {
+                                      $reqMgrQuery->where('approver_type', 'requester_department_manager')
+                                                  ->whereExists(function($exists) use ($user) {
+                                                      $exists->select(\DB::raw(1))
+                                                            ->from('approval_requests')
+                                                            ->join('user_departments', function($join) {
+                                                                $join->on('user_departments.user_id', '=', 'approval_requests.requester_id')
+                                                                     ->where('user_departments.is_primary', true);
+                                                            })
+                                                            ->join('departments', 'departments.id', '=', 'user_departments.department_id')
+                                                            ->whereColumn('approval_requests.id', 'approval_steps.request_id')
+                                                            ->where('departments.manager_id', $user->id);
+                                                  });
                                   });
                             })
                             ->whereHas('request', function($q) {
@@ -824,14 +880,17 @@ class ApprovalRequestController extends Controller
      * Resolve or create a MasterItem by name and return its ID.
      * This uses the centralized ItemResolver service to avoid duplication.
      */
-    private function resolveOrCreateMasterItem(string $name, int $itemTypeId): int
+    private function resolveOrCreateMasterItem(string $name, int $itemTypeId, array $extras = []): int
     {
         /** @var ItemResolver $resolver */
         $resolver = app(ItemResolver::class);
-        $item = $resolver->resolveOrCreate([
+        $payload = [
             'name' => $name,
             'item_type_id' => $itemTypeId,
-        ]);
+        ];
+        if (!empty($extras['item_category_id'])) $payload['item_category_id'] = $extras['item_category_id'];
+        if (!empty($extras['item_category_name'])) $payload['item_category_name'] = $extras['item_category_name'];
+        $item = $resolver->resolveOrCreate($payload);
         return (int) $item->id;
     }
 

@@ -25,7 +25,7 @@ class ItemLookupController extends Controller
             $limit = max(1, min((int) $request->query('limit', 10), 20));
 
             $q = MasterItem::active()
-                ->with(['unit'])
+                ->with(['unit','itemCategory'])
                 ->when($itemTypeId, fn($query) => $query->where('item_type_id', $itemTypeId))
                 ->where(function($query) use ($search) {
                     $query->where('name', 'like', "%$search%")
@@ -33,7 +33,7 @@ class ItemLookupController extends Controller
                 })
                 ->orderBy('name')
                 ->limit($limit)
-                ->get(['id','name','code','hna','ppn_amount','unit_id']);
+                ->get(['id','name','code','hna','ppn_amount','unit_id','item_category_id']);
 
             return response()->json([
                 'success' => true,
@@ -43,6 +43,7 @@ class ItemLookupController extends Controller
                     'code' => $i->code,
                     'total_price' => (float) (($i->hna ?? 0) + ($i->ppn_amount ?? 0)),
                     'unit' => $i->unit ? ['id' => $i->unit->id, 'name' => $i->unit->name] : null,
+                    'category' => $i->itemCategory ? ['id' => $i->itemCategory->id, 'name' => $i->itemCategory->name] : null,
                 ])
             ]);
         } catch (\Throwable $e) {
@@ -58,14 +59,24 @@ class ItemLookupController extends Controller
         }
     }
 
-    // POST /api/items/resolve { id?| name, item_type_id? }
+    // POST /api/items/resolve { id?| name, item_type_id?, item_category_id?, item_category_name? }
     public function resolve(Request $request)
     {
         $data = $request->validate([
             'id' => 'nullable|integer|exists:master_items,id',
             'name' => 'nullable|string|max:255',
             'item_type_id' => 'nullable|integer|exists:item_types,id',
+            'item_category_id' => 'nullable|integer|exists:item_categories,id',
+            'item_category_name' => 'nullable|string|max:255',
         ]);
+
+        // If creating new (no id), category must be provided explicitly
+        if (empty($data['id']) && empty($data['item_category_id']) && empty($data['item_category_name'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kategori wajib diisi untuk item baru.'
+            ], 422);
+        }
 
         $item = $this->resolver->resolveOrCreate($data);
 

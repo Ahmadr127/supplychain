@@ -14,6 +14,7 @@
                     'approvalRequest' => $approvalRequest,
                     'submissionTypes' => $submissionTypes,
                     'itemTypes' => $itemTypes,
+                    'itemCategories' => $itemCategories,
                 ])
             </form>
         </div>

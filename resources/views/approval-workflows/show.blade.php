@@ -142,6 +142,8 @@
                                                         Department Manager: {{ $dept ? $dept->name : 'Department not found' }}
                                                     @elseif($step['approver_type'] == 'department_level' && isset($step['approver_level']))
                                                         Department Level: {{ $step['approver_level'] }}
+                                                    @elseif($step['approver_type'] == 'requester_department_manager')
+                                                        Manager Departemen Requester
                                                     @else
                                                         Approver: Not configured
                                                     @endif

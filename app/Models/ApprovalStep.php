@@ -82,6 +82,12 @@ class ApprovalStep extends Model
             case 'department_manager':
                 $department = Department::find($this->approver_department_id);
                 return $department ? $department->manager : null;
+            case 'requester_department_manager':
+                // Manager dari departemen primary milik requester
+                $requesterDepartment = $this->request && $this->request->requester
+                    ? $this->request->requester->departments()->wherePivot('is_primary', true)->first()
+                    : null;
+                return $requesterDepartment ? $requesterDepartment->manager : null;
             case 'department_level':
                 // Cari manager berdasarkan level departemen requester
                 $requesterDepartment = $this->request->requester->departments()->wherePivot('is_primary', true)->first();
@@ -110,6 +116,13 @@ class ApprovalStep extends Model
             case 'department_manager':
                 $department = Department::find($this->approver_department_id);
                 return $department && $department->manager_id == $userId;
+            case 'requester_department_manager':
+                // Hanya manager dari departemen primary requester yang boleh approve
+                if (!$this->request || !$this->request->requester) {
+                    return false;
+                }
+                $requesterDepartment = $this->request->requester->departments()->wherePivot('is_primary', true)->first();
+                return $requesterDepartment && (int) $requesterDepartment->manager_id === (int) $userId;
             case 'department_level':
                 // Check apakah user berada di department dengan level yang sesuai atau lebih tinggi
                 $userDepartments = $user->departments()->get();

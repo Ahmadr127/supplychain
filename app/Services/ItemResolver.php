@@ -14,7 +14,7 @@ class ItemResolver
     /**
      * Resolve an item by id or name. If not found by name, it will create a new MasterItem with safe defaults.
      *
-     * @param array $payload ['id' => ?int, 'name' => ?string, 'item_type_id' => ?int]
+     * @param array $payload ['id' => ?int, 'name' => ?string, 'item_type_id' => ?int, 'item_category_id' => ?int, 'item_category_name' => ?string]
      */
     public function resolveOrCreate(array $payload): MasterItem
     {
@@ -45,21 +45,47 @@ class ItemResolver
         // Choose a default unit if available
         $defaultUnit = Unit::query()->first();
 
-        // Choose a default item category (prefer matching item_type if schema links), else any
-        $defaultCategoryId = ItemCategory::query()
-            ->when($itemTypeId, function ($q) use ($itemTypeId) {
-                // Only apply if your schema links category to item_type; otherwise this is a no-op
-                if (Schema::hasColumn('item_categories', 'item_type_id')) {
-                    $q->where('item_type_id', $itemTypeId);
+        // Resolve category preference: explicit id > explicit name > fallback default
+        $categoryId = null;
+        if (!empty($payload['item_category_id'])) {
+            $categoryId = (int) $payload['item_category_id'];
+            // Ensure exists
+            if (!ItemCategory::where('id', $categoryId)->exists()) {
+                $categoryId = null;
+            }
+        }
+        if (!$categoryId && !empty($payload['item_category_name'])) {
+            $catName = trim((string) $payload['item_category_name']);
+            if ($catName !== '') {
+                $catQuery = ItemCategory::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($catName)]);
+                // If schema has item_type_id, prefer same type
+                if ($itemTypeId && Schema::hasColumn('item_categories', 'item_type_id')) {
+                    $catQuery->where('item_type_id', $itemTypeId);
                 }
-            })
-            ->value('id');
+                $category = $catQuery->first();
+                if (!$category) {
+                    $category = new ItemCategory();
+                    $category->name = $catName;
+                    if ($itemTypeId && Schema::hasColumn('item_categories', 'item_type_id')) {
+                        $category->item_type_id = $itemTypeId;
+                    }
+                    $category->description = null;
+                    $category->is_active = true;
+                    $category->save();
+                }
+                $categoryId = $category->id;
+            }
+        }
+        // No fallback default: category is mandatory for new items
+        if (!$categoryId) {
+            abort(422, 'Kategori wajib dipilih/diisi untuk membuat item baru.');
+        }
 
         // Choose a default commodity
         $defaultCommodityId = Commodity::query()->value('id');
 
         // Guard against missing required master data (DB may enforce NOT NULL FKs)
-        if ($defaultCategoryId === null || $defaultCommodityId === null) {
+        if ($categoryId === null || $defaultCommodityId === null) {
             abort(422, 'Konfigurasi master belum lengkap: pastikan minimal 1 Item Category dan 1 Commodity tersedia.');
         }
 
@@ -73,7 +99,7 @@ class ItemResolver
         $item->hna = 0;
         $item->ppn_percentage = 0;
         $item->item_type_id = $itemTypeId;
-        $item->item_category_id = $defaultCategoryId; // DB may require NOT NULL
+        $item->item_category_id = $categoryId; // DB may require NOT NULL
         $item->commodity_id = $defaultCommodityId;    // DB may require NOT NULL
         $item->unit_id = $defaultUnit?->id; // may be null if no units yet
         $item->stock = 0;

@@ -86,6 +86,7 @@
                                 <th class="px-1 py-1 w-[22rem] text-xs font-medium tracking-wide">Item</th>
                                 <th class="px-1 py-1 w-14 text-xs font-medium tracking-wide whitespace-nowrap">Jumlah</th>
                                 <th class="px-1 py-1 w-24 text-xs font-medium tracking-wide whitespace-nowrap">Harga</th>
+                                <th class="px-1 py-1 w-40 text-xs font-medium tracking-wide whitespace-nowrap">Kategori</th>
                                 <th class="px-1 py-1 w-48 text-xs font-medium tracking-wide">Spesifikasi</th>
                                 <th class="px-1 py-1 w-32 text-xs font-medium tracking-wide">Merk</th>
                                 <th class="px-1 py-1 w-48 text-xs font-medium tracking-wide whitespace-nowrap">Vendor Alternatif</th>
@@ -102,6 +103,12 @@
             </div>
         </div>
     </div>
+
+    <datalist id="categories">
+        @foreach (($itemCategories ?? []) as $cat)
+            <option value="{{ $cat->name }}"></option>
+        @endforeach
+    </datalist>
 
     <!-- Hidden fields -->
     <input type="hidden" name="workflow_id" id="workflow_id" value="{{ $defaultWorkflow->id }}">
@@ -137,6 +144,7 @@
 
     let rows = [];
     let currentItemTypeId = {!! $isEdit ? $approvalRequest->item_type_id ?? 'null' : 'null' !!};
+    const allCategories = {!! json_encode(($itemCategories ?? collect())->map(function($c){return ['id'=>$c->id,'name'=>$c->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
 
     document.addEventListener('DOMContentLoaded', function() {
         initializeItemTypeSelection();
@@ -149,6 +157,8 @@
                         'name' => $item->name,
                         'quantity' => $item->pivot->quantity,
                         'unit_price' => $item->pivot->unit_price,
+                        'item_category_id' => $item->item_category_id,
+                        'item_category_name' => optional($item->itemCategory)->name,
                         'specification' => $item->pivot->specification,
                         'brand' => $item->pivot->brand,
                         'alternative_vendor' => $item->pivot->alternative_vendor,
@@ -169,6 +179,24 @@
         // Serialize rows on submit
         const form = document.getElementById('approval-form');
         form.addEventListener('submit', async function(e) {
+            // Sync latest input values from DOM (especially category) before validation
+            rows.forEach((row) => {
+                const tr = document.getElementById('row-' + row.index);
+                if (!tr) return;
+                const catInput = tr.querySelector('.item-category');
+                if (catInput) {
+                    const val = (catInput.value || '').trim();
+                    row.item_category_name = val;
+                    if (val) {
+                        const exact = (allCategories || []).find(c => (c.name || '').toLowerCase() === val.toLowerCase());
+                        if (exact) {
+                            row.item_category_id = exact.id;
+                            row.item_category_name = exact.name;
+                        }
+                    }
+                }
+            });
+
             // Validate rows with content
             let valid = true;
             let message = '';
@@ -183,6 +211,15 @@
                     if (!(parseFloat(row.unit_price) > 0)) {
                         valid = false;
                         message = message || 'Harga wajib diisi dan lebih dari 0.';
+                    }
+                    // If creating a new item (no master_item_id), category is required
+                    const creatingNew = !row.master_item_id && row.name && row.name.trim().length > 0;
+                    if (creatingNew) {
+                        const hasCategory = (row.item_category_id && String(row.item_category_id).length > 0) || (row.item_category_name && row.item_category_name.trim().length > 0);
+                        if (!hasCategory) {
+                            valid = false;
+                            message = message || 'Kategori wajib diisi untuk item baru.';
+                        }
                     }
                 }
             });
@@ -214,6 +251,8 @@
                         const checked = document.querySelector(
                             'input[name="item_type_id"]:checked');
                         if (checked) payload.item_type_id = checked.value;
+                        if (r.item_category_id) payload.item_category_id = r.item_category_id;
+                        else if (r.item_category_name) payload.item_category_name = r.item_category_name;
                         const res = await fetch(
                         "{{ route('api.items.resolve') }}", {
                             method: 'POST',
@@ -252,6 +291,12 @@
                 if (parseFloat(row.unit_price) > 0) form.insertAdjacentHTML('beforeend',
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][unit_price]" value="${row.unit_price}">`
                     );
+                if (row.item_category_id) form.insertAdjacentHTML('beforeend',
+                    `<input class="item-hidden" type="hidden" name="items[${row.index}][item_category_id]" value="${row.item_category_id}">`
+                    );
+                else if (row.item_category_name) form.insertAdjacentHTML('beforeend',
+                    `<input class="item-hidden" type="hidden" name="items[${row.index}][item_category_name]" value="${escapeHtml(row.item_category_name)}">`
+                    );
                 form.insertAdjacentHTML('beforeend',
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][specification]" value="${escapeHtml(row.specification || '')}">`
                     );
@@ -287,6 +332,8 @@
             name: defaults.name || '',
             quantity: defaults.quantity || 1,
             unit_price: defaults.unit_price || 0,
+            item_category_id: defaults.item_category_id || '',
+            item_category_name: defaults.item_category_name || '',
             specification: defaults.specification || '',
             brand: defaults.brand || '',
             supplier_id: defaults.supplier_id || '',
@@ -318,6 +365,12 @@
         </td>
         <td class="px-1 py-1 align-top">
             <input type="number" min="0" step="0.01" class="item-price w-24 h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value="${row.unit_price}" required>
+        </td>
+        <td class="px-1 py-1 align-top">
+            <div class="relative">
+                <input list="categories" class="item-category w-full h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Kategori" value="${escapeHtml(row.item_category_name||'')}">
+                <div class="category-suggestions absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-md shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
+            </div>
         </td>
         <td class="px-1 py-1 align-top">
             <input type="text" class="item-spec w-full h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Spesifikasi" value="${escapeHtml(row.specification)}">
@@ -354,6 +407,8 @@
         const altVendorInput = tr.querySelector('.alt-vendor');
         const supplierSugBox = tr.querySelector('.supplier-suggestions');
         const sugBox = tr.querySelector('.suggestions');
+        const categoryInput = tr.querySelector('.item-category');
+        const categorySugBox = tr.querySelector('.category-suggestions');
 
         nameInput.addEventListener('input', async function() {
             row.name = this.value;
@@ -372,7 +427,7 @@
                 }
             });
             const data = await res.json();
-            renderSuggestions(sugBox, data.items || [], row, nameInput, priceInput);
+            renderSuggestions(sugBox, data.items || [], row, nameInput, priceInput, categoryInput);
         });
         nameInput.addEventListener('blur', function() {
             setTimeout(() => sugBox.classList.add('hidden'), 200);
@@ -426,7 +481,7 @@
         });
     }
 
-    function renderSuggestions(container, items, row, nameInput, priceInput) {
+    function renderSuggestions(container, items, row, nameInput, priceInput, categoryInput) {
         if (!items.length) {
             container.innerHTML =
                 '<div class="px-3 py-2 text-sm text-gray-500">Tidak ada hasil. Tekan Enter untuk menambahkan.</div>';
@@ -439,8 +494,25 @@
                 <span>${escapeHtml(it.name)} <span class="text-xs text-gray-500">(${escapeHtml(it.code)})</span></span>
                 <span class="text-xs text-green-600">Rp ${parseFloat(it.total_price||0).toLocaleString('id-ID')}${it.unit? ' / '+escapeHtml(it.unit.name):''}</span>
             </div>
+            <div class="text-xs text-gray-500">${it.category? 'Kategori: '+escapeHtml(it.category.name):''}</div>
         </div>
     `).join('');
+        container.classList.remove('hidden');
+    }
+
+    function renderCategorySuggestions(container, categories, rowIndex) {
+        if (!categories.length) {
+            container.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">Tidak ada hasil. Ketik untuk membuat kategori baru.</div>';
+            container.classList.remove('hidden');
+            return;
+        }
+        container.innerHTML = categories.map(c => `
+            <div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" onclick='selectCategorySuggestion(${JSON.stringify(c).replace(/'/g, "&#39;")}, ${rowIndex})'>
+                <div class="flex justify-between">
+                    <span>${escapeHtml(c.name)}</span>
+                </div>
+            </div>
+        `).join('');
         container.classList.remove('hidden');
     }
 
@@ -477,14 +549,31 @@
         const tr = document.getElementById('row-' + rowIndex);
         const nameInput = tr.querySelector('.item-name');
         const priceInput = tr.querySelector('.item-price');
+        const categoryInput = tr.querySelector('.item-category');
         const sugBox = tr.querySelector('.suggestions');
         const row = rows.find(r => r.index === rowIndex);
         row.master_item_id = it.id;
         row.name = it.name;
         row.unit_price = parseFloat(it.total_price || 0) || '';
+        if (it.category) {
+            row.item_category_id = it.category.id;
+            row.item_category_name = it.category.name;
+            if (categoryInput) categoryInput.value = it.category.name;
+        }
         nameInput.value = it.name;
         priceInput.value = row.unit_price;
         sugBox.classList.add('hidden');
+    }
+
+    function selectCategorySuggestion(c, rowIndex) {
+        const tr = document.getElementById('row-' + rowIndex);
+        const input = tr.querySelector('.item-category');
+        const sug = tr.querySelector('.category-suggestions');
+        const row = rows.find(r => r.index === rowIndex);
+        row.item_category_id = c.id;
+        row.item_category_name = c.name;
+        input.value = c.name;
+        sug.classList.add('hidden');
     }
 
     async function resolveTyped(nameInput, row, priceInput) {
@@ -493,6 +582,8 @@
         };
         const checked = document.querySelector('input[name="item_type_id"]:checked');
         if (checked) payload.item_type_id = checked.value;
+        if (row.item_category_id) payload.item_category_id = row.item_category_id;
+        else if (row.item_category_name) payload.item_category_name = row.item_category_name;
         if (!payload.name) return;
         const res = await fetch("{{ route('api.items.resolve') }}", {
             method: 'POST',

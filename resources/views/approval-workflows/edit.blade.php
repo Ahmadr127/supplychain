@@ -131,6 +131,7 @@
                                         <option value="role" {{ $step['approver_type'] == 'role' ? 'selected' : '' }}>Role</option>
                                         <option value="department_manager" {{ $step['approver_type'] == 'department_manager' ? 'selected' : '' }}>Manager Department</option>
                                         <option value="department_level" {{ $step['approver_type'] == 'department_level' ? 'selected' : '' }}>Level Department</option>
+                                        <option value="requester_department_manager" {{ $step['approver_type'] == 'requester_department_manager' ? 'selected' : '' }}>Manager Departemen Requester</option>
                                     </select>
                                 </div>
                                 
@@ -337,6 +338,7 @@ function createStepHTML(stepId, stepNumber) {
                     <option value="role">Role</option>
                     <option value="department_manager">Manager Department</option>
                     <option value="department_level">Level Department</option>
+                    <option value="requester_department_manager">Manager Departemen Requester</option>
                 </select>
             </div>
             
@@ -404,6 +406,8 @@ function toggleApproverFields(select, stepNumber) {
         document.getElementById(`approver_department_${stepNumber}`).style.display = 'block';
     } else if (approverType === 'department_level') {
         document.getElementById(`approver_level_${stepNumber}`).style.display = 'block';
+    } else if (approverType === 'requester_department_manager') {
+        // No extra fields required for requester_department_manager
     }
 }
 
