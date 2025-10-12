@@ -16,6 +16,7 @@ use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\ItemLookupController;
 use App\Http\Controllers\SubmissionTypeController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierLookupController;
 
@@ -125,6 +126,11 @@ Route::middleware('auth')->group(function () {
     // Suppliers Management routes
     Route::middleware('permission:manage_suppliers')->group(function () {
         Route::resource('suppliers', SupplierController::class);
+    });
+
+    // Reports
+    Route::middleware('permission:view_reports')->group(function () {
+        Route::get('reports/approval-requests', [ReportController::class, 'approvalRequests'])->name('reports.approval-requests');
     });
 
     // API routes for AJAX requests

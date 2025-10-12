@@ -25,6 +25,7 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_items', 'display_name' => 'Kelola Master Barang', 'description' => 'Mengelola master barang dan data pendukungnya'],
             ['name' => 'manage_suppliers', 'display_name' => 'Kelola Supplier', 'description' => 'Mengelola data vendor/supplier'],
             ['name' => 'manage_submission_types', 'display_name' => 'Kelola Jenis Pengajuan', 'description' => 'Mengelola jenis pengajuan (Barang/Jasa/Program Kerja)'],
+            ['name' => 'view_reports', 'display_name' => 'Lihat Reports', 'description' => 'Mengakses halaman laporan'],
         ];
 
         foreach ($permissions as $permission) {

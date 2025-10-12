@@ -167,6 +167,15 @@
                 </li>
                 @endif
 
+                @if(auth()->user()->hasPermission('view_reports'))
+                <li>
+                    <a href="{{ route('reports.approval-requests') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('reports.approval-requests') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Laporan Pengajuan">
+                        <i class="fas fa-chart-bar w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Laporan Pengajuan</span>
+                    </a>
+                </li>
+                @endif
+
                 </ul>
 
                 <!-- Approval Section -->
