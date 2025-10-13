@@ -69,51 +69,48 @@ class ReportController extends Controller
 
         $requests = $q->paginate(25)->withQueryString();
 
-        // Build table rows
+        // Build table rows (one row per item)
         $rows = [];
         foreach ($requests as $req) {
             $primaryDept = optional($req->requester?->departments?->first())->name;
             $letterNumber = $req->letter_number ?? null; // optional
             $procurementYear = $req->procurement_year ?? ($req->created_at?->format('Y'));
             $createdAt = $req->created_at; // Carbon|null
-            // Umur Pengajuan: jumlah hari sejak pengajuan (created_at) sebagai bilangan bulat non-negatif
             $ageDays = $createdAt ? $createdAt->diffInDays(now()) : null;
 
-            // Detail items summary
-            $items = $req->masterItems;
-            $detailParts = [];
-            $catMap = [];
-            $totalQty = 0;
-            foreach ($items as $m) {
-                $qty = (int) ($m->pivot->quantity ?? 0);
-                $totalQty += $qty;
-                $label = $m->name . ($qty ? " ({$qty})" : '');
-                if ($m->pivot?->specification) {
-                    $label .= ' - ' . $m->pivot->specification;
-                }
-                $detailParts[] = $label;
-                if ($m->itemCategory?->name) { $catMap[$m->itemCategory->name] = true; }
-            }
-            $detail = count($detailParts) > 3
-                ? implode(', ', array_slice($detailParts, 0, 3)) . ' +' . (count($detailParts) - 3) . ' lagi'
-                : implode(', ', $detailParts);
+            // Purchasing status simplified: UNPROCESSED or DONE (from DB flag)
+            $purchasingStatus = strtoupper(($req->purchasing_status ?? 'unprocessed') === 'done' ? 'DONE' : 'UNPROCESSED');
 
-            $rows[] = [
-                'no_input' => $req->request_number ?? '-',
-                'process' => $req->status ?? '-',
-                'jenis' => $req->submissionType?->name ?? '-',
-                'unit_pengaju' => $primaryDept ?? '-',
-                'tanggal_pengajuan' => $createdAt?->format('Y-m-d') ?? '-',
-                'tanggal_terima_dokumen' => $req->received_at ? \Carbon\Carbon::parse($req->received_at)->format('Y-m-d') : '-',
-                'umur_pengajuan' => $ageDays !== null ? intval($ageDays) . ' hari' : '-',
-                'no_surat' => $letterNumber ?? '-',
-                'tahun_pengadaan' => $procurementYear ?? '-',
-                'detail' => $detail ?: '-',
-                'unit_peruntukan' => $req->unit_peruntukan ?? '-',
-                'kategori' => !empty($catMap) ? implode(', ', array_keys($catMap)) : '-',
-                'keterangan' => $req->notes ?? '-',
-                'qty' => $totalQty,
-            ];
+            foreach ($req->masterItems as $m) {
+                $qty = (int) ($m->pivot->quantity ?? 0);
+                $spec = $m->pivot->specification ?? null;
+                $notes = $m->pivot->notes ?? null;
+
+                // Process text: show purchasing status only
+                $processText = $purchasingStatus;
+
+                $rows[] = [
+                    'no_input' => $req->request_number ?? '-',
+                    'process' => $processText,
+                    // Jenis diisi nama item (bukan submission type)
+                    'jenis' => $m->name ?? '-',
+                    'unit_pengaju' => $primaryDept ?? '-',
+                    'tanggal_pengajuan' => $createdAt?->format('Y-m-d') ?? '-',
+                    'tanggal_terima_dokumen' => $req->received_at ? \Carbon\Carbon::parse($req->received_at)->format('Y-m-d') : '-',
+                    'umur_pengajuan' => $ageDays !== null ? intval($ageDays) . ' hari' : '-',
+                    'no_surat' => $letterNumber ?? '-',
+                    'tahun_pengadaan' => $procurementYear ?? '-',
+                    // Detail diisi spesifikasi item
+                    'detail' => $spec ?: '-',
+                    'unit_peruntukan' => $req->unit_peruntukan ?? '-',
+                    // Kategori per item
+                    'kategori' => $m->itemCategory?->name ?? '-',
+                    // Keterangan dari notes item (pivot)
+                    'keterangan' => $notes ?: '-',
+                    // Qty per item
+                    'qty' => $qty,
+                ];
+            }
         }
         $submissionTypes = SubmissionType::orderBy('name')->get(['id','name']);
         $departments = Department::orderBy('name')->get(['id','name']);

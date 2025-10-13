@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Services\ItemResolver;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ApprovalRequestController extends Controller
 {
@@ -82,16 +83,8 @@ class ApprovalRequestController extends Controller
             abort(500, 'Tidak ada workflow yang tersedia. Silakan hubungi administrator.');
         }
         
-        // Generate preview request number based on user's primary department and current date
+        // Do not prefill old-format preview number; use JS preview based on item type code
         $previewRequestNumber = null;
-        $user = auth()->user();
-        if ($user) {
-            $primaryDepartment = $user->departments()->wherePivot('is_primary', true)->first();
-            $departmentCode = $primaryDepartment ? $primaryDepartment->code : 'UNKNOWN';
-            $dateCode = date('dmy');
-            $sequenceNumber = ApprovalRequest::whereDate('created_at', today())->count() + 1;
-            $previewRequestNumber = "AZ/{$departmentCode}/{$dateCode}/PPBJ-" . str_pad($sequenceNumber, 4, '0', STR_PAD_LEFT);
-        }
 
         // Get all master items for search
         $masterItems = MasterItem::active()->with(['itemType', 'itemCategory', 'commodity', 'unit'])->get();
@@ -146,6 +139,11 @@ class ApprovalRequestController extends Controller
         });
 
         if ($validator->fails()) {
+            Log::warning('ApprovalRequest.update.validation_failed', [
+                'request_id' => $approvalRequest->id,
+                'auth_id' => auth()->id(),
+                'errors' => $validator->errors()->toArray(),
+            ]);
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
@@ -163,22 +161,25 @@ class ApprovalRequestController extends Controller
         }
 
         $workflow = ApprovalWorkflow::findOrFail($request->workflow_id);
-        
+
         // Determine specific type from selected workflow
         $isSpecificType = (bool) $workflow->is_specific_type;
-        
-        // Generate request number if not provided
+
+        // Generate simple request number using ItemType code (e.g., PM-1, PNM-1) per type
         $requestNumber = $request->request_number;
         if (empty($requestNumber)) {
-            // Get user's primary department
-            $user = auth()->user();
-            $primaryDepartment = $user->departments()->wherePivot('is_primary', true)->first();
-            $departmentCode = $primaryDepartment ? $primaryDepartment->code : 'UNKNOWN';
-            
-            // Format: AZ/FARMASI/190925/PPBJ-0004
-            $dateCode = date('dmy'); // Format: 190925 (tanggal-bulan-tahun)
-            $sequenceNumber = ApprovalRequest::whereDate('created_at', today())->count() + 1;
-            $requestNumber = "AZ/{$departmentCode}/{$dateCode}/PPBJ-" . str_pad($sequenceNumber, 4, '0', STR_PAD_LEFT);
+            $itemType = \App\Models\ItemType::findOrFail((int) $request->item_type_id);
+            $code = $itemType->code ?: 'REQ';
+
+            // Calculate next sequence per code in a safe manner
+            $lastNumber = ApprovalRequest::where('request_number', 'like', $code . '-%')
+                ->latest('id')
+                ->value('request_number');
+            $next = 1;
+            if ($lastNumber && preg_match('/^' . preg_quote($code, '/') . '-(\d+)$/', $lastNumber, $m)) {
+                $next = (int) $m[1] + 1;
+            }
+            $requestNumber = $code . '-' . $next;
         }
         
         $approvalRequest = $workflow->createRequest(
@@ -217,13 +218,12 @@ class ApprovalRequestController extends Controller
                     );
 
                 $masterItem = MasterItem::findOrFail($masterItemId);
-                // Fallback to master item price if unit_price is missing or not positive
-                $unitPrice = isset($itemData['unit_price']) ? (float) $itemData['unit_price'] : null;
-                if (!($unitPrice > 0)) {
-                    $unitPrice = (float) ($masterItem->total_price ?? 0);
-                }
+                // Do not fallback to master item price; keep unit_price nullable if not provided
+                $unitPrice = isset($itemData['unit_price']) && $itemData['unit_price'] !== ''
+                    ? (float) $itemData['unit_price']
+                    : null;
                 $quantity = (int) ($itemData['quantity'] ?? 1);
-                $totalPrice = $quantity * $unitPrice;
+                $totalPrice = $unitPrice !== null ? ($quantity * $unitPrice) : null;
 
                 // Resolve supplier if only name provided
                 $supplierId = isset($itemData['supplier_id']) ? (int) $itemData['supplier_id'] : null;
@@ -264,7 +264,7 @@ class ApprovalRequestController extends Controller
 
         // Upload lampiran dinonaktifkan
 
-        return redirect()->route('approval-requests.show', $approvalRequest)
+        return redirect()->route('approval-requests.my-requests')
                         ->with('success', 'Approval request berhasil dibuat!');
     }
 
@@ -300,10 +300,30 @@ class ApprovalRequestController extends Controller
 
     public function edit(ApprovalRequest $approvalRequest)
     {
+        // Log attempt
+        Log::info('ApprovalRequest.edit.attempt', [
+            'request_id' => $approvalRequest->id,
+            'status' => $approvalRequest->status,
+            'requester_id' => $approvalRequest->requester_id,
+            'auth_id' => auth()->id(),
+        ]);
+
         // Only allow edit if status is pending or on progress and user is the requester
-        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || $approvalRequest->requester_id !== auth()->id()) {
+        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || (int)$approvalRequest->requester_id !== (int)auth()->id()) {
+            Log::warning('ApprovalRequest.edit.denied', [
+                'request_id' => $approvalRequest->id,
+                'status' => $approvalRequest->status,
+                'requester_id' => $approvalRequest->requester_id,
+                'auth_id' => auth()->id(),
+                'reason' => 'status_or_owner_mismatch',
+            ]);
             abort(403, 'Anda tidak memiliki akses untuk mengedit request ini.');
         }
+
+        Log::info('ApprovalRequest.edit.allowed', [
+            'request_id' => $approvalRequest->id,
+            'auth_id' => auth()->id(),
+        ]);
 
         // Get all active item types for radio button selection
         $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
@@ -351,8 +371,24 @@ class ApprovalRequestController extends Controller
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
     {
+        // Log attempt
+        Log::info('ApprovalRequest.update.attempt', [
+            'request_id' => $approvalRequest->id,
+            'status' => $approvalRequest->status,
+            'requester_id' => $approvalRequest->requester_id,
+            'auth_id' => auth()->id(),
+            'items_count' => is_array($request->items) ? count($request->items) : 0,
+        ]);
+
         // Only allow update if status is pending or on progress and user is the requester
-        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || $approvalRequest->requester_id !== auth()->id()) {
+        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || (int)$approvalRequest->requester_id !== (int)auth()->id()) {
+            Log::warning('ApprovalRequest.update.denied', [
+                'request_id' => $approvalRequest->id,
+                'status' => $approvalRequest->status,
+                'requester_id' => $approvalRequest->requester_id,
+                'auth_id' => auth()->id(),
+                'reason' => 'status_or_owner_mismatch',
+            ]);
             abort(403, 'Anda tidak memiliki akses untuk mengedit request ini.');
         }
 
@@ -423,12 +459,12 @@ class ApprovalRequestController extends Controller
                     : $this->resolveOrCreateMasterItem($itemData['name'], (int) $request->item_type_id);
 
                 $masterItem = MasterItem::findOrFail($masterItemId);
-                $unitPrice = isset($itemData['unit_price']) ? (float) $itemData['unit_price'] : null;
-                if (!($unitPrice > 0)) {
-                    $unitPrice = (float) ($masterItem->total_price ?? 0);
-                }
+                // Do not fallback to master item price; keep unit_price nullable if not provided
+                $unitPrice = isset($itemData['unit_price']) && $itemData['unit_price'] !== ''
+                    ? (float) $itemData['unit_price']
+                    : null;
                 $quantity = (int) ($itemData['quantity'] ?? 1);
-                $totalPrice = $quantity * $unitPrice;
+                $totalPrice = $unitPrice !== null ? ($quantity * $unitPrice) : null;
 
                 // Resolve supplier if only name provided
                 $supplierId = isset($itemData['supplier_id']) ? (int) $itemData['supplier_id'] : null;
@@ -451,6 +487,11 @@ class ApprovalRequestController extends Controller
 
         // Upload dan penghapusan lampiran dinonaktifkan
 
+        Log::info('ApprovalRequest.update.success', [
+            'request_id' => $approvalRequest->id,
+            'auth_id' => auth()->id(),
+        ]);
+
         return redirect()->route('approval-requests.show', $approvalRequest)
                         ->with('success', 'Approval request berhasil diperbarui!');
     }
@@ -458,7 +499,7 @@ class ApprovalRequestController extends Controller
     public function destroy(ApprovalRequest $approvalRequest)
     {
         // Only allow delete if status is pending or on progress and user is the requester
-        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || $approvalRequest->requester_id !== auth()->id()) {
+        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || (int)$approvalRequest->requester_id !== (int)auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk menghapus request ini.');
         }
 
@@ -541,7 +582,7 @@ class ApprovalRequestController extends Controller
     public function cancel(ApprovalRequest $approvalRequest)
     {
         // Only allow cancel if status is pending or on progress and user is the requester
-        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || $approvalRequest->requester_id !== auth()->id()) {
+        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || (int)$approvalRequest->requester_id !== (int)auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk membatalkan request ini.');
         }
 

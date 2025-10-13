@@ -34,6 +34,20 @@
                     </div>
 
 
+                    <!-- Kode (opsional) -->
+                    <div>
+                        <label for="code" class="block text-sm font-medium text-gray-700 mb-2">
+                            Kode (contoh: PM untuk Medis, PNM untuk Non-Medis)
+                        </label>
+                        <input type="text" id="code" name="code" value="{{ old('code', $itemType->code) }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md uppercase focus:outline-none focus:ring-2 focus:ring-blue-500 @error('code') border-red-500 @enderror"
+                               placeholder="PM atau PNM">
+                        @error('code')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+
                     <!-- Deskripsi -->
                     <div>
                         <label for="description" class="block text-sm font-medium text-gray-700 mb-2">

@@ -55,19 +55,7 @@
             </div>
         </div>
 
-        <!-- Request Number -->
-        <div>
-            <label for="request_number" class="block text-sm font-medium text-gray-700 mb-1">
-                Nomor Request
-            </label>
-            <input type="text" id="request_number" name="request_number"
-                value="{{ old('request_number', $isEdit ? $approvalRequest->request_number : $previewRequestNumber ?? '') }}"
-                class="w-full px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('request_number') border-red-500 @enderror"
-                placeholder="{{ $isEdit ? 'Auto-generated jika kosong' : 'Kosongkan untuk generate otomatis' }}">
-            @error('request_number')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
+        
 
         <!-- Items Section -->
         <div id="itemsSection">
@@ -78,21 +66,20 @@
                     <i class="fas fa-plus mr-1"></i> Tambah Baris
                 </button>
             </div>
-            <div class="bg-gray-50 rounded-lg p-2">
+            <div class="bg-white">
                 <div class="overflow-visible">
-                    <table class="min-w-full text-sm table-fixed">
+                    <table class="min-w-full text-sm table-fixed border-collapse">
                         <thead>
                             <tr class="text-left text-gray-600 align-middle select-none">
-                                <th class="px-1 py-1 w-[22rem] text-xs font-medium tracking-wide">Item</th>
-                                <th class="px-1 py-1 w-14 text-xs font-medium tracking-wide whitespace-nowrap">Jumlah</th>
-                                <th class="px-1 py-1 w-24 text-xs font-medium tracking-wide whitespace-nowrap">Harga</th>
+                                <th class="px-1 py-1 w-[18rem] text-xs font-medium tracking-wide">Item</th>
+                                <th class="px-1 py-1 w-12 text-xs font-medium tracking-wide whitespace-nowrap">Jumlah</th>
+                                <th class="px-1 py-1 w-20 text-xs font-medium tracking-wide whitespace-nowrap">Harga</th>
                                 <th class="px-1 py-1 w-40 text-xs font-medium tracking-wide whitespace-nowrap">Kategori</th>
-                                <th class="px-1 py-1 w-48 text-xs font-medium tracking-wide">Spesifikasi</th>
-                                <th class="px-1 py-1 w-32 text-xs font-medium tracking-wide">Merk</th>
-                                <th class="px-1 py-1 w-48 text-xs font-medium tracking-wide whitespace-nowrap">Vendor Alternatif</th>
-                                <th class="px-1 py-1 w-40 text-xs font-medium tracking-wide">Catatan</th>
-                                <th class="px-1 py-1 w-36 text-xs font-medium tracking-wide">Dokumen</th>
-                                <th class="px-1 py-1 w-8"></th>
+                                <th class="px-1 py-1 w-72 text-xs font-medium tracking-wide">Spesifikasi</th>
+                                <th class="px-1 py-1 w-40 text-xs font-medium tracking-wide">Merk</th>
+                                <th class="px-1 py-1 w-56 text-xs font-medium tracking-wide whitespace-nowrap">Vendor Alternatif</th>
+                                <th class="px-1 py-1 w-64 text-xs font-medium tracking-wide">Catatan</th>
+                                <th class="px-1 py-1 w-28 text-xs font-medium tracking-wide">Dokumen</th>
                             </tr>
                         </thead>
                         <tbody id="itemsTableBody">
@@ -142,12 +129,30 @@
         });
     }
 
+    // Rupiah helpers
+    function formatRupiahInputValue(val) {
+        // Integer-only Rupiah formatting: group with dot, no decimals
+        if (val === '' || val === null || typeof val === 'undefined') return '';
+        let digits = String(val).replace(/\D/g, '');
+        if (!digits) return '';
+        // remove leading zeros but keep single 0
+        digits = digits.replace(/^0+(\d)/, '$1');
+        return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+    function parseRupiahToNumber(str) {
+        // Return integer-only numeric string (no separators). '' if empty
+        if (str == null) return '';
+        let digits = String(str).replace(/\D/g, '');
+        return digits;
+    }
+
     let rows = [];
     let currentItemTypeId = {!! $isEdit ? $approvalRequest->item_type_id ?? 'null' : 'null' !!};
     const allCategories = {!! json_encode(($itemCategories ?? collect())->map(function($c){return ['id'=>$c->id,'name'=>$c->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
 
     document.addEventListener('DOMContentLoaded', function() {
         initializeItemTypeSelection();
+        
 
         @if ($isEdit)
             const existing = {!! json_encode(
@@ -207,10 +212,6 @@
                     if (!row.name || row.name.trim() === '') {
                         valid = false;
                         message = 'Nama item wajib diisi.';
-                    }
-                    if (!(parseFloat(row.unit_price) > 0)) {
-                        valid = false;
-                        message = message || 'Harga wajib diisi dan lebih dari 0.';
                     }
                     // If creating a new item (no master_item_id), category is required
                     const creatingNew = !row.master_item_id && row.name && row.name.trim().length > 0;
@@ -288,7 +289,7 @@
                 form.insertAdjacentHTML('beforeend',
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][quantity]" value="${row.quantity || 1}">`
                     );
-                if (parseFloat(row.unit_price) > 0) form.insertAdjacentHTML('beforeend',
+                if ((row.unit_price !== '' && !isNaN(parseFloat(row.unit_price)))) form.insertAdjacentHTML('beforeend',
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][unit_price]" value="${row.unit_price}">`
                     );
                 if (row.item_category_id) form.insertAdjacentHTML('beforeend',
@@ -331,7 +332,7 @@
             master_item_id: defaults.master_item_id || '',
             name: defaults.name || '',
             quantity: defaults.quantity || 1,
-            unit_price: defaults.unit_price || 0,
+            unit_price: (defaults.unit_price !== undefined && defaults.unit_price !== null) ? defaults.unit_price : '',
             item_category_id: defaults.item_category_id || '',
             item_category_name: defaults.item_category_name || '',
             specification: defaults.specification || '',
@@ -364,7 +365,7 @@
             <input type="number" min="1" class="item-qty w-14 h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center" value="${row.quantity}">
         </td>
         <td class="px-1 py-1 align-top">
-            <input type="number" min="0" step="0.01" class="item-price w-24 h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value="${row.unit_price}" required>
+            <input type="text" inputmode="numeric" class="item-price w-28 h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-right" placeholder="0" value="${formatRupiahInputValue(row.unit_price)}">
         </td>
         <td class="px-1 py-1 align-top">
             <div class="relative">
@@ -373,7 +374,7 @@
             </div>
         </td>
         <td class="px-1 py-1 align-top">
-            <input type="text" class="item-spec w-full h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Spesifikasi" value="${escapeHtml(row.specification)}">
+            <textarea class="item-spec w-full h-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Spesifikasi">${escapeHtml(row.specification)}</textarea>
         </td>
         <td class="px-1 py-1 align-top">
             <input type="text" class="item-brand w-full h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Merk" value="${escapeHtml(row.brand)}">
@@ -385,13 +386,19 @@
             </div>
         </td>
         <td class="px-1 py-1 align-top">
-            <input type="text" class="item-notes w-full h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Catatan" value="${escapeHtml(row.notes)}">
+            <textarea class="item-notes w-full h-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Catatan">${escapeHtml(row.notes)}</textarea>
         </td>
         <td class="px-1 py-1 align-top">
-            <input type="file" name="items[${row.index}][files][]" class="item-files w-full h-8 text-xs file:mr-1 file:py-0.5 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
-        </td>
-        <td class="px-1 py-1 align-top text-right">
-            <button type="button" class="h-7 w-7 inline-flex items-center justify-center text-red-600 hover:text-red-800" onclick="removeRow(${row.index})"><i class="fas fa-trash text-sm"></i></button>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <input type="file" name="items[${row.index}][files][]" class="item-files hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
+                    <button type="button" class="item-files-btn h-8 w-8 inline-flex items-center justify-center text-gray-700 hover:text-blue-700 hover:bg-blue-50 border border-gray-300 rounded-md" title="Unggah dokumen">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <span class="item-files-count text-xs text-gray-600 align-middle"></span>
+                </div>
+                <button type="button" class="h-6 w-6 inline-flex items-center justify-center text-red-600 hover:text-red-800 ml-2" onclick="removeRow(${row.index})"><i class="fas fa-trash text-xs"></i></button>
+            </div>
         </td>`;
         tbody.appendChild(tr);
         bindRowEvents(tr, row);
@@ -405,6 +412,9 @@
         const specInput = tr.querySelector('.item-spec');
         const brandInput = tr.querySelector('.item-brand');
         const altVendorInput = tr.querySelector('.alt-vendor');
+        const fileInput = tr.querySelector('.item-files');
+        const fileBtn = tr.querySelector('.item-files-btn');
+        const fileCount = tr.querySelector('.item-files-count');
         const supplierSugBox = tr.querySelector('.supplier-suggestions');
         const sugBox = tr.querySelector('.suggestions');
         const categoryInput = tr.querySelector('.item-category');
@@ -442,9 +452,26 @@
         qtyInput.addEventListener('change', function() {
             row.quantity = parseInt(this.value) || 1;
         });
-        priceInput.addEventListener('change', function() {
-            row.unit_price = parseFloat(this.value) || 0;
-        });
+        const handlePriceInput = function() {
+            const v = (priceInput.value || '').trim();
+            const normalized = parseRupiahToNumber(v);
+            row.unit_price = normalized; // numeric string, can be long, integer only
+            priceInput.value = formatRupiahInputValue(row.unit_price);
+        };
+        priceInput.addEventListener('input', handlePriceInput);
+        priceInput.addEventListener('blur', handlePriceInput);
+        if (fileBtn && fileInput) {
+            fileBtn.addEventListener('click', function() {
+                fileInput.click();
+            });
+            fileInput.addEventListener('change', function() {
+                const n = fileInput.files?.length || 0;
+                if (fileCount) {
+                    fileCount.innerHTML = n ? '<i class="fas fa-check text-green-600"></i>' : '';
+                    if (n) fileCount.setAttribute('title', `${n} file`); else fileCount.removeAttribute('title');
+                }
+            });
+        }
         notesInput.addEventListener('change', function() {
             row.notes = this.value;
         });
@@ -554,14 +581,15 @@
         const row = rows.find(r => r.index === rowIndex);
         row.master_item_id = it.id;
         row.name = it.name;
-        row.unit_price = parseFloat(it.total_price || 0) || '';
+        // Do not auto-fetch price from DB; keep price as user input (empty by default)
+        row.unit_price = row.unit_price;
         if (it.category) {
             row.item_category_id = it.category.id;
             row.item_category_name = it.category.name;
             if (categoryInput) categoryInput.value = it.category.name;
         }
         nameInput.value = it.name;
-        priceInput.value = row.unit_price;
+        // Leave price input unchanged (empty unless user provided)
         sugBox.classList.add('hidden');
     }
 
@@ -598,9 +626,8 @@
         if (data && data.item) {
             row.master_item_id = data.item.id;
             row.name = data.item.name;
-            row.unit_price = parseFloat(data.item.total_price || 0);
+            // Do not auto-fill price from resolved item
             nameInput.value = data.item.name;
-            priceInput.value = row.unit_price;
         }
     }
 

@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             DepartmentSeeder::class,
             SubmissionTypeSeeder::class,
             MasterItemSeeder::class,
+            ItemTypeCodeSeeder::class,
             ApprovalWorkflowSeeder::class,
         ]);
     }

@@ -89,8 +89,8 @@
                             @foreach($approvalRequest->masterItems as $item)
                             @php
                                 $qty = (int) ($item->pivot->quantity ?? 0);
-                                $unitPrice = (float) ($item->pivot->unit_price ?? ($item->total_price ?? 0));
-                                $totalPrice = (float) ($item->pivot->total_price ?? ($qty * $unitPrice));
+                                $unitPrice = $item->pivot->unit_price; // nullable, no fallback to master item
+                                $totalPrice = $item->pivot->total_price; // nullable, no fallback calculation
                             @endphp
                             <div class="bg-white border border-gray-200 rounded-xl p-2 shadow-sm">
                                 <!-- Row 1: header/meta on left, KPIs + brand/vendor on right -->
@@ -107,11 +107,15 @@
                                         </div>
                                         <div>
                                             <div class="text-xs text-gray-500">Harga Satuan</div>
-                                            <div class="text-base font-medium text-gray-900">Rp {{ number_format($unitPrice, 0, ',', '.') }}</div>
+                                            <div class="text-base font-medium text-gray-900">
+                                                {{ $unitPrice !== null ? 'Rp '.number_format((float)$unitPrice, 0, ',', '.') : '-' }}
+                                            </div>
                                         </div>
                                         <div>
                                             <div class="text-xs text-gray-500">Total</div>
-                                            <div class="text-base font-bold text-gray-900">Rp {{ number_format($totalPrice, 0, ',', '.') }}</div>
+                                            <div class="text-base font-bold text-gray-900">
+                                                {{ $totalPrice !== null ? 'Rp '.number_format((float)$totalPrice, 0, ',', '.') : '-' }}
+                                            </div>
                                         </div>
                                         <div>
                                             <div class="text-xs text-gray-500">Merk</div>

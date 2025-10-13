@@ -18,6 +18,7 @@ class ApprovalRequest extends Model
         'priority',
         'is_cto_request',
         'status',
+        'purchasing_status',
         'current_step',
         'total_steps',
         'approved_by',

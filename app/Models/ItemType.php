@@ -12,7 +12,8 @@ class ItemType extends Model
     protected $fillable = [
         'name',
         'description',
-        'is_active'
+        'is_active',
+        'code',
     ];
 
     protected $casts = [

@@ -17,6 +17,7 @@ class ItemTypeController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%");
             });
         }
@@ -41,6 +42,7 @@ class ItemTypeController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:item_types',
+            'code' => 'nullable|string|max:10|unique:item_types,code',
             'description' => 'nullable|string|max:500',
             'is_active' => 'boolean'
         ]);
@@ -51,6 +53,7 @@ class ItemTypeController extends Controller
 
         ItemType::create([
             'name' => $request->name,
+            'code' => $request->filled('code') ? strtoupper(trim($request->code)) : null,
             'description' => $request->description,
             'is_active' => $request->has('is_active')
         ]);
@@ -67,6 +70,7 @@ class ItemTypeController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:item_types,name,' . $itemType->id,
+            'code' => 'nullable|string|max:10|unique:item_types,code,' . $itemType->id,
             'description' => 'nullable|string|max:500',
             'is_active' => 'boolean'
         ]);
@@ -77,6 +81,7 @@ class ItemTypeController extends Controller
 
         $itemType->update([
             'name' => $request->name,
+            'code' => $request->filled('code') ? strtoupper(trim($request->code)) : null,
             'description' => $request->description,
             'is_active' => $request->has('is_active')
         ]);
