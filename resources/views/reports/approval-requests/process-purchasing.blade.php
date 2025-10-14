@@ -4,87 +4,60 @@
 
 @section('content')
 <div class="space-y-3">
-    <!-- Received Date (Tanggal Diterima) -->
-    <div class="bg-white border border-gray-200 rounded-lg p-3">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-sm font-semibold text-gray-900">Tanggal Diterima Dokumen</div>
-                <div class="text-xs text-gray-600">Set tanggal diterima di level request.</div>
-            </div>
-            @if(auth()->user()->hasPermission('manage_purchasing'))
-            <form method="POST" action="{{ route('approval-requests.set-received-date', $item->approvalRequest) }}" class="flex items-end gap-2">
-                @csrf
-                <div>
-                    <label class="block text-xs text-gray-600 mb-0.5">Tanggal</label>
-                    <input type="date" name="received_at" value="{{ $item->approvalRequest->received_at ? $item->approvalRequest->received_at->format('Y-m-d') : '' }}" class="h-8 px-2 border border-gray-300 rounded text-sm" />
-                </div>
-                <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">Simpan</button>
-            </form>
-            @else
-                <div class="text-sm text-gray-700">Tanggal: <span class="font-medium text-gray-900">{{ $item->approvalRequest->received_at ? $item->approvalRequest->received_at->format('Y-m-d') : '-' }}</span></div>
-            @endif
-        </div>
-    </div>
-    <!-- Header -->
+    <!-- Header (with inline received date on the right) -->
     <div class="flex items-center justify-between">
         <div>
             <h2 class="text-xl font-semibold text-gray-900">Purchasing Item</h2>
             <p class="text-sm text-gray-600">Request: {{ $item->approvalRequest->request_number ?? '-' }} • Item: {{ $item->masterItem->name ?? '-' }}</p>
         </div>
-        <div class="flex gap-2">
-            <a href="{{ route('purchasing.items.index') }}" class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-50">Kembali</a>
+        <div class="flex items-center gap-2">
+            @if(auth()->user()->hasPermission('manage_purchasing'))
+            <form method="POST" action="{{ route('approval-requests.set-received-date', $item->approvalRequest) }}" class="flex items-center gap-2">
+                @csrf
+                <span class="text-xs text-gray-500">Tgl dokumen diterima</span>
+                <input type="date" name="received_at" value="{{ $item->approvalRequest->received_at ? $item->approvalRequest->received_at->format('Y-m-d') : '' }}" class="h-8 px-2 border border-gray-300 rounded text-sm" />
+                <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan</button>
+            </form>
+            @else
+            <div class="text-xs text-gray-500">Tgl dokumen diterima
+                <span class="ml-2 text-sm text-gray-800 font-medium">{{ $item->approvalRequest->received_at ? $item->approvalRequest->received_at->format('Y-m-d') : '-' }}</span>
+            </div>
+            @endif
         </div>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-        <div class="bg-white border border-gray-200 rounded-lg p-3">
-            <div class="text-xs text-gray-600">Status</div>
-            <div class="text-base font-semibold {{ $item->status==='done' ? 'text-green-700' : 'text-gray-900' }}">{{ strtoupper($item->status) }}</div>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-lg p-3">
-            <div class="text-xs text-gray-600">Preferred Vendor</div>
-            <div class="text-sm font-medium text-gray-900">{{ $item->preferredVendor->name ?? '-' }}</div>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-lg p-3">
-            <div class="text-xs text-gray-600">PO</div>
-            <div class="text-sm font-medium text-gray-900">{{ $item->po_number ?? '-' }}</div>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-lg p-3">
-            <div class="text-xs text-gray-600">GRN Date • Proc Cycle</div>
-            <div class="text-sm font-medium text-gray-900">{{ $item->grn_date ? $item->grn_date->format('Y-m-d') : '-' }} @if($item->proc_cycle_days) • {{ $item->proc_cycle_days }} hari @endif</div>
-        </div>
-    </div>
+    
 
     <!-- Benchmarking Vendors -->
     <div class="bg-white border border-gray-200 rounded-lg">
-        <div class="px-3 py-2 border-b border-gray-200 flex items-center justify-between">
+        <div class="px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-900">Vendor Benchmarking</h3>
             <div class="text-xs text-gray-500 flex items-center gap-2">Qty:
                 <input type="text" class="h-6 w-16 text-center border border-gray-200 rounded bg-gray-50" value="{{ (int) $item->quantity }}" disabled>
             </div>
         </div>
-        <div class="p-3">
+        <div class="p-2">
             @if(auth()->user()->hasPermission('manage_purchasing'))
             <form method="POST" action="{{ route('purchasing.items.benchmarking', $item) }}" class="space-y-2" id="benchmarking-form">
                 @csrf
                 <div class="text-xs text-gray-600">Tambah/Replace Benchmarking (min 1, disarankan 3)</div>
                 <div id="vendors-wrapper" class="space-y-2">
                     @for($i=0; $i<3; $i++)
+                    @php($v = optional($item->vendors->values()->get($i)))
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
                         <div class="relative">
-                            <input type="hidden" name="vendors[{{ $i }}][supplier_id]" class="supplier-id" />
-                            <input type="text" class="supplier-name h-8 w-full px-2 border border-gray-300 rounded text-sm" placeholder="Cari supplier..." autocomplete="off" />
+                            <input type="hidden" name="vendors[{{ $i }}][supplier_id]" class="supplier-id" value="{{ $v->supplier_id ?? '' }}" />
+                            <input type="text" class="supplier-name h-8 w-full px-2 border border-gray-300 rounded text-sm" placeholder="Cari supplier..." autocomplete="off" value="{{ $v && $v->supplier ? $v->supplier->name : '' }}" />
                             <div class="supplier-suggest absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-md shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
                         </div>
-                        <input type="text" name="vendors[{{ $i }}][unit_price]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Unit Price (Rp)" />
-                        <input type="text" name="vendors[{{ $i }}][total_price]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Total Price (Rp)" />
-                        <input type="text" name="vendors[{{ $i }}][notes]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Notes" />
+                        <input type="text" name="vendors[{{ $i }}][unit_price]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Unit Price (Rp)" value="{{ isset($v->unit_price) ? ('Rp '.number_format((float)$v->unit_price, 0, ',', '.')) : '' }}" />
+                        <input type="text" name="vendors[{{ $i }}][total_price]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Total Price (Rp)" value="{{ isset($v->total_price) ? ('Rp '.number_format((float)$v->total_price, 0, ',', '.')) : '' }}" />
+                        <input type="text" name="vendors[{{ $i }}][notes]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Notes" value="{{ $v->notes ?? '' }}" />
                     </div>
                     @endfor
                 </div>
                 <div>
-                    <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">Simpan Benchmarking</button>
+                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan Benchmarking</button>
                 </div>
             </form>
             @endif
@@ -93,10 +66,10 @@
 
     <!-- Preferred Vendor -->
     <div class="bg-white border border-gray-200 rounded-lg">
-        <div class="px-3 py-2 border-b border-gray-200">
+        <div class="px-3 py-1.5 border-b border-gray-200">
             <h3 class="text-sm font-semibold text-gray-900">Preferred Vendor</h3>
         </div>
-        <div class="p-3">
+        <div class="p-2">
             @if(auth()->user()->hasPermission('manage_purchasing'))
             <form method="POST" action="{{ route('purchasing.items.preferred', $item) }}" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end" id="preferred-form">
                 @csrf
@@ -115,7 +88,7 @@
                     <input type="text" name="total_price" value="{{ $item->preferred_total_price }}" class="w-full h-8 px-2 border border-gray-300 rounded text-sm currency-input" placeholder="Rp" />
                 </div>
                 <div>
-                    <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">Simpan Preferred</button>
+                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan Preferred</button>
                 </div>
             </form>
             @else
@@ -126,17 +99,17 @@
 
     <!-- PO & GRN -->
     <div class="bg-white border border-gray-200 rounded-lg">
-        <div class="px-3 py-2 border-b border-gray-200">
+        <div class="px-3 py-1.5 border-b border-gray-200">
             <h3 class="text-sm font-semibold text-gray-900">PO & GRN</h3>
         </div>
-        <div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="p-2 grid grid-cols-1 md:grid-cols-3 gap-3">
             @if(auth()->user()->hasPermission('manage_purchasing'))
             <form method="POST" action="{{ route('purchasing.items.po', $item) }}" class="space-y-2">
                 @csrf
                 <label class="block text-xs text-gray-600 mb-0.5">PO Number</label>
                 <div class="flex gap-2">
                     <input type="text" name="po_number" value="{{ $item->po_number }}" class="flex-1 h-8 px-2 border border-gray-300 rounded text-sm" placeholder="PO..." />
-                    <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">Simpan PO</button>
+                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan PO</button>
                 </div>
             </form>
             <form method="POST" action="{{ route('purchasing.items.grn', $item) }}" class="space-y-2">
@@ -144,12 +117,21 @@
                 <label class="block text-xs text-gray-600 mb-0.5">GRN Date</label>
                 <div class="flex gap-2">
                     <input type="date" name="grn_date" value="{{ $item->grn_date ? $item->grn_date->format('Y-m-d') : '' }}" class="h-8 px-2 border border-gray-300 rounded text-sm" />
-                    <button class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">Simpan GRN</button>
+                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan GRN</button>
+                </div>
+            </form>
+            <form method="POST" action="{{ route('purchasing.items.invoice', $item) }}" class="space-y-2">
+                @csrf
+                <label class="block text-xs text-gray-600 mb-0.5">Invoice Number</label>
+                <div class="flex gap-2">
+                    <input type="text" name="invoice_number" value="{{ $item->invoice_number }}" class="flex-1 h-8 px-2 border border-gray-300 rounded text-sm" placeholder="INV..." />
+                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan Invoice</button>
                 </div>
             </form>
             @else
                 <div class="text-sm text-gray-700">PO: <span class="font-medium text-gray-900">{{ $item->po_number ?? '-' }}</span></div>
                 <div class="text-sm text-gray-700">GRN: <span class="font-medium text-gray-900">{{ $item->grn_date ? $item->grn_date->format('Y-m-d') : '-' }}</span></div>
+                <div class="text-sm text-gray-700">INV: <span class="font-medium text-gray-900">{{ $item->invoice_number ?? '-' }}</span></div>
             @endif
         </div>
     </div>
@@ -159,7 +141,7 @@
     <div class="flex justify-end">
         <form method="POST" action="{{ route('purchasing.items.done', $item) }}" onsubmit="return confirm('Tandai item ini sebagai DONE?');">
             @csrf
-            <button class="px-4 py-2 bg-green-600 text-white rounded text-sm">Mark as DONE</button>
+            <button class="px-3 py-1.5 bg-green-600 text-white rounded text-sm">Mark as DONE</button>
         </form>
     </div>
     @endif
@@ -209,8 +191,16 @@ document.addEventListener('DOMContentLoaded', function() {
         box.addEventListener('click', function(e) {
             const target = e.target.closest('[data-id]');
             if (!target) return;
-            idInput.value = target.getAttribute('data-id');
-            nameInput.value = target.getAttribute('data-name');
+            const pickedId = String(target.getAttribute('data-id') || '');
+            // Prevent duplicates across other rows
+            const exists = Array.from(wrapper.querySelectorAll('.supplier-id'))
+                .some(input => input !== idInput && String(input.value || '') === pickedId);
+            if (exists) {
+                alert('Vendor ini sudah dipilih di baris lain. Silakan pilih vendor berbeda.');
+                return;
+            }
+            idInput.value = pickedId;
+            nameInput.value = target.getAttribute('data-name') || '';
             box.classList.add('hidden');
         });
 
@@ -254,26 +244,123 @@ document.addEventListener('DOMContentLoaded', function() {
 
     wrapper.querySelectorAll('.grid').forEach(r => { bindRow(r); bindCurrencyRow(r); });
 
-    // Preferred vendor suggest limited to benchmark vendors
+    // Prevent submitting duplicate vendors in benchmarking
+    const benchForm = document.getElementById('benchmarking-form');
+    if (benchForm) {
+        benchForm.addEventListener('submit', async function(ev){
+            ev.preventDefault();
+
+            // 1) Auto-resolve/create suppliers for rows that have name typed but no ID
+            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const rows = Array.from(wrapper.querySelectorAll('#vendors-wrapper > .grid'));
+            const toResolve = rows
+                .map(r => ({ idInput: r.querySelector('.supplier-id'), nameInput: r.querySelector('.supplier-name') }))
+                .filter(x => x && x.nameInput && !x.idInput.value && (x.nameInput.value || '').trim().length >= 2);
+            if (toResolve.length) {
+                try {
+                    await Promise.all(toResolve.map(async ({ idInput, nameInput }) => {
+                        const res = await fetch("{{ route('api.suppliers.resolve') }}", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': token,
+                                'X-Requested-With': 'XMLHttpRequest',
+                            },
+                            body: JSON.stringify({ name: nameInput.value.trim() }),
+                        });
+                        const data = await res.json();
+                        if (data && data.success && data.supplier && data.supplier.id) {
+                            idInput.value = String(data.supplier.id);
+                            if (data.supplier.name) nameInput.value = data.supplier.name;
+                        }
+                    }));
+                } catch (e) {
+                    console.error('Supplier resolve failed', e);
+                }
+            }
+
+            // 2) Duplicate check after resolve
+            const ids = Array.from(wrapper.querySelectorAll('.supplier-id'))
+                .map(i => String(i.value || '').trim())
+                .filter(v => v !== '');
+            const uniq = new Set(ids);
+            if (ids.length !== uniq.size) {
+                alert('Terdapat vendor duplikat pada benchmarking. Mohon gunakan vendor yang berbeda.');
+                return;
+            }
+
+            // 3) Remove/disable empty rows so they are not submitted
+            rows.forEach(r => {
+                const sid = r.querySelector('.supplier-id');
+                if (!sid || !sid.value) {
+                    r.querySelectorAll('input').forEach(inp => { inp.disabled = true; });
+                }
+            });
+
+            // 4) Unformat currency to plain numbers before submit
+            rows.forEach(r => {
+                const unit = r.querySelector('input[name$="[unit_price]"]');
+                const total = r.querySelector('input[name$="[total_price]"]');
+                if (unit) unit.value = String(parseRupiah(unit.value));
+                if (total) total.value = String(parseRupiah(total.value));
+            });
+
+            // 5) Submit form now
+            benchForm.submit();
+        });
+    }
+
+    // Preferred vendor suggest limited to benchmark vendors (live from DOM) and auto-fill prices
     const preferredForm = document.getElementById('preferred-form');
     if (preferredForm) {
         const pName = preferredForm.querySelector('.preferred-supplier-name');
         const pId = preferredForm.querySelector('.preferred-supplier-id');
         const pBox = preferredForm.querySelector('.preferred-supplier-suggest');
-        const benchVendors = @json($item->vendors->map(fn($v)=>['id'=>$v->supplier_id,'name'=>$v->supplier->name])->values());
+
+        // Safeguard server vendors list (for initial state only)
+        const serverVendors = @json($item->vendors->map(fn($v)=>['id'=>$v->supplier_id,'name'=>optional($v->supplier)->name])->values());
+
+        // Read current benchmarking rows from DOM (including unsaved edits)
+        const readBenchmarkFromDOM = () => {
+            const rows = Array.from(wrapper.querySelectorAll('#vendors-wrapper > .grid'));
+            return rows.map(r => {
+                const id = r.querySelector('.supplier-id')?.value || '';
+                const name = r.querySelector('.supplier-name')?.value || '';
+                const unit = r.querySelector('input[name$="[unit_price]"]')?.value || '';
+                const total = r.querySelector('input[name$="[total_price]"]')?.value || '';
+                return { id, name, unit, total };
+            }).filter(v => v.id && v.name);
+        };
+
+        // Merge server vendors and DOM vendors (unique by id)
+        const getBenchmarkVendors = () => {
+            const live = readBenchmarkFromDOM();
+            const map = new Map();
+            serverVendors.forEach(v => { if (v && v.id) map.set(String(v.id), { id: String(v.id), name: v.name || '' }); });
+            live.forEach(v => { map.set(String(v.id), { id: String(v.id), name: v.name, unit: v.unit, total: v.total }); });
+            return Array.from(map.values());
+        };
+
         if (pName && pId && pBox) {
             pName.addEventListener('input', function(){
                 const q = (this.value||'').toLowerCase().trim();
                 pId.value = '';
-                const list = benchVendors.filter(v => v.name.toLowerCase().includes(q)).slice(0,10);
+                const list = getBenchmarkVendors().filter(v => (v.name||'').toLowerCase().includes(q)).slice(0,10);
                 if (!q || list.length === 0) { pBox.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">Ketik untuk mencari vendor hasil benchmarking</div>'; pBox.classList.remove('hidden'); return; }
-                pBox.innerHTML = list.map(v => `<div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" data-id="${v.id}" data-name="${v.name}">${v.name}</div>`).join('');
+                pBox.innerHTML = list.map(v => `<div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" data-id="${v.id}" data-name="${v.name}" data-unit="${v.unit||''}" data-total="${v.total||''}">${v.name}</div>`).join('');
                 pBox.classList.remove('hidden');
             });
             pBox.addEventListener('click', function(e){
                 const t = e.target.closest('[data-id]'); if (!t) return;
                 pId.value = t.getAttribute('data-id');
                 pName.value = t.getAttribute('data-name');
+                // Auto-fill prices from matching benchmark row if available
+                const unitPref = preferredForm.querySelector('input[name="unit_price"]');
+                const totalPref = preferredForm.querySelector('input[name="total_price"]');
+                const unitVal = t.getAttribute('data-unit');
+                const totalVal = t.getAttribute('data-total');
+                if (unitPref && unitVal) unitPref.value = unitVal;
+                if (totalPref && totalVal) totalPref.value = totalVal;
                 pBox.classList.add('hidden');
             });
             pName.addEventListener('blur', () => setTimeout(()=> pBox.classList.add('hidden'), 200));
@@ -303,6 +390,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (unitPref.value) onPrefUnit();
             if (totalPref.value) onPrefTotal();
         }
+
+        // Ensure plain numbers on submit for preferred form
+        preferredForm.addEventListener('submit', function(){
+            if (unitPref) unitPref.value = String(parseRupiah(unitPref.value));
+            if (totalPref) totalPref.value = String(parseRupiah(totalPref.value));
+        });
     }
 });
 </script>

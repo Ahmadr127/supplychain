@@ -20,8 +20,11 @@ class ReportController extends Controller
                     $q->select('master_items.id','master_items.name','master_items.item_category_id')
                       ->with(['itemCategory:id,name']);
                 },
-                // load purchasing items to map each master item to its purchasing item id
-                'purchasingItems:id,approval_request_id,master_item_id,quantity,status',
+                // load purchasing items with vendors and preferred info
+                'purchasingItems' => function($pi){
+                    $pi->select('id','approval_request_id','master_item_id','quantity','status','po_number','grn_date','proc_cycle_days','invoice_number','preferred_vendor_id','preferred_unit_price','preferred_total_price')
+                       ->with(['vendors' => function($v){ $v->with('supplier:id,name'); }]);
+                },
             ]);
 
         // Filters
@@ -77,8 +80,10 @@ class ReportController extends Controller
             $primaryDept = optional($req->requester?->departments?->first())->name;
             $letterNumber = $req->letter_number ?? null; // optional
             $procurementYear = $req->procurement_year ?? ($req->created_at?->format('Y'));
-            $createdAt = $req->created_at; // Carbon|null
-            $ageDays = $createdAt ? $createdAt->diffInDays(now()) : null;
+            $createdAt = $req->created_at; // Tanggal Pengajuan (Carbon|null)
+            $receivedAt = $req->received_at ? \Carbon\Carbon::parse($req->received_at) : null; // Tanggal Terima Dokumen
+            // Umur Pengajuan = selisih Tanggal Terima Dokumen dengan Tanggal Pengajuan (real days, float)
+            $ageDays = ($createdAt && $receivedAt) ? $createdAt->diffInRealDays($receivedAt) : null;
 
             // Purchasing status simplified: UNPROCESSED or DONE (from DB flag)
             $purchasingStatus = strtoupper(($req->purchasing_status ?? 'unprocessed') === 'done' ? 'DONE' : 'UNPROCESSED');
@@ -97,6 +102,46 @@ class ReportController extends Controller
                 // Process text: show purchasing status only
                 $processText = $purchasingStatus;
 
+                // Benchmarking vendors (up to 3) for display
+                $bench = [null, null, null];
+                if ($pi && $pi->relationLoaded('vendors')) {
+                    $vendors = $pi->vendors->take(3)->values();
+                    foreach ($vendors as $idx => $v) {
+                        $bench[$idx] = [
+                            'supplier' => $v->supplier->name ?? '-',
+                            'unit_price' => is_null($v->unit_price) ? '-' : ('Rp '.number_format((float)$v->unit_price, 0, ',', '.')),
+                            'total_price' => is_null($v->total_price) ? '-' : ('Rp '.number_format((float)$v->total_price, 0, ',', '.')),
+                        ];
+                    }
+                }
+
+                // Preferred vendor display
+                $preferred = [
+                    'supplier' => '-',
+                    'unit_price' => '-',
+                    'total_price' => '-',
+                ];
+                if ($pi) {
+                    $prefVendor = $pi->vendors?->firstWhere('supplier_id', $pi->preferred_vendor_id);
+                    if ($prefVendor) {
+                        $preferred['supplier'] = $prefVendor->supplier->name ?? ('Supplier #'.$prefVendor->supplier_id);
+                    }
+                    if (!is_null($pi->preferred_unit_price)) {
+                        $preferred['unit_price'] = 'Rp '.number_format((float)$pi->preferred_unit_price, 0, ',', '.');
+                    }
+                    if (!is_null($pi->preferred_total_price)) {
+                        $preferred['total_price'] = 'Rp '.number_format((float)$pi->preferred_total_price, 0, ',', '.');
+                    }
+                }
+
+                // Proc Cycle = selisih Tanggal GRN dengan Tanggal Pengajuan
+                $grnAt = $pi && $pi->grn_date ? \Carbon\Carbon::parse($pi->grn_date) : null;
+                $procDays = ($createdAt && $grnAt) ? $createdAt->diffInRealDays($grnAt) : null;
+
+                // Format: 1 decimal with comma separator
+                $ageText = $ageDays !== null ? (number_format((float)$ageDays, 1, ',', '.') . ' hari') : '-';
+                $procText = $procDays !== null ? (number_format((float)$procDays, 1, ',', '.') . ' hari') : '-';
+
                 $row = [
                     'approval_request_id' => $req->id,
                     'master_item_id' => $m->id,
@@ -107,7 +152,7 @@ class ReportController extends Controller
                     'unit_pengaju' => $primaryDept ?? '-',
                     'tanggal_pengajuan' => $createdAt?->format('Y-m-d') ?? '-',
                     'tanggal_terima_dokumen' => $req->received_at ? \Carbon\Carbon::parse($req->received_at)->format('Y-m-d') : '-',
-                    'umur_pengajuan' => $ageDays !== null ? intval($ageDays) . ' hari' : '-',
+                    'umur_pengajuan' => $ageText,
                     'no_surat' => $letterNumber ?? '-',
                     'tahun_pengadaan' => $procurementYear ?? '-',
                     // Detail diisi spesifikasi item
@@ -119,17 +164,36 @@ class ReportController extends Controller
                     'keterangan' => $notes ?: '-',
                     // Qty per item
                     'qty' => $qty,
+                    // Benchmarking vendors columns
+                    'bm_supplier_1' => $bench[0]['supplier'] ?? '-',
+                    'bm_unit_price_1' => $bench[0]['unit_price'] ?? '-',
+                    'bm_total_price_1' => $bench[0]['total_price'] ?? '-',
+                    'bm_supplier_2' => $bench[1]['supplier'] ?? '-',
+                    'bm_unit_price_2' => $bench[1]['unit_price'] ?? '-',
+                    'bm_total_price_2' => $bench[1]['total_price'] ?? '-',
+                    'bm_supplier_3' => $bench[2]['supplier'] ?? '-',
+                    'bm_unit_price_3' => $bench[2]['unit_price'] ?? '-',
+                    'bm_total_price_3' => $bench[2]['total_price'] ?? '-',
+                    // Preferred vendor columns
+                    'pref_supplier' => $preferred['supplier'],
+                    'pref_unit_price' => $preferred['unit_price'],
+                    'pref_total_price' => $preferred['total_price'],
+                    // PO/INV/GRN/Cycle
+                    'invoice' => $pi?->invoice_number ?? '-',
+                    'po_number' => $pi?->po_number ?? '-',
+                    'grn_date' => $pi?->grn_date ? \Carbon\Carbon::parse($pi->grn_date)->format('Y-m-d') : '-',
+                    'proc_cycle' => $procText,
                 ];
 
-                // Add action button to process purchasing item (resolve if missing)
+                // Add action button to process/edit purchasing via report page (resolve then redirect if missing)
                 $row['actions'] = [
                     [
                         'type' => 'button',
-                        'label' => 'Proses',
+                        'label' => 'Proses / Edit Purchasing',
                         'color' => 'emerald',
                         'onclick' => $piId
-                            ? "selectPurchasingItem('{$piId}', '" . addslashes($piLabel) . "')"
-                            : "resolveAndOpen('{$req->id}', '{$m->id}', '" . addslashes($piLabel) . "')"
+                            ? "window.location.href='" . route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId]) . "'"
+                            : "(async function(){try{const res=await fetch('" . route('api.purchasing.items.resolve') . "',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]')?.getAttribute('content')||''},body:JSON.stringify({approval_request_id:'{$req->id}',master_item_id:'{$m->id}'})});const data=await res.json();if(data&&data.id){const url=new URL('" . route('reports.approval-requests.process-purchasing') . "', window.location.origin);url.searchParams.set('purchasing_item_id', String(data.id));window.location.href=url.toString();}}catch(e){alert('Gagal membuka halaman purchasing.');}})()"
                     ]
                 ];
 
@@ -156,6 +220,25 @@ class ReportController extends Controller
                 ['label' => 'Kategori','field' => 'kategori','width' => 'w-56'],
                 ['label' => 'Keterangan','field' => 'keterangan','width' => 'w-56'],
                 ['label' => 'Qty','field' => 'qty','width' => 'w-20'],
+                // Benchmarking vendors (up to 3)
+                ['label' => 'BM Supplier 1','field' => 'bm_supplier_1','width' => 'w-56'],
+                ['label' => 'BM Unit Price 1','field' => 'bm_unit_price_1','width' => 'w-40'],
+                ['label' => 'BM Total Price 1','field' => 'bm_total_price_1','width' => 'w-40'],
+                ['label' => 'BM Supplier 2','field' => 'bm_supplier_2','width' => 'w-56'],
+                ['label' => 'BM Unit Price 2','field' => 'bm_unit_price_2','width' => 'w-40'],
+                ['label' => 'BM Total Price 2','field' => 'bm_total_price_2','width' => 'w-40'],
+                ['label' => 'BM Supplier 3','field' => 'bm_supplier_3','width' => 'w-56'],
+                ['label' => 'BM Unit Price 3','field' => 'bm_unit_price_3','width' => 'w-40'],
+                ['label' => 'BM Total Price 3','field' => 'bm_total_price_3','width' => 'w-40'],
+                // Preferred vendor
+                ['label' => 'Preferred Supplier','field' => 'pref_supplier','width' => 'w-56'],
+                ['label' => 'Preferred Unit Price','field' => 'pref_unit_price','width' => 'w-40'],
+                ['label' => 'Preferred Total Price','field' => 'pref_total_price','width' => 'w-40'],
+                // PO/INV/GRN/CYCLE
+                ['label' => 'INV','field' => 'invoice','width' => 'w-40'],
+                ['label' => 'PO','field' => 'po_number','width' => 'w-40'],
+                ['label' => 'Tanggal GRN','field' => 'grn_date','width' => 'w-40'],
+                ['label' => 'Proc Cycle','field' => 'proc_cycle','width' => 'w-32'],
             ],
             'rows' => $rows,
             'paginator' => $requests,
@@ -163,5 +246,26 @@ class ReportController extends Controller
             'departments' => $departments,
             'categories' => $categories,
         ]);
+    }
+
+    public function processPurchasing(Request $request)
+    {
+        $id = (int) $request->query('purchasing_item_id');
+        if (!$id) {
+            return redirect()->route('reports.approval-requests')->with('error', 'Purchasing Item tidak ditemukan.');
+        }
+
+        $item = \App\Models\PurchasingItem::with([
+            'approvalRequest',
+            'masterItem',
+            'vendors.supplier',
+            'preferredVendor',
+        ])->find($id);
+
+        if (!$item) {
+            return redirect()->route('reports.approval-requests')->with('error', 'Purchasing Item tidak ditemukan.');
+        }
+
+        return view('reports.approval-requests.process-purchasing', compact('item'));
     }
 }

@@ -87,9 +87,17 @@ class PurchasingItemService
      */
     public function issuePO(PurchasingItem $item, string $poNumber): PurchasingItem
     {
+        // Determine if we should update status
+        // If item is still before PO stage or PO not yet set, mark as po_issued.
+        // Otherwise (already GRN received or DONE), keep current status.
+        $newStatus = $item->status;
+        if (empty($item->po_number) || in_array($item->status, ['unprocessed','benchmarking','selected','po_issued'])) {
+            $newStatus = 'po_issued';
+        }
+
         $item->update([
             'po_number' => $poNumber,
-            'status' => 'po_issued',
+            'status' => $newStatus,
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
         return $item;

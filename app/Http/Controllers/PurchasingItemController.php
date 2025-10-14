@@ -14,6 +14,47 @@ class PurchasingItemController extends Controller
     {
     }
 
+    // GET /api/purchasing/items/{purchasingItem}
+    public function showJson(PurchasingItem $purchasingItem)
+    {
+        $purchasingItem->loadMissing([
+            'approvalRequest:id,request_number,received_at',
+            'masterItem:id,name',
+            'vendors.supplier:id,name',
+            'preferredVendor:id,name',
+        ]);
+        return response()->json([
+            'success' => true,
+            'item' => [
+                'id' => $purchasingItem->id,
+                'approval_request_id' => (int) $purchasingItem->approval_request_id,
+                'quantity' => (int) $purchasingItem->quantity,
+                'request_number' => optional($purchasingItem->approvalRequest)->request_number,
+                'item_name' => optional($purchasingItem->masterItem)->name,
+                'received_at' => optional($purchasingItem->approvalRequest?->received_at)?->toDateString(),
+                // preferred info
+                'preferred_vendor_id' => $purchasingItem->preferred_vendor_id,
+                'preferred_vendor_name' => optional($purchasingItem->preferredVendor)->name,
+                'preferred_unit_price' => $purchasingItem->preferred_unit_price,
+                'preferred_total_price' => $purchasingItem->preferred_total_price,
+                // PO/INV/GRN
+                'po_number' => $purchasingItem->po_number,
+                'grn_date' => optional($purchasingItem->grn_date)?->toDateString(),
+                'invoice_number' => $purchasingItem->invoice_number,
+                'proc_cycle_days' => $purchasingItem->proc_cycle_days,
+                'vendors' => $purchasingItem->vendors->map(function($v){
+                    return [
+                        'supplier_id' => (int) $v->supplier_id,
+                        'supplier_name' => optional($v->supplier)->name,
+                        'unit_price' => $v->unit_price,
+                        'total_price' => $v->total_price,
+                        'notes' => $v->notes,
+                    ];
+                })->values(),
+            ],
+        ]);
+    }
+
     // GET /purchasing/items
     public function index(Request $request)
     {
@@ -72,6 +113,14 @@ class PurchasingItemController extends Controller
             'unit_price' => 'nullable|numeric|min:0',
             'total_price' => 'nullable|numeric|min:0',
         ]);
+
+        // Ensure supplier exists in benchmarking vendors for this item
+        $existsInBenchmark = $purchasingItem->vendors()
+            ->where('supplier_id', (int)$data['supplier_id'])
+            ->exists();
+        if (!$existsInBenchmark) {
+            return back()->withErrors(['supplier_id' => 'Vendor harus berasal dari daftar benchmarking.'])->withInput();
+        }
 
         $updated = $this->service->selectPreferred(
             $purchasingItem,

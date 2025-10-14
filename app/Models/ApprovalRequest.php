@@ -26,12 +26,14 @@ class ApprovalRequest extends Model
         'approved_at',
         'rejection_reason',
         'item_type_id',
-        'is_specific_type'
+        'is_specific_type',
+        'received_at',
     ];
 
     protected $casts = [
         'approved_at' => 'datetime',
         'is_specific_type' => 'boolean',
+        'received_at' => 'date',
     ];
 
     // Relasi dengan workflow

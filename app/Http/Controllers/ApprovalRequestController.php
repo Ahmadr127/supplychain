@@ -604,6 +604,20 @@ class ApprovalRequestController extends Controller
         }
     }
 
+    // Purchasing: set tanggal diterima (received_at) for an approval request
+    public function setReceivedDate(Request $request, ApprovalRequest $approvalRequest)
+    {
+        $data = $request->validate([
+            'received_at' => 'required|date',
+        ]);
+
+        $approvalRequest->update([
+            'received_at' => $data['received_at'],
+        ]);
+
+        return redirect()->back()->with('success', 'Tanggal diterima berhasil disimpan.');
+    }
+
     public function myRequests(Request $request)
     {
         $query = auth()->user()->approvalRequests()->with(['workflow', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment', 'submissionType']);

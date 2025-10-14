@@ -38,7 +38,6 @@ Route::get('/', function () {
 // Authentication routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login']);
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
     Route::post('/register', [AuthController::class, 'register']);
 });
@@ -48,7 +47,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     
-
     // User Management routes
     Route::middleware('permission:manage_users')->group(function () {
         Route::resource('users', UserController::class);
@@ -135,6 +133,12 @@ Route::middleware('auth')->group(function () {
 
     // Purchasing per-item UI pages and endpoints
     Route::middleware('permission:manage_purchasing')->group(function () {
+        // Report Purchasing process page (server-rendered)
+        Route::get('reports/approval-requests/process-purchasing', [\App\Http\Controllers\ReportController::class, 'processPurchasing'])
+            ->name('reports.approval-requests.process-purchasing');
+        // Set received date for approval request (tanggal diterima)
+        Route::post('approval-requests/{approvalRequest}/received-date', [\App\Http\Controllers\ApprovalRequestController::class, 'setReceivedDate'])
+            ->name('approval-requests.set-received-date');
         // UI pages
         Route::get('purchasing/items', [\App\Http\Controllers\PurchasingItemController::class, 'index'])
             ->name('purchasing.items.index');
@@ -173,6 +177,8 @@ Route::middleware('auth')->group(function () {
     // Purchasing item lookup endpoints
     Route::get('api/purchasing/items/suggest', [\App\Http\Controllers\PurchasingItemController::class, 'suggest'])
         ->name('api.purchasing.items.suggest');
+    Route::get('api/purchasing/items/{purchasingItem}', [\App\Http\Controllers\PurchasingItemController::class, 'showJson'])
+        ->name('api.purchasing.items.show');
     Route::post('api/purchasing/items/resolve', [\App\Http\Controllers\PurchasingItemController::class, 'resolveByRequestAndItem'])
         ->name('api.purchasing.items.resolve');
     
