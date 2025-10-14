@@ -283,7 +283,9 @@ class ApprovalRequestController extends Controller
             'masterItems.itemCategory',
             'masterItems.commodity',
             'masterItems.unit',
-            'submissionType'
+            'submissionType',
+            'purchasingItems.vendors',
+            'purchasingItems.preferredVendor'
         ]);
 
         // Load item files grouped by master_item_id to show per item

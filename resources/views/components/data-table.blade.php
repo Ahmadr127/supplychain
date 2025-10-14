@@ -64,39 +64,49 @@
                         </td>
                     @endforeach
                     
-                    @if($actions && isset($item['actions']))
+                    @if($actions)
                         <td class="w-32 px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div class="flex space-x-2">
-                                @foreach($item['actions'] as $action)
-                                    @if($action['type'] === 'link')
-                                        <a href="{{ $action['url'] }}" 
-                                           class="text-{{ $action['color'] ?? 'blue' }}-600 hover:text-{{ $action['color'] ?? 'blue' }}-900 transition-colors duration-150">
-                                            {{ $action['label'] }}
-                                        </a>
-                                    @elseif($action['type'] === 'button')
-                                        <button type="button" 
-                                                class="text-{{ $action['color'] ?? 'blue' }}-600 hover:text-{{ $action['color'] ?? 'blue' }}-900 transition-colors duration-150"
-                                                @if(isset($action['onclick']))
-                                                    onclick="{{ $action['onclick'] }}"
-                                                @endif>
-                                            {{ $action['label'] }}
-                                        </button>
-                                    @elseif($action['type'] === 'form')
-                                        <form action="{{ $action['url'] }}" method="{{ $action['method'] ?? 'POST' }}" class="inline">
-                                            @csrf
-                                            @if($action['method'] !== 'POST')
-                                                @method($action['method'])
-                                            @endif
-                                            <button type="submit" 
-                                                    class="text-{{ $action['color'] ?? 'red' }}-600 hover:text-{{ $action['color'] ?? 'red' }}-900 transition-colors duration-150"
-                                                    @if(isset($action['confirm']))
-                                                        onclick="return confirm('{{ $action['confirm'] }}')"
+                                @if(isset($item['actions']))
+                                    @foreach($item['actions'] as $action)
+                                        @if($action['type'] === 'link')
+                                            <a href="{{ $action['url'] }}" 
+                                               class="text-{{ $action['color'] ?? 'blue' }}-600 hover:text-{{ $action['color'] ?? 'blue' }}-900 transition-colors duration-150">
+                                                {{ $action['label'] }}
+                                            </a>
+                                        @elseif($action['type'] === 'button')
+                                            <button type="button" 
+                                                    class="text-{{ $action['color'] ?? 'blue' }}-600 hover:text-{{ $action['color'] ?? 'blue' }}-900 transition-colors duration-150"
+                                                    @if(isset($action['onclick']))
+                                                        onclick="{{ $action['onclick'] }}"
                                                     @endif>
                                                 {{ $action['label'] }}
                                             </button>
-                                        </form>
-                                    @endif
-                                @endforeach
+                                        @elseif($action['type'] === 'form')
+                                            <form action="{{ $action['url'] }}" method="{{ $action['method'] ?? 'POST' }}" class="inline">
+                                                @csrf
+                                                @if($action['method'] !== 'POST')
+                                                    @method($action['method'])
+                                                @endif
+                                                <button type="submit" 
+                                                        class="text-{{ $action['color'] ?? 'red' }}-600 hover:text-{{ $action['color'] ?? 'red' }}-900 transition-colors duration-150"
+                                                        @if(isset($action['confirm']))
+                                                            onclick="return confirm('{{ $action['confirm'] }}')"
+                                                        @endif>
+                                                    {{ $action['label'] }}
+                                                </button>
+                                            </form>
+                                        @endif
+                                    @endforeach
+                                @elseif(isset($item['approval_request_id']) && isset($item['master_item_id']))
+                                    <button type="button" 
+                                            class="text-emerald-600 hover:text-emerald-900 transition-colors duration-150"
+                                            onclick="resolveAndOpen('{{ $item['approval_request_id'] }}', '{{ $item['master_item_id'] }}', '{{ addslashes(($item['no_input'] ?? '-') . ' • ' . ($item['jenis'] ?? '-') . ' • QTY ' . ($item['qty'] ?? '')) }}')">
+                                        Proses
+                                    </button>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
                             </div>
                         </td>
                     @endif

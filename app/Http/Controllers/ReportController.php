@@ -20,6 +20,8 @@ class ReportController extends Controller
                     $q->select('master_items.id','master_items.name','master_items.item_category_id')
                       ->with(['itemCategory:id,name']);
                 },
+                // load purchasing items to map each master item to its purchasing item id
+                'purchasingItems:id,approval_request_id,master_item_id,quantity,status',
             ]);
 
         // Filters
@@ -86,10 +88,18 @@ class ReportController extends Controller
                 $spec = $m->pivot->specification ?? null;
                 $notes = $m->pivot->notes ?? null;
 
+                // Try map to purchasing item
+                $pi = $req->purchasingItems?->firstWhere('master_item_id', $m->id);
+                $piId = $pi?->id;
+                $piStatus = $pi?->status ?? 'unprocessed';
+                $piLabel = trim(($req->request_number ?: '-') . ' • ' . ($m->name ?: '-') . ' • QTY ' . $qty . ' • ' . strtoupper($piStatus));
+
                 // Process text: show purchasing status only
                 $processText = $purchasingStatus;
 
-                $rows[] = [
+                $row = [
+                    'approval_request_id' => $req->id,
+                    'master_item_id' => $m->id,
                     'no_input' => $req->request_number ?? '-',
                     'process' => $processText,
                     // Jenis diisi nama item (bukan submission type)
@@ -110,6 +120,20 @@ class ReportController extends Controller
                     // Qty per item
                     'qty' => $qty,
                 ];
+
+                // Add action button to process purchasing item (resolve if missing)
+                $row['actions'] = [
+                    [
+                        'type' => 'button',
+                        'label' => 'Proses',
+                        'color' => 'emerald',
+                        'onclick' => $piId
+                            ? "selectPurchasingItem('{$piId}', '" . addslashes($piLabel) . "')"
+                            : "resolveAndOpen('{$req->id}', '{$m->id}', '" . addslashes($piLabel) . "')"
+                    ]
+                ];
+
+                $rows[] = $row;
             }
         }
         $submissionTypes = SubmissionType::orderBy('name')->get(['id','name']);

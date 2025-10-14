@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\PurchasingItem;
 
 class ApprovalRequest extends Model
 {
@@ -72,6 +73,12 @@ class ApprovalRequest extends Model
                     ->withTimestamps();
     }
 
+    // Relasi purchasing items (per item purchasing process)
+    public function purchasingItems()
+    {
+        return $this->hasMany(PurchasingItem::class, 'approval_request_id');
+    }
+
     // Relasi dengan attachments
     // attachments feature removed; relation intentionally omitted
 
@@ -131,6 +138,24 @@ class ApprovalRequest extends Model
             
             // Update stock for all items in this request
             $this->updateStockForApprovedRequest();
+
+            // Initialize purchasing items per approved item (idempotent)
+            $this->load('masterItems');
+            foreach ($this->masterItems as $mi) {
+                $exists = $this->purchasingItems()
+                    ->where('master_item_id', $mi->id)
+                    ->exists();
+                if (!$exists) {
+                    $this->purchasingItems()->create([
+                        'master_item_id' => $mi->id,
+                        'quantity' => (int)($mi->pivot->quantity ?? 1),
+                        'status' => 'unprocessed',
+                    ]);
+                }
+            }
+
+            // Refresh aggregated purchasing_status at request level (unprocessed|done)
+            $this->refreshPurchasingStatus();
         } else {
             // Move to next step
             $this->update(['current_step' => $this->current_step + 1]);
@@ -215,6 +240,18 @@ class ApprovalRequest extends Model
                 return null;
             default:
                 return null;
+        }
+    }
+
+    // Aggregate purchasing status from purchasing_items to approval_requests.purchasing_status
+    public function refreshPurchasingStatus(): void
+    {
+        // done only if all purchasing items are done and at least one exists
+        $total = $this->purchasingItems()->count();
+        $done = $this->purchasingItems()->where('status', 'done')->count();
+        $status = ($total > 0 && $done === $total) ? 'done' : 'unprocessed';
+        if ($this->purchasing_status !== $status) {
+            $this->update(['purchasing_status' => $status]);
         }
     }
 

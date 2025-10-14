@@ -176,6 +176,15 @@
                 </li>
                 @endif
 
+                @if(auth()->user()->hasPermission('manage_purchasing'))
+                <li>
+                    <a href="{{ route('purchasing.items.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('purchasing.items.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Purchasing">
+                        <i class="fas fa-shopping-cart w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Purchasing</span>
+                    </a>
+                </li>
+                @endif
+
                 </ul>
 
                 <!-- Approval Section -->

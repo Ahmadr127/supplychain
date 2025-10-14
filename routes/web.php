@@ -133,6 +133,28 @@ Route::middleware('auth')->group(function () {
         Route::get('reports/approval-requests', [ReportController::class, 'approvalRequests'])->name('reports.approval-requests');
     });
 
+    // Purchasing per-item UI pages and endpoints
+    Route::middleware('permission:manage_purchasing')->group(function () {
+        // UI pages
+        Route::get('purchasing/items', [\App\Http\Controllers\PurchasingItemController::class, 'index'])
+            ->name('purchasing.items.index');
+        Route::get('purchasing/items/{purchasingItem}', [\App\Http\Controllers\PurchasingItemController::class, 'show'])
+            ->name('purchasing.items.show');
+
+        Route::post('purchasing/items/{purchasingItem}/benchmarking', [\App\Http\Controllers\PurchasingItemController::class, 'saveBenchmarking'])
+            ->name('purchasing.items.benchmarking');
+        Route::post('purchasing/items/{purchasingItem}/preferred', [\App\Http\Controllers\PurchasingItemController::class, 'selectPreferred'])
+            ->name('purchasing.items.preferred');
+        Route::post('purchasing/items/{purchasingItem}/po', [\App\Http\Controllers\PurchasingItemController::class, 'issuePO'])
+            ->name('purchasing.items.po');
+        Route::post('purchasing/items/{purchasingItem}/grn', [\App\Http\Controllers\PurchasingItemController::class, 'receiveGRN'])
+            ->name('purchasing.items.grn');
+        Route::post('purchasing/items/{purchasingItem}/done', [\App\Http\Controllers\PurchasingItemController::class, 'markDone'])
+            ->name('purchasing.items.done');
+        Route::post('purchasing/items/{purchasingItem}/invoice', [\App\Http\Controllers\PurchasingItemController::class, 'saveInvoice'])
+            ->name('purchasing.items.invoice');
+    });
+
     // API routes for AJAX requests
     Route::get('api/workflows/{workflow}/steps', [ApprovalWorkflowController::class, 'getSteps'])->name('api.workflows.steps');
     Route::get('api/master-items/by-type/{typeId}', [MasterItemController::class, 'getByType'])->name('api.master-items.by-type');
@@ -147,6 +169,12 @@ Route::middleware('auth')->group(function () {
     // Supplier lookup endpoints
     Route::get('api/suppliers/suggest', [SupplierLookupController::class, 'suggest'])->name('api.suppliers.suggest');
     Route::post('api/suppliers/resolve', [SupplierLookupController::class, 'resolve'])->name('api.suppliers.resolve');
+
+    // Purchasing item lookup endpoints
+    Route::get('api/purchasing/items/suggest', [\App\Http\Controllers\PurchasingItemController::class, 'suggest'])
+        ->name('api.purchasing.items.suggest');
+    Route::post('api/purchasing/items/resolve', [\App\Http\Controllers\PurchasingItemController::class, 'resolveByRequestAndItem'])
+        ->name('api.purchasing.items.resolve');
     
     // API routes for step details and status updates
     Route::get('api/approval-steps/{requestId}/{stepNumber}', [ApprovalRequestController::class, 'getStepDetails'])->name('api.approval-steps.details');
