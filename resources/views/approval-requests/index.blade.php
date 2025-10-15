@@ -78,6 +78,7 @@
                     <th class="w-16 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
                     <th class="w-24 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
                     <th class="w-1/4 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request</th>
+                    <th class="w-48 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Peruntukan</th>
                     <th class="w-32 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Petugas</th>
                     <th class="w-1/3 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
                     <th class="w-20 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -101,6 +102,13 @@
                             </div>
                             <div class="text-sm text-gray-900 truncate">{{ $request->submissionType->name ?? '-' }}</div>
                         </div>
+                    </td>
+                    <td class="w-48 px-2 py-1 align-top">
+                        @php
+                            $deptIds = collect($request->masterItems)->pluck('pivot.allocation_department_id')->filter()->unique()->values();
+                            $deptNames = $deptIds->map(fn($id) => $departmentsMap[$id] ?? null)->filter()->values();
+                        @endphp
+                        <span class="text-sm text-gray-900">{{ $deptNames->count() ? $deptNames->implode(', ') : '-' }}</span>
                     </td>
                     <td class="w-32 px-2 py-1">
                         <div class="flex items-center min-w-0">

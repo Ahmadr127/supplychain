@@ -32,6 +32,12 @@
         </div>
 
         <div class="p-2">
+            @php
+                // Ensure departments map is available even if controller didn't pass it
+                if (!isset($departmentsMap)) {
+                    $departmentsMap = \App\Models\Department::pluck('name', 'id');
+                }
+            @endphp
             <div class="grid grid-cols-1 xl:grid-cols-5 gap-3">
                 <!-- Main Content -->
                 <div class="xl:col-span-4 space-y-4">
@@ -100,7 +106,7 @@
                                         <div class="text-xs text-gray-500">Kode: {{ $item->code }}</div>
                                         <div class="text-xs text-gray-400">{{ $item->itemType->name ?? '-' }} @if($item->itemCategory) • {{ $item->itemCategory->name }} @endif</div>
                                     </div>
-                                    <div class="grid grid-cols-3 md:grid-cols-5 gap-2 text-right leading-snug">
+                                    <div class="grid grid-cols-3 md:grid-cols-7 gap-2 text-right leading-snug">
                                         <div>
                                             <div class="text-xs text-gray-500">Jumlah</div>
                                             <div class="text-base font-medium text-gray-900">{{ $qty }} {{ $item->unit->name ?? '' }}</div>
@@ -124,6 +130,15 @@
                                         <div>
                                             <div class="text-xs text-gray-500">Vendor Alternatif</div>
                                             <div class="text-sm text-gray-900 truncate max-w-[12rem] md:max-w-[10rem] leading-snug">{{ $item->pivot->alternative_vendor ?? '-' }}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-gray-500">No Surat</div>
+                                            <div class="text-sm text-gray-900 leading-snug">{{ $item->pivot->letter_number ?? '-' }}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-gray-500">Unit Peruntukan</div>
+                                            @php $allocDeptName = $departmentsMap[$item->pivot->allocation_department_id ?? null] ?? '-'; @endphp
+                                            <div class="text-sm text-gray-900 leading-snug">{{ $allocDeptName }}</div>
                                         </div>
                                     </div>
                                 </div>

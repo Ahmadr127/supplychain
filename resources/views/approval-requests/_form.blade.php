@@ -23,6 +23,8 @@
                                 <span class="font-medium">{{ $stype->name }}</span>
                             </label>
                         </div>
+
+        
                     @endforeach
                 </div>
                 @error('submission_type_id')
@@ -78,6 +80,8 @@
                                 <th class="px-1 py-1 w-72 text-xs font-medium tracking-wide">Spesifikasi</th>
                                 <th class="px-1 py-1 w-40 text-xs font-medium tracking-wide">Merk</th>
                                 <th class="px-1 py-1 w-56 text-xs font-medium tracking-wide whitespace-nowrap">Vendor Alternatif</th>
+                                <th class="px-1 py-1 w-40 text-xs font-medium tracking-wide whitespace-nowrap">No Surat</th>
+                                <th class="px-1 py-1 w-48 text-xs font-medium tracking-wide whitespace-nowrap">Unit Peruntukan</th>
                                 <th class="px-1 py-1 w-64 text-xs font-medium tracking-wide">Catatan</th>
                                 <th class="px-1 py-1 w-28 text-xs font-medium tracking-wide">Dokumen</th>
                             </tr>
@@ -149,6 +153,7 @@
     let rows = [];
     let currentItemTypeId = {!! $isEdit ? $approvalRequest->item_type_id ?? 'null' : 'null' !!};
     const allCategories = {!! json_encode(($itemCategories ?? collect())->map(function($c){return ['id'=>$c->id,'name'=>$c->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
+    const allDepartments = {!! json_encode(($departments ?? collect())->map(function($d){return ['id'=>$d->id,'name'=>$d->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
 
     document.addEventListener('DOMContentLoaded', function() {
         initializeItemTypeSelection();
@@ -167,6 +172,8 @@
                         'specification' => $item->pivot->specification,
                         'brand' => $item->pivot->brand,
                         'alternative_vendor' => $item->pivot->alternative_vendor,
+                        'allocation_department_id' => $item->pivot->allocation_department_id,
+                        'letter_number' => $item->pivot->letter_number,
                         'notes' => $item->pivot->notes,
                     ];
                 }),
@@ -316,6 +323,12 @@
                 form.insertAdjacentHTML('beforeend',
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][alternative_vendor]" value="${escapeHtml(row.alternative_vendor || '')}">`
                     );
+                if (row.allocation_department_id) form.insertAdjacentHTML('beforeend',
+                    `<input class="item-hidden" type="hidden" name="items[${row.index}][allocation_department_id]" value="${row.allocation_department_id}">`
+                    );
+                if (row.letter_number) form.insertAdjacentHTML('beforeend',
+                    `<input class="item-hidden" type="hidden" name="items[${row.index}][letter_number]" value="${escapeHtml(row.letter_number)}">`
+                    );
                 form.insertAdjacentHTML('beforeend',
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][notes]" value="${escapeHtml(row.notes || '')}">`
                     );
@@ -339,7 +352,9 @@
             brand: defaults.brand || '',
             supplier_id: defaults.supplier_id || '',
             alternative_vendor: defaults.alternative_vendor || '',
-            notes: defaults.notes || ''
+            notes: defaults.notes || '',
+            allocation_department_id: defaults.allocation_department_id || '',
+            letter_number: defaults.letter_number || ''
         };
         rows.push(row);
         renderRow(row);
@@ -354,6 +369,7 @@
         const tbody = document.getElementById('itemsTableBody');
         const tr = document.createElement('tr');
         tr.id = 'row-' + row.index;
+        const deptOptions = (allDepartments || []).map(d => `<option value="${d.id}" ${String(row.allocation_department_id)===String(d.id)?'selected':''}>${escapeHtml(d.name||'')}</option>`).join('');
         tr.innerHTML = `
         <td class="px-1 py-1 align-top">
             <div class="relative">
@@ -384,6 +400,15 @@
                 <input type="text" class="alt-vendor w-full h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Vendor alternatif" value="${escapeHtml(row.alternative_vendor)}" autocomplete="off">
                 <div class="supplier-suggestions absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-md shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
             </div>
+        </td>
+        <td class="px-1 py-1 align-top">
+            <input type="text" class="item-letter w-full h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="No surat (opsional)" value="${escapeHtml(row.letter_number)}">
+        </td>
+        <td class="px-1 py-1 align-top">
+            <select class="allocation-dept w-full h-8 px-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                <option value="">Pilih unit</option>
+                ${deptOptions}
+            </select>
         </td>
         <td class="px-1 py-1 align-top">
             <textarea class="item-notes w-full h-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Catatan">${escapeHtml(row.notes)}</textarea>
@@ -419,6 +444,8 @@
         const sugBox = tr.querySelector('.suggestions');
         const categoryInput = tr.querySelector('.item-category');
         const categorySugBox = tr.querySelector('.category-suggestions');
+        const deptSelect = tr.querySelector('.allocation-dept');
+        const letterInput = tr.querySelector('.item-letter');
 
         nameInput.addEventListener('input', async function() {
             row.name = this.value;
@@ -484,6 +511,18 @@
         altVendorInput.addEventListener('change', function() {
             row.alternative_vendor = this.value;
         });
+
+        // Allocation department change
+        if (deptSelect) {
+            deptSelect.addEventListener('change', function(){
+                row.allocation_department_id = this.value || '';
+            });
+        }
+        if (letterInput) {
+            letterInput.addEventListener('change', function(){
+                row.letter_number = this.value || '';
+            });
+        }
 
         // Alternative vendor suggest
         altVendorInput.addEventListener('input', async function() {

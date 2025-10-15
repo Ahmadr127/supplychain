@@ -21,7 +21,10 @@ class ApprovalRequestController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ApprovalRequest::with(['workflow', 'requester', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment', 'submissionType']);
+        $query = ApprovalRequest::with([
+            'workflow', 'requester', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment', 'submissionType',
+            'masterItems' // include pivot with allocation_department_id already defined in model
+        ]);
 
         // Search filter
         if ($request->filled('search')) {
@@ -57,8 +60,9 @@ class ApprovalRequestController extends Controller
 
         $requests = $query->latest()->paginate(10)->withQueryString();
         $workflows = ApprovalWorkflow::where('is_active', true)->get();
+        $departmentsMap = Department::pluck('name', 'id');
         
-        return view('approval-requests.index', compact('requests', 'workflows'));
+        return view('approval-requests.index', compact('requests', 'workflows', 'departmentsMap'));
     }
 
     public function create()
@@ -93,10 +97,12 @@ class ApprovalRequestController extends Controller
         $itemCategories = \App\Models\ItemCategory::where('is_active', true)->get();
         $commodities = \App\Models\Commodity::where('is_active', true)->get();
         $units = \App\Models\Unit::where('is_active', true)->get();
+        $departments = \App\Models\Department::orderBy('name')->get();
+        $departments = \App\Models\Department::orderBy('name')->get();
         // Load submission types for the edit view (used in the form)
         $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
-        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber'));
+        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments'));
     }
 
     public function store(Request $request)
@@ -119,6 +125,8 @@ class ApprovalRequestController extends Controller
             'items.*.supplier_id' => 'nullable|exists:suppliers,id',
             'items.*.supplier_name' => 'nullable|string|max:255',
             'items.*.alternative_vendor' => 'nullable|string|max:255',
+            'items.*.allocation_department_id' => 'nullable|exists:departments,id',
+            'items.*.letter_number' => 'nullable|string|max:255',
             'items.*.notes' => 'nullable|string|max:500',
             'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480'
         ]);
@@ -195,7 +203,7 @@ class ApprovalRequestController extends Controller
         $approvalRequest->update([
             'item_type_id' => $request->item_type_id,
             'submission_type_id' => $request->submission_type_id,
-            'is_specific_type' => $isSpecificType
+            'is_specific_type' => $isSpecificType,
         ]);
 
         // Handle items (by ID or by name)
@@ -240,6 +248,8 @@ class ApprovalRequestController extends Controller
                     'brand' => $itemData['brand'] ?? null,
                     'supplier_id' => $supplierId,
                     'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
+                    'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
+                    'letter_number' => $itemData['letter_number'] ?? null,
                 ]);
 
                 // Store per-item files if any
@@ -368,7 +378,7 @@ class ApprovalRequestController extends Controller
         
         $approvalRequest->load(['masterItems', 'itemType', 'submissionType']);
         
-        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes'));
+        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -410,6 +420,8 @@ class ApprovalRequestController extends Controller
             'items.*.supplier_id' => 'nullable|exists:suppliers,id',
             'items.*.supplier_name' => 'nullable|string|max:255',
             'items.*.alternative_vendor' => 'nullable|string|max:255',
+            'items.*.allocation_department_id' => 'nullable|exists:departments,id',
+            'items.*.letter_number' => 'nullable|string|max:255',
             'items.*.notes' => 'nullable|string|max:500',
             'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480'
         ]);
@@ -442,7 +454,7 @@ class ApprovalRequestController extends Controller
             'is_cto_request' => false,
             'item_type_id' => $request->item_type_id,
             'submission_type_id' => $request->submission_type_id,
-            'is_specific_type' => $isSpecificType
+            'is_specific_type' => $isSpecificType,
         ]);
 
         // Handle items update
@@ -483,6 +495,7 @@ class ApprovalRequestController extends Controller
                     'brand' => $itemData['brand'] ?? null,
                     'supplier_id' => $supplierId,
                     'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
+                    'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
                 ]);
             }
         }
@@ -620,7 +633,10 @@ class ApprovalRequestController extends Controller
 
     public function myRequests(Request $request)
     {
-        $query = auth()->user()->approvalRequests()->with(['workflow', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment', 'submissionType']);
+        $query = auth()->user()->approvalRequests()->with([
+            'workflow', 'currentStep', 'steps.approver', 'steps.approverRole', 'steps.approverDepartment', 'submissionType',
+            'masterItems'
+        ]);
 
         // Search filter
         if ($request->filled('search')) {
@@ -639,8 +655,9 @@ class ApprovalRequestController extends Controller
         }
 
         $requests = $query->latest()->paginate(10)->withQueryString();
+        $departmentsMap = Department::pluck('name', 'id');
         
-        return view('approval-requests.my-requests', compact('requests'));
+        return view('approval-requests.my-requests', compact('requests', 'departmentsMap'));
     }
 
     public function pendingApprovals(Request $request)

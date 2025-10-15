@@ -73,12 +73,14 @@ class ReportController extends Controller
         $q->orderBy($sortBy, $sortDir);
 
         $requests = $q->paginate(25)->withQueryString();
+        // Preload department name map for allocation lookup
+        $deptMap = Department::pluck('name', 'id');
 
         // Build table rows (one row per item)
         $rows = [];
         foreach ($requests as $req) {
             $primaryDept = optional($req->requester?->departments?->first())->name;
-            $letterNumber = $req->letter_number ?? null; // optional
+            // letter number is now per item (pivot)
             $procurementYear = $req->procurement_year ?? ($req->created_at?->format('Y'));
             $createdAt = $req->created_at; // Tanggal Pengajuan (Carbon|null)
             $receivedAt = $req->received_at ? \Carbon\Carbon::parse($req->received_at) : null; // Tanggal Terima Dokumen
@@ -153,11 +155,15 @@ class ReportController extends Controller
                     'tanggal_pengajuan' => $createdAt?->format('Y-m-d') ?? '-',
                     'tanggal_terima_dokumen' => $req->received_at ? \Carbon\Carbon::parse($req->received_at)->format('Y-m-d') : '-',
                     'umur_pengajuan' => $ageText,
-                    'no_surat' => $letterNumber ?? '-',
+                    // Per-item No Surat from pivot
+                    'no_surat' => ($m->pivot->letter_number ?? '-') ?: '-',
                     'tahun_pengadaan' => $procurementYear ?? '-',
                     // Detail diisi spesifikasi item
                     'detail' => $spec ?: '-',
-                    'unit_peruntukan' => $req->unit_peruntukan ?? '-',
+                    // Per-item Unit Peruntukan from pivot allocation_department_id
+                    'unit_peruntukan' => ($m->pivot->allocation_department_id && isset($deptMap[$m->pivot->allocation_department_id]))
+                        ? $deptMap[$m->pivot->allocation_department_id]
+                        : '-',
                     // Kategori per item
                     'kategori' => $m->itemCategory?->name ?? '-',
                     // Keterangan dari notes item (pivot)

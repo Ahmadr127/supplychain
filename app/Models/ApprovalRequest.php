@@ -12,6 +12,7 @@ class ApprovalRequest extends Model
 
     protected $fillable = [
         'request_number',
+        'letter_number',
         'workflow_id',
         'requester_id',
         'submission_type_id',
@@ -71,7 +72,7 @@ class ApprovalRequest extends Model
     public function masterItems()
     {
         return $this->belongsToMany(MasterItem::class, 'approval_request_master_items')
-                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes', 'specification', 'brand', 'supplier_id', 'alternative_vendor'])
+                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes', 'specification', 'brand', 'supplier_id', 'alternative_vendor', 'allocation_department_id', 'letter_number'])
                     ->withTimestamps();
     }
 
