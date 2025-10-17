@@ -22,4 +22,5 @@
     </div>
 </div>
 @include('components.modals.form-master-items')
+@include('approval-requests._form-extra')
 @endsection

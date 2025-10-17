@@ -9,6 +9,7 @@ use App\Models\MasterItem;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Department;
+use App\Models\ApprovalRequestItemExtra;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
@@ -65,6 +66,47 @@ class ApprovalRequestController extends Controller
         return view('approval-requests.index', compact('requests', 'workflows', 'departmentsMap'));
     }
 
+    /**
+     * Normalize form_extra payload: convert checkbox strings to integers and numeric strings to ints.
+     */
+    private function normalizeFormExtra(array $data): array
+    {
+        // Boolean-like fields from checkboxes (may arrive as 'true'/'false' strings)
+        $boolKeys = [
+            'c_kriteria_dn',
+            'c_kriteria_impor',
+            'c_kriteria_kerajinan',
+            'c_kriteria_jasa',
+        ];
+
+        foreach ($boolKeys as $k) {
+            if (array_key_exists($k, $data)) {
+                $val = $data[$k];
+                // Accept true/false, 'true'/'false', '1'/'0', 1/0
+                $data[$k] = filter_var($val, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+            }
+        }
+
+        // Integer-like fields
+        $intKeys = [
+            'a_jumlah', 'b_jml_pegawai', 'b_jml_dokter', 'c_jumlah'
+        ];
+        foreach ($intKeys as $k) {
+            if (array_key_exists($k, $data) && $data[$k] !== null && $data[$k] !== '') {
+                $data[$k] = (int) $data[$k];
+            }
+        }
+
+        // Trim strings to avoid accidental spaces
+        foreach ($data as $k => $v) {
+            if (is_string($v)) {
+                $data[$k] = trim($v);
+            }
+        }
+
+        return $data;
+    }
+
     public function create()
     {
         // Get all active item types for radio button selection
@@ -97,7 +139,6 @@ class ApprovalRequestController extends Controller
         $itemCategories = \App\Models\ItemCategory::where('is_active', true)->get();
         $commodities = \App\Models\Commodity::where('is_active', true)->get();
         $units = \App\Models\Unit::where('is_active', true)->get();
-        $departments = \App\Models\Department::orderBy('name')->get();
         $departments = \App\Models\Department::orderBy('name')->get();
         // Load submission types for the edit view (used in the form)
         $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
@@ -252,6 +293,19 @@ class ApprovalRequestController extends Controller
                     'letter_number' => $itemData['letter_number'] ?? null,
                 ]);
 
+                // Handle form extra data if provided
+                if (isset($itemData['form_extra']) && is_array($itemData['form_extra'])) {
+                    $extraData = $this->normalizeFormExtra($itemData['form_extra']);
+                    $itemExtra = new ApprovalRequestItemExtra();
+                    $itemExtra->approval_request_id = $approvalRequest->id;
+                    $itemExtra->master_item_id = $masterItemId;
+                    $itemExtra->fill($extraData);
+                    
+                    // Auto-fill from main form data
+                    $itemExtra->autoFillFromMainForm();
+                    $itemExtra->save();
+                }
+
                 // Store per-item files if any
                 if (isset($itemData['files']) && is_array($itemData['files'])) {
                     foreach ($itemData['files'] as $uploaded) {
@@ -295,7 +349,8 @@ class ApprovalRequestController extends Controller
             'masterItems.unit',
             'submissionType',
             'purchasingItems.vendors',
-            'purchasingItems.preferredVendor'
+            'purchasingItems.preferredVendor',
+            'itemExtras' // Load form extra data
         ]);
 
         // Load item files grouped by master_item_id to show per item
@@ -304,9 +359,13 @@ class ApprovalRequestController extends Controller
             ->get()
             ->groupBy('master_item_id');
         
+        // Group item extras by master_item_id for easy access
+        $itemExtras = $approvalRequest->itemExtras->keyBy('master_item_id');
+        
         return view('approval-requests.show', [
             'approvalRequest' => $approvalRequest,
             'itemFiles' => $files,
+            'itemExtras' => $itemExtras,
         ]);
     }
 
@@ -375,6 +434,8 @@ class ApprovalRequestController extends Controller
         $units = \App\Models\Unit::where('is_active', true)->get();
         // Submission types needed by the edit form
         $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
+        // Departments needed by the form (allocation dropdown, etc.)
+        $departments = \App\Models\Department::orderBy('name')->get();
         
         $approvalRequest->load(['masterItems', 'itemType', 'submissionType']);
         
@@ -496,7 +557,29 @@ class ApprovalRequestController extends Controller
                     'supplier_id' => $supplierId,
                     'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
                     'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
+                    'letter_number' => $itemData['letter_number'] ?? null,
                 ]);
+
+                // Handle form extra data if provided (for update)
+                if (isset($itemData['form_extra']) && is_array($itemData['form_extra'])) {
+                    $extraData = $this->normalizeFormExtra($itemData['form_extra']);
+                    
+                    // Check if extra data already exists
+                    $itemExtra = ApprovalRequestItemExtra::where('approval_request_id', $approvalRequest->id)
+                        ->where('master_item_id', $masterItemId)
+                        ->first();
+                    
+                    if (!$itemExtra) {
+                        $itemExtra = new ApprovalRequestItemExtra();
+                        $itemExtra->approval_request_id = $approvalRequest->id;
+                        $itemExtra->master_item_id = $masterItemId;
+                    }
+                    
+                    $itemExtra->fill($extraData);
+                    // Auto-fill from main form data
+                    $itemExtra->autoFillFromMainForm();
+                    $itemExtra->save();
+                }
             }
         }
 

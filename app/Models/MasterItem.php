@@ -63,6 +63,12 @@ class MasterItem extends Model
                     ->withTimestamps();
     }
 
+    // Relationship with item extras (form statis)
+    public function itemExtras()
+    {
+        return $this->hasMany(ApprovalRequestItemExtra::class, 'master_item_id');
+    }
+
     // Scopes
     public function scopeActive($query)
     {

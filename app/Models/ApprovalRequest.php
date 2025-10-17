@@ -97,6 +97,12 @@ class ApprovalRequest extends Model
         return $this->belongsTo(\App\Models\ItemType::class);
     }
 
+    // Relasi dengan item extras (form statis per item)
+    public function itemExtras()
+    {
+        return $this->hasMany(ApprovalRequestItemExtra::class, 'approval_request_id');
+    }
+
     // Scope untuk status tertentu
     public function scopeStatus($query, $status)
     {

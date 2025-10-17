@@ -65,36 +65,12 @@
                 <h3 class="text-lg font-semibold text-gray-900">Item yang Diminta</h3>
                 <button type="button" onclick="addRow()"
                     class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition-colors duration-200">
-                    <i class="fas fa-plus mr-1"></i> Tambah Baris
+                    <i class="fas fa-plus mr-1"></i> Tambah Item
                 </button>
             </div>
-            <!-- Scrollable table container with max width -->
-            <div class="bg-white border border-gray-200 rounded-lg w-full max-w-full" style="max-width: calc(100vw - 2rem);">
-                <div class="overflow-x-auto max-w-full" style="max-width: 100%;">
-                    <div class="inline-block min-w-full align-middle">
-                        <table class="text-sm border-collapse allow-horizontal-scroll" style="min-width: 1800px;">
-                            <thead class="sticky top-0 z-10 bg-gray-50">
-                                <tr class="text-left text-gray-600 align-middle select-none border-b border-gray-200">
-                                    <th class="px-2 py-2 min-w-[18rem] text-xs font-medium tracking-wide bg-gray-50">Item</th>
-                                    <th class="px-2 py-2 min-w-[4rem] text-xs font-medium tracking-wide whitespace-nowrap bg-gray-50">Jumlah</th>
-                                    <th class="px-2 py-2 min-w-[7rem] text-xs font-medium tracking-wide whitespace-nowrap bg-gray-50">Harga</th>
-                                    <th class="px-2 py-2 min-w-[10rem] text-xs font-medium tracking-wide whitespace-nowrap bg-gray-50">Kategori</th>
-                                    <th class="px-2 py-2 min-w-[18rem] text-xs font-medium tracking-wide bg-gray-50">Spesifikasi</th>
-                                    <th class="px-2 py-2 min-w-[10rem] text-xs font-medium tracking-wide bg-gray-50">Merk</th>
-                                    <th class="px-2 py-2 min-w-[14rem] text-xs font-medium tracking-wide whitespace-nowrap bg-gray-50">Vendor Alternatif</th>
-                                    <th class="px-2 py-2 min-w-[10rem] text-xs font-medium tracking-wide whitespace-nowrap bg-gray-50">No Surat</th>
-                                    <th class="px-2 py-2 min-w-[12rem] text-xs font-medium tracking-wide whitespace-nowrap bg-gray-50">Unit Peruntukan</th>
-                                    <th class="px-2 py-2 min-w-[16rem] text-xs font-medium tracking-wide bg-gray-50">Catatan</th>
-                                    <th class="px-2 py-2 min-w-[7rem] text-xs font-medium tracking-wide bg-gray-50">Dokumen</th>
-                                    <th class="px-2 py-2 min-w-[4rem] text-xs font-medium tracking-wide bg-gray-50">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="itemsTableBody" class="bg-white divide-y divide-gray-200">
-                                <!-- rows injected by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+            <!-- Items container -->
+            <div id="itemsContainer" class="space-y-2">
+                <!-- Item rows will be injected here by JS -->
             </div>
         </div>
         
@@ -120,19 +96,12 @@
     /* Prevent horizontal scroll on the page */
     #itemsSection {
         position: relative;
+        max-width: 100%;
     }
     
-    /* Table container with controlled overflow */
-    #itemsSection > div:last-child {
+    /* Items container */
+    #itemsContainer {
         max-width: 100%;
-        position: relative;
-    }
-    
-    /* Scrollable area */
-    #itemsSection .overflow-x-auto {
-        max-width: 100%;
-        overflow-x: auto;
-        overflow-y: visible;
         position: relative;
     }
     
@@ -358,10 +327,12 @@
                 }));
             }
 
-            // Jika ada baris dengan subtotal ≥ 100jt dan section per-baris tampil, append baris statis untuk baris tsb (sekali per baris)
+            // Collect form extra data for each item if form statis is visible
             try {
-                appendStaticRowsFromActiveRows();
-            } catch (err) {}
+                collectFormExtraData();
+            } catch (err) {
+                console.error('Error collecting form extra data:', err);
+            }
 
             // Rebuild hidden inputs
             form.querySelectorAll('.item-hidden').forEach(e => e.remove());
@@ -414,6 +385,18 @@
                 form.insertAdjacentHTML('beforeend',
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][notes]" value="${escapeHtml(row.notes || '')}">`
                     );
+                
+                // Add form extra data if exists
+                if (row.formExtraData) {
+                    Object.keys(row.formExtraData).forEach(key => {
+                        const value = row.formExtraData[key];
+                        if (value !== null && value !== undefined && value !== '') {
+                            form.insertAdjacentHTML('beforeend',
+                                `<input class="item-hidden" type="hidden" name="items[${row.index}][form_extra][${key}]" value="${escapeHtml(String(value))}">`
+                            );
+                        }
+                    });
+                }
             });
 
             form.submit();
@@ -457,11 +440,55 @@
         const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
         const trFs = document.getElementById(`row-${rowIndex}-static`);
         if (!trFs) return;
-        if (subtotal >= 100000000) trFs.classList.remove('hidden'); else trFs.classList.add('hidden');
+        if (subtotal >= 100000000) {
+            trFs.classList.remove('hidden');
+            // Auto-fill when form becomes visible
+            autoFillFormExtra(rowIndex);
+        } else {
+            trFs.classList.add('hidden');
+        }
     }
 
     // Kumpulkan field dari setiap Form Statis per-baris yang aktif dan append item terkunci
     function appendStaticRowsFromActiveRows() {
+        // Append one global B summary row if section visible and not yet appended
+        try {
+            const secB = document.getElementById('staticFormSection');
+            if (secB && !secB.classList.contains('hidden') && !staticRowsAppended) {
+                const b_jml_pegawai = (document.getElementById('fsb_jml_pegawai')?.value || '').trim();
+                const b_jml_dokter = (document.getElementById('fsb_jml_dokter')?.value || '').trim();
+                const b_beban = (document.querySelector('input[name="fs-b_beban_tugas"]:checked')?.value || '').trim();
+                const b_barang_ada = (document.querySelector('input[name="fs-b_barang_ada"]:checked')?.value || '').trim();
+
+                // Tentukan kategori default untuk baris ringkasan
+                let catIdB = '';
+                let catNameB = '';
+                if ((allCategories || []).length > 0) {
+                    catIdB = allCategories[0].id;
+                    catNameB = allCategories[0].name;
+                }
+
+                const specB = [
+                    `Jumlah pegawai pengguna barang: ${b_jml_pegawai}`,
+                    `Jumlah dokter: ${b_jml_dokter}`,
+                    `Tingkat beban tugas: ${b_beban}`,
+                    `Barang sejenis sudah tersedia/dimiliki/dikuasai: ${b_barang_ada}`
+                ].join('\n');
+
+                addRow({
+                    name: 'Dukungan Unit (Form Statis) - Global',
+                    quantity: 1,
+                    unit_price: '',
+                    item_category_id: catIdB,
+                    item_category_name: catNameB,
+                    specification: specB,
+                    notes: '',
+                    locked: true
+                });
+                staticRowsAppended = true;
+            }
+        } catch (e) {}
+
         rows.forEach((r) => {
             const trFs = document.getElementById(`row-${r.index}-static`);
             if (!trFs || trFs.classList.contains('hidden') || r.staticAppended) return;
@@ -482,6 +509,7 @@
             const a_jumlah = gv('.fs-a_jumlah');
             const a_satuan = gv('.fs-a_satuan');
             const a_waktu = gv('.fs-a_waktu');
+            const a_waktu_satuan = (function(){ const el = trFs.querySelector('.fs-a_waktu_satuan'); return el ? (el.value||'') : ''; })();
             const a_pengguna = gv('.fs-a_pengguna');
             const a_leadtime = gv('.fs-a_leadtime');
             const a_ekatalog = gvr(`fs-a_ekatalog-${r.index}`);
@@ -499,6 +527,22 @@
             const e_pelatihan = gvr(`fs-e_pelatihan-${r.index}`);
             const e_aspek = gvr(`fs-e_aspek-${r.index}`);
 
+            // Section C fields
+            const c_jumlah = gv('.fs-c_jumlah');
+            const c_satuan = (function(){ const el = trFs.querySelector('.fs-c_satuan'); return el ? (el.value||'') : ''; })();
+            const c_kondisi = gvr(`fs-c_kondisi-${r.index}`);
+            const c_kondisi_lain = gv('.fs-c_kondisi_lain');
+            const c_lokasi = gv('.fs-c_lokasi');
+            const c_sumber = gvr(`fs-c_sumber-${r.index}`);
+            const c_kemudahan = gvr(`fs-c_kemudahan-${r.index}`);
+            const c_produsen = gvr(`fs-c_produsen-${r.index}`);
+            const c_kriteria_dn = !!trFs.querySelector('.fs-c_kriteria_dn')?.checked;
+            const c_kriteria_impor = !!trFs.querySelector('.fs-c_kriteria_impor')?.checked;
+            const c_kriteria_kerajinan = !!trFs.querySelector('.fs-c_kriteria_kerajinan')?.checked;
+            const c_kriteria_jasa = !!trFs.querySelector('.fs-c_kriteria_jasa')?.checked;
+            const c_tkdn = gvr(`fs-c_tkdn-${r.index}`);
+            const c_tkdn_min = gv('.fs-c_tkdn_min');
+
             // Kategori: gunakan milik baris r bila ada, jika tidak fallback kategori pertama
             let catId = r.item_category_id || '';
             let catName = r.item_category_name || '';
@@ -512,7 +556,7 @@
                 `Fungsikegunaan: ${a_fungsi}`,
                 `Ukuran/Kapasitas: ${a_ukuran}`,
                 `Jumlah: ${a_jumlah} ${a_satuan}`,
-                `Waktu Pemanfaatan: ${a_waktu}`,
+                `Waktu Pemanfaatan: ${a_waktu} ${a_waktu_satuan}`,
                 `Pengguna/Pengelola: ${a_pengguna}`,
                 `Perkiraan Waktu Pengadaan: ${a_leadtime}`,
                 `e-Katalog LKPP: ${a_ekatalog}${a_ekatalog_ket ? ' ('+a_ekatalog_ket+')' : ''}`,
@@ -550,6 +594,35 @@
                 item_category_id: catId,
                 item_category_name: catName,
                 specification: specDE,
+                notes: '',
+                locked: true
+            });
+
+            const kriteriaList = [
+                c_kriteria_dn ? 'Produk dalam negeri' : null,
+                c_kriteria_impor ? 'Barang impor' : null,
+                c_kriteria_kerajinan ? 'Produk kerajinan tangan' : null,
+                c_kriteria_jasa ? 'Jasa' : null
+            ].filter(Boolean).join(', ');
+
+            const specC = [
+                `Jumlah barang sejenis telah tersedia: ${c_jumlah} ${c_satuan}`,
+                `Kondisi/Kelayakan: ${c_kondisi}${c_kondisi==='lainnya' && c_kondisi_lain ? ' ('+c_kondisi_lain+')' : ''}`,
+                `Lokasi/Keberadaan: ${c_lokasi}`,
+                `Sumber/Asal barang: ${c_sumber}`,
+                `Kemudahan diperoleh di pasar: ${c_kemudahan}`,
+                `Produsen/Pelaku usaha yang mampu: ${c_produsen}`,
+                `Kriteria Barang: ${kriteriaList || '-'}`,
+                `Persyaratan TKDN: ${c_tkdn}${c_tkdn==='ya' && c_tkdn_min ? ' (≥ '+c_tkdn_min+'%)' : ''}`
+            ].join('\n');
+
+            addRow({
+                name: `Identifikasi Barang Eksisting (Form Statis) - Item #${r.index + 1}`,
+                quantity: 1,
+                unit_price: '',
+                item_category_id: catId,
+                item_category_name: catName,
+                specification: specC,
                 notes: '',
                 locked: true
             });
@@ -604,187 +677,161 @@
         if (row && row.locked) return; // cegah hapus untuk baris statis
         rows = rows.filter(r => r.index !== index);
         document.getElementById('row-' + index)?.remove();
+        document.getElementById(`row-${index}-static`)?.remove();
+        // Update numbering for remaining items
+        updateItemNumbers();
+    }
+    
+    function updateItemNumbers() {
+        const container = document.getElementById('itemsContainer');
+        if (!container) return;
+        const items = container.querySelectorAll('[id^="row-"]:not([id*="-static"])');
+        items.forEach((item, idx) => {
+            const header = item.querySelector('h4');
+            if (header) {
+                header.textContent = `Item #${idx + 1}`;
+            }
+        });
     }
 
     function renderRow(row) {
-        const tbody = document.getElementById('itemsTableBody');
-        const tr = document.createElement('tr');
-        tr.id = 'row-' + row.index;
-        tr.className = 'hover:bg-gray-50';
+        const container = document.getElementById('itemsContainer');
+        const itemDiv = document.createElement('div');
+        itemDiv.id = 'row-' + row.index;
+        itemDiv.className = 'bg-white border border-gray-200 rounded-lg p-2 space-y-1';
+        
         // Get department name if ID exists
         if (row.allocation_department_id && !row.allocation_department_name) {
             const dept = (allDepartments || []).find(d => String(d.id) === String(row.allocation_department_id));
             if (dept) row.allocation_department_name = dept.name;
         }
-        tr.innerHTML = `
-        <td class="px-1 py-1 align-top">
-            <div class="relative">
-                <input type="text" class="item-name w-full h-7 px-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Cari atau ketik nama item" value="${escapeHtml(row.name)}" autocomplete="off" required>
-                <div class="suggestions hidden"></div>
-            </div>
-        </td>
-        <td class="px-1 py-1 align-top">
-            <input type="number" min="1" class="item-qty w-full h-7 px-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center" value="${row.quantity}">
-        </td>
-        <td class="px-1 py-1 align-top">
-            <input type="text" inputmode="numeric" class="item-price w-full h-7 px-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-right" placeholder="0" value="${formatRupiahInputValue(row.unit_price)}">
-        </td>
-        <td class="px-1 py-1 align-top">
-            <div class="relative">
-                <input type="text" class="item-category w-full h-7 px-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Kategori" value="${escapeHtml(row.item_category_name||'')}" autocomplete="off">
-                <div class="category-suggestions hidden"></div>
-            </div>
-        </td>
-        <td class="px-1 py-1 align-top">
-            <textarea class="item-spec w-full h-12 px-1 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Spesifikasi">${escapeHtml(row.specification)}</textarea>
-        </td>
-        <td class="px-1 py-1 align-top">
-            <input type="text" class="item-brand w-full h-7 px-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Merk" value="${escapeHtml(row.brand)}">
-        </td>
-        <td class="px-1 py-1 align-top">
-            <div class="relative">
-                <input type="text" class="alt-vendor w-full h-7 px-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Vendor alternatif" value="${escapeHtml(row.alternative_vendor)}" autocomplete="off">
-                <div class="supplier-suggestions hidden"></div>
-            </div>
-        </td>
-        <td class="px-1 py-1 align-top">
-            <input type="text" class="item-letter w-full h-7 px-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="No surat (opsional)" value="${escapeHtml(row.letter_number)}">
-        </td>
-        <td class="px-1 py-1 align-top">
-            <div class="relative">
-                <input type="text" class="allocation-dept w-full h-7 px-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Unit peruntukan" value="${escapeHtml(row.allocation_department_name||'')}" autocomplete="off">
-                <div class="dept-suggestions hidden"></div>
-            </div>
-        </td>
-        <td class="px-1 py-1 align-top">
-            <textarea class="item-notes w-full h-12 px-1 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Catatan">${escapeHtml(row.notes)}</textarea>
-        </td>
-        <td class="px-1 py-1 align-top">
-            <div class="flex items-center">
-                <input type="file" name="items[${row.index}][files][]" class="item-files hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
-                <button type="button" class="item-files-btn h-7 w-7 inline-flex items-center justify-center text-gray-700 hover:text-blue-700 hover:bg-blue-50 border border-gray-300 rounded-md" title="Unggah dokumen">
-                    <i class="fas fa-paperclip"></i>
-                </button>
-                <span class="item-files-count text-xs text-gray-600 ml-1"></span>
-            </div>
-        </td>
-        <td class="px-1 py-1 align-top text-center">
-            <button type="button" class="h-7 w-7 inline-flex items-center justify-center text-red-600 hover:text-red-800 hover:bg-red-50 rounded" onclick="removeRow(${row.index})" title="Hapus baris">
-                <i class="fas fa-trash text-sm"></i>
+        
+        itemDiv.innerHTML = `
+        <!-- Item header with delete button -->
+        <div class="flex justify-between items-center mb-1">
+            <h4 class="text-xs font-medium text-gray-700">Item #${row.index + 1}</h4>
+            <button type="button" class="text-red-600 hover:text-red-800 hover:bg-red-50 p-0.5 rounded" onclick="removeRow(${row.index})" title="Hapus item">
+                <i class="fas fa-trash text-xs"></i>
             </button>
-        </td>`;
-        tbody.appendChild(tr);
-        // Tambahkan TR kedua untuk Form Statis per-item (tersembunyi default)
-        const trFs = document.createElement('tr');
+        </div>
+        
+        <!-- First row of inputs (6 fields) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-1">
+            <div>
+                <label class="block text-xs text-gray-600">Nama Item <span class="text-red-500">*</span></label>
+                <div class="relative">
+                    <input type="text" class="item-name w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Cari atau ketik" value="${escapeHtml(row.name)}" autocomplete="off" required>
+                    <div class="suggestions hidden"></div>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">Jumlah</label>
+                <input type="number" min="1" class="item-qty w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value="${row.quantity}">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">Harga Satuan</label>
+                <input type="text" inputmode="numeric" class="item-price w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="0" value="${formatRupiahInputValue(row.unit_price)}">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">Total (Qty x Harga)</label>
+                <input type="text" class="item-total w-full h-6 px-1 border border-gray-200 rounded text-xs bg-gray-50 text-gray-700" readonly value="${formatRupiahInputValue(((parseInt(row.quantity||0)||0) * (parseInt(row.unit_price||0)||0)))}">
+            </div>
+            <!-- Kategori dipindah ke baris kedua -->
+            <div>
+                <label class="block text-xs text-gray-600">Merk</label>
+                <input type="text" class="item-brand w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Merk barang" value="${escapeHtml(row.brand)}">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">Vendor Alternatif</label>
+                <div class="relative">
+                    <input type="text" class="alt-vendor w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Nama vendor" value="${escapeHtml(row.alternative_vendor)}" autocomplete="off">
+                    <div class="supplier-suggestions hidden"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Second row of inputs (6 fields) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-1">
+            <div>
+                <label class="block text-xs text-gray-600">Spesifikasi</label>
+                <textarea class="item-spec w-full h-12 px-1 py-0.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Detail spesifikasi">${escapeHtml(row.specification)}</textarea>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">Kategori</label>
+                <div class="relative">
+                    <input type="text" class="item-category w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Pilih kategori" value="${escapeHtml(row.item_category_name||'')}" autocomplete="off">
+                    <div class="category-suggestions hidden"></div>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">No. Surat</label>
+                <input type="text" class="item-letter w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Nomor surat" value="${escapeHtml(row.letter_number)}">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">Unit Peruntukan</label>
+                <div class="relative">
+                    <input type="text" class="allocation-dept w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Pilih unit" value="${escapeHtml(row.allocation_department_name||'')}" autocomplete="off">
+                    <div class="dept-suggestions hidden"></div>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">Catatan</label>
+                <textarea class="item-notes w-full h-12 px-1 py-0.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Catatan tambahan">${escapeHtml(row.notes)}</textarea>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-600">Dokumen</label>
+                <div class="flex items-center">
+                    <input type="file" name="items[${row.index}][files][]" class="item-files hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
+                    <button type="button" class="item-files-btn h-6 px-2 inline-flex items-center justify-center text-gray-700 hover:text-blue-700 hover:bg-blue-50 border border-gray-300 rounded text-xs" title="Unggah dokumen">
+                        <i class="fas fa-paperclip mr-0.5 text-xs"></i> <span class="text-xs">Upload</span>
+                    </button>
+                    <span class="item-files-count text-xs text-gray-600 ml-1"></span>
+                </div>
+            </div>
+        </div>`;
+        
+        container.appendChild(itemDiv);
+        // Tambahkan div kedua untuk Form Statis per-item (tersembunyi default)
+        const trFs = document.createElement('div');
         trFs.id = `row-${row.index}-static`;
-        trFs.className = 'hidden';
-        trFs.innerHTML = `
-            <td class=\"px-1 pt-1 pb-2\" colspan=\"12\">                
-                    <div class=\"grid grid-cols-1 md:grid-cols-2 gap-2\">
-                        <div class="space-y-1">
-                            <div class=\"text-xs font-medium text-gray-700\">A. Identifikasi Kebutuhan Barang</div>
-                            <label class="block text-xs text-gray-600">1. Nama/Jenis Barang</label>
-                            <input type="text" class="fs-a_nama w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">2. Fungsikegunaan</label>
-                            <input type="text" class="fs-a_fungsi w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">3. Ukuran/Kapasitas</label>
-                            <input type="text" class="fs-a_ukuran w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">4. Jumlah Barang</label>
-                            <div class="grid grid-cols-2 gap-1">
-                                <input type="number" class="fs-a_jumlah h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                                <select class="fs-a_satuan h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}">
-                                    <option>Unit</option><option>Buah</option><option>Box</option><option>Pcs</option><option>Lot</option>
-                                </select>
-                            </div>
-                            <label class="block text-xs text-gray-600">5. Waktu Pemanfaatan</label>
-                            <input type="text" class="fs-a_waktu w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">6. Pengguna/Pengelola</label>
-                            <input type="text" class="fs-a_pengguna w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">7. Perkiraan Waktu Pengadaan</label>
-                            <input type="text" class="fs-a_leadtime w-full h-7 px-1 border border-gray-300 rounded-md text-xs" placeholder="cth: 2 minggu" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">8. Ada di e-Katalog LKPP?</label>
-                            <div class="flex items-center gap-3">
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_ekatalog-${row.index}" value="ya" class="mr-1"> Ya</label>
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_ekatalog-${row.index}" value="tidak" class="mr-1" checked> Tidak</label>
-                                <input type="text" class="fs-a_ekatalog_ket h-7 px-1 border border-gray-300 rounded-md text-xs w-40" placeholder="Catatan" data-row-index="${row.index}" />
-                            </div>
-                            <label class="block text-xs text-gray-600">9. Harga Perkiraan</label>
-                            <input type="text" class="fs-a_harga w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">10. Kategori Permintaan</label>
-                            <div class="flex items-center gap-3">
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_kategori_perm-${row.index}" value="baru" class="mr-1" checked> Investasi Baru</label>
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_kategori_perm-${row.index}" value="replacement" class="mr-1"> Replacement</label>
-                            </div>
-                            <label class="block text-xs text-gray-600">11. Lampiran Analisa</label>
-                            <div class="flex items-center gap-3">
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_lampiran-${row.index}" value="ada" class="mr-1" checked> Ada</label>
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_lampiran-${row.index}" value="tidak" class="mr-1"> Tidak ada</label>
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <div class="text-xs font-medium text-gray-700">D/E. Persyaratan & Operasional</div>
-                            <label class="block text-xs text-gray-600">25. Cara Pengiriman</label>
-                            <input type="text" class="fs-e_kirim w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">26. Cara Pengangkutan</label>
-                            <input type="text" class="fs-e_angkut w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">27. Instalasi/Pemasangan</label>
-                            <input type="text" class="fs-e_instalasi w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">28. Penyimpanan/Penimbunan</label>
-                            <input type="text" class="fs-e_penyimpanan w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="${row.index}" />
-                            <label class="block text-xs text-gray-600">29. Pengoperasian</label>
-                            <div class="flex items-center gap-3">
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_operasi-${row.index}" value="otomatis" class="mr-1"> Otomatis</label>
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_operasi-${row.index}" value="manual" class="mr-1" checked> Manual</label>
-                            </div>
-                            <label class="block text-xs text-gray-600">30. Catatan Pengoperasian</label>
-                            <textarea class="fs-e_catatan w-full h-14 px-1 py-1 border border-gray-300 rounded-md text-xs resize-y" data-row-index="${row.index}"></textarea>
-                            <label class="block text-xs text-gray-600">31. Perlu Pelatihan?</label>
-                            <div class="flex items-center gap-3">
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_pelatihan-${row.index}" value="ya" class="mr-1"> Ya</label>
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_pelatihan-${row.index}" value="tidak" class="mr-1" checked> Tidak</label>
-                            </div>
-                            <label class="block text-xs text-gray-600">32. Aspek Bekalan/Layanan</label>
-                            <div class="flex items-center gap-3">
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_aspek-${row.index}" value="ya" class="mr-1"> Ya</label>
-                                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_aspek-${row.index}" value="tidak" class="mr-1" checked> Tidak</label>
-                            </div>
-                        </div>
-                    </div>
-            </td>`;
-        tbody.appendChild(trFs);
+        trFs.className = 'hidden bg-gray-50 border border-gray-200 rounded-lg p-2 mt-1';
+        // Use the template function from _form-extra.blade.php
+        trFs.innerHTML = getFormStatisHTML(row.index);
+        container.appendChild(trFs);
 
-        bindRowEvents(tr, row);
+        bindRowEvents(itemDiv, row);
         // Kunci elemen jika baris locked (statis)
         if (row.locked) {
-            tr.querySelectorAll('input, textarea, select, button').forEach(el => {
+            itemDiv.querySelectorAll('input, textarea, select, button').forEach(el => {
                 if (el.type !== 'hidden') {
                     el.disabled = true;
                     el.classList.add('bg-gray-100', 'cursor-not-allowed');
                 }
             });
-            const delBtn = tr.querySelector('button[onclick^="removeRow("]');
+            const delBtn = itemDiv.querySelector('button[onclick^="removeRow("]');
             if (delBtn) delBtn.classList.add('hidden');
         }
     }
 
-    function bindRowEvents(tr, row) {
-        const nameInput = tr.querySelector('.item-name');
-        const qtyInput = tr.querySelector('.item-qty');
-        const priceInput = tr.querySelector('.item-price');
-        const notesInput = tr.querySelector('.item-notes');
-        const specInput = tr.querySelector('.item-spec');
-        const brandInput = tr.querySelector('.item-brand');
-        const altVendorInput = tr.querySelector('.alt-vendor');
-        const fileInput = tr.querySelector('.item-files');
-        const fileBtn = tr.querySelector('.item-files-btn');
-        const fileCount = tr.querySelector('.item-files-count');
-        const supplierSugBox = tr.querySelector('.supplier-suggestions');
-        const sugBox = tr.querySelector('.suggestions');
-        const categoryInput = tr.querySelector('.item-category');
-        const categorySugBox = tr.querySelector('.category-suggestions');
-        const deptInput = tr.querySelector('.allocation-dept');
-        const deptSugBox = tr.querySelector('.dept-suggestions');
-        const letterInput = tr.querySelector('.item-letter');
+    function bindRowEvents(itemDiv, row) {
+        const nameInput = itemDiv.querySelector('.item-name');
+        const qtyInput = itemDiv.querySelector('.item-qty');
+        const priceInput = itemDiv.querySelector('.item-price');
+        const totalInput = itemDiv.querySelector('.item-total');
+        const notesInput = itemDiv.querySelector('.item-notes');
+        const specInput = itemDiv.querySelector('.item-spec');
+        const brandInput = itemDiv.querySelector('.item-brand');
+        const altVendorInput = itemDiv.querySelector('.alt-vendor');
+        const fileInput = itemDiv.querySelector('.item-files');
+        const fileBtn = itemDiv.querySelector('.item-files-btn');
+        const fileCount = itemDiv.querySelector('.item-files-count');
+        const supplierSugBox = itemDiv.querySelector('.supplier-suggestions');
+        const sugBox = itemDiv.querySelector('.suggestions');
+        const categoryInput = itemDiv.querySelector('.item-category');
+        const categorySugBox = itemDiv.querySelector('.category-suggestions');
+        const deptInput = itemDiv.querySelector('.allocation-dept');
+        const deptSugBox = itemDiv.querySelector('.dept-suggestions');
+        const letterInput = itemDiv.querySelector('.item-letter');
 
         nameInput.addEventListener('input', async function() {
             row.name = this.value;
@@ -820,6 +867,10 @@
         qtyInput.addEventListener('change', function() {
             row.quantity = parseInt(this.value) || 1;
             toggleRowStaticSectionForRow(row.index);
+            // update total display
+            const q = parseInt(row.quantity || 0) || 0;
+            const p = parseInt(row.unit_price || 0) || 0;
+            if (totalInput) totalInput.value = formatRupiahInputValue(q * p);
         });
         const handlePriceInput = function() {
             const v = (priceInput.value || '').trim();
@@ -827,9 +878,15 @@
             row.unit_price = normalized; // numeric string, can be long, integer only
             priceInput.value = formatRupiahInputValue(row.unit_price);
             toggleRowStaticSectionForRow(row.index);
+            // update total display
+            const q = parseInt(row.quantity || 0) || 0;
+            const p = parseInt(row.unit_price || 0) || 0;
+            if (totalInput) totalInput.value = formatRupiahInputValue(q * p);
         };
         priceInput.addEventListener('input', handlePriceInput);
         priceInput.addEventListener('blur', handlePriceInput);
+        // initialize total display once
+        (function(){ const q = parseInt(row.quantity || 0) || 0; const p = parseInt(row.unit_price || 0) || 0; if (totalInput) totalInput.value = formatRupiahInputValue(q * p); })();
         if (fileBtn && fileInput) {
             fileBtn.addEventListener('click', function() {
                 fileInput.click();
@@ -1151,6 +1208,123 @@
         label.appendChild(span);
     }
 
+    // Collect form extra data from visible form statis sections
+    function collectFormExtraData() {
+        rows.forEach((row) => {
+            const trFs = document.getElementById(`row-${row.index}-static`);
+            if (!trFs || trFs.classList.contains('hidden')) return;
+            
+            const formExtraData = {};
+            
+            // Helper to get value from selector
+            const gv = (sel) => {
+                const el = trFs.querySelector(sel);
+                return el ? (el.value || '').trim() : '';
+            };
+            
+            // Helper to get radio value
+            const gvr = (name) => {
+                const el = trFs.querySelector(`input[name="${name}"]:checked`);
+                return el ? el.value : '';
+            };
+            
+            // Helper to get checkbox value
+            const gvc = (sel) => {
+                const el = trFs.querySelector(sel);
+                return el ? el.checked : false;
+            };
+            
+            // Section A
+            formExtraData.a_nama = gv('.fs-a_nama');
+            formExtraData.a_fungsi = gv('.fs-a_fungsi');
+            formExtraData.a_ukuran = gv('.fs-a_ukuran');
+            formExtraData.a_jumlah = gv('.fs-a_jumlah');
+            formExtraData.a_satuan = gv('.fs-a_satuan');
+            formExtraData.a_waktu = gv('.fs-a_waktu');
+            formExtraData.a_waktu_satuan = gv('.fs-a_waktu_satuan');
+            formExtraData.a_pengguna = gv('.fs-a_pengguna');
+            formExtraData.a_leadtime = gv('.fs-a_leadtime');
+            formExtraData.a_ekatalog = gvr(`fs-a_ekatalog-${row.index}`);
+            formExtraData.a_ekatalog_ket = gv('.fs-a_ekatalog_ket');
+            formExtraData.a_harga = gv('.fs-a_harga');
+            formExtraData.a_kategori_perm = gvr(`fs-a_kategori_perm-${row.index}`);
+            formExtraData.a_lampiran = gvr(`fs-a_lampiran-${row.index}`);
+            
+            // Section B
+            formExtraData.b_jml_pegawai = gv('.fs-b_jml_pegawai');
+            formExtraData.b_jml_dokter = gv('.fs-b_jml_dokter');
+            formExtraData.b_beban = gvr(`fs-b_beban-${row.index}`);
+            formExtraData.b_barang_ada = gvr(`fs-b_barang_ada-${row.index}`);
+            
+            // Section C
+            formExtraData.c_jumlah = gv('.fs-c_jumlah');
+            formExtraData.c_satuan = gv('.fs-c_satuan');
+            formExtraData.c_kondisi = gvr(`fs-c_kondisi-${row.index}`);
+            formExtraData.c_kondisi_lain = gv('.fs-c_kondisi_lain');
+            formExtraData.c_lokasi = gv('.fs-c_lokasi');
+            formExtraData.c_sumber = gvr(`fs-c_sumber-${row.index}`);
+            formExtraData.c_kemudahan = gvr(`fs-c_kemudahan-${row.index}`);
+            formExtraData.c_produsen = gvr(`fs-c_produsen-${row.index}`);
+            formExtraData.c_kriteria_dn = gvc('.fs-c_kriteria_dn');
+            formExtraData.c_kriteria_impor = gvc('.fs-c_kriteria_impor');
+            formExtraData.c_kriteria_kerajinan = gvc('.fs-c_kriteria_kerajinan');
+            formExtraData.c_kriteria_jasa = gvc('.fs-c_kriteria_jasa');
+            formExtraData.c_tkdn = gvr(`fs-c_tkdn-${row.index}`);
+            formExtraData.c_tkdn_min = gv('.fs-c_tkdn_min');
+            
+            // Section D/E
+            formExtraData.e_kirim = gv('.fs-e_kirim');
+            formExtraData.e_angkut = gv('.fs-e_angkut');
+            formExtraData.e_instalasi = gv('.fs-e_instalasi');
+            formExtraData.e_penyimpanan = gv('.fs-e_penyimpanan');
+            formExtraData.e_operasi = gvr(`fs-e_operasi-${row.index}`);
+            formExtraData.e_catatan = gv('.fs-e_catatan');
+            formExtraData.e_pelatihan = gvr(`fs-e_pelatihan-${row.index}`);
+            formExtraData.e_aspek = gvr(`fs-e_aspek-${row.index}`);
+            
+            row.formExtraData = formExtraData;
+        });
+    }
+    
+    // Auto-fill form extra from main form when form statis becomes visible
+    function autoFillFormExtra(rowIndex) {
+        const row = rows.find(r => r.index === rowIndex);
+        if (!row) return;
+        
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs) return;
+        
+        // Auto-fill nama from item name
+        const namaInput = trFs.querySelector('.fs-a_nama');
+        if (namaInput && !namaInput.value && row.name) {
+            namaInput.value = row.name;
+        }
+        
+        // Auto-fill fungsi from specification
+        const fungsiInput = trFs.querySelector('.fs-a_fungsi');
+        if (fungsiInput && !fungsiInput.value && row.specification) {
+            fungsiInput.value = row.specification;
+        }
+        
+        // Auto-fill jumlah from quantity
+        const jumlahInput = trFs.querySelector('.fs-a_jumlah');
+        if (jumlahInput && !jumlahInput.value && row.quantity) {
+            jumlahInput.value = row.quantity;
+        }
+        
+        // Auto-fill harga from unit_price
+        const hargaInput = trFs.querySelector('.fs-a_harga');
+        if (hargaInput && !hargaInput.value && row.unit_price) {
+            hargaInput.value = 'Rp ' + formatRupiahInputValue(row.unit_price);
+        }
+        
+        // Auto-fill pengguna from allocation department
+        const penggunaInput = trFs.querySelector('.fs-a_pengguna');
+        if (penggunaInput && !penggunaInput.value && row.allocation_department_name) {
+            penggunaInput.value = row.allocation_department_name;
+        }
+    }
+    
     // expose functions to window
     window.addRow = addRow;
     window.selectDepartmentSuggestion = selectDepartmentSuggestion;

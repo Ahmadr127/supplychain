@@ -23,4 +23,5 @@
 
 <!-- Include Modal Form for Adding Items -->
 @include('components.modals.form-master-items')
+@include('approval-requests._form-extra')
 @endsection

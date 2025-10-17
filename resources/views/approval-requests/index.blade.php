@@ -203,7 +203,7 @@
                                 <a href="{{ route('approval-requests.edit', $request) }}" 
                                    class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150" title="Edit">✏️</a>
                             @endif
-                            @if($request->status == 'pending' && $request->requester_id == auth()->id())
+                            @if($request->requester_id == auth()->id())
                                 <button onclick="deleteRequest({{ $request->id }})" 
                                         class="text-red-600 hover:text-red-900 transition-colors duration-150" title="Hapus">🗑️</button>
                             @endif
