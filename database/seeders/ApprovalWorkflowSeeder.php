@@ -19,41 +19,38 @@ class ApprovalWorkflowSeeder extends Seeder
         $medisType = ItemType::where('name', 'Medis')->first();
         $nonMedisType = ItemType::where('name', 'Non Medis')->first();
         
-        // Get roles and departments for workflow steps (matching the actual data from other seeders)
-        $technicalExpertRole = Role::where('name', 'technical_expert')->first();
-        $managerItRole = Role::where('name', 'manager_it')->first();
+        // Get roles for workflow steps (sesuai dengan user yang ada di DepartmentSeeder)
+        // Manager IT: Muhamad Miftahudin (admin role, tapi sebagai Manager IT)
+        // Manager Keuangan: Ria Fajarrohmi (manager_keuangan role)
+        // Direktur: dr. Irma Rismayanti, MM (direktur role)
+        $managerItRole = Role::where('name', 'admin')->first(); // Miftah menggunakan admin role
         $managerKeuanganRole = Role::where('name', 'manager_keuangan')->first();
         $direkturRole = Role::where('name', 'direktur')->first();
 
-        // 1. Medical Items Workflow (specific for medical items)
-        if ($medisType) {
+        // 1. Workflow Barang Medis (3 langkah: Manager IT -> Manager Keuangan -> Direktur)
+        if ($medisType && $managerItRole && $managerKeuanganRole && $direkturRole) {
             $medicalWorkflow = ApprovalWorkflow::firstOrCreate(
                 [
                     'name' => 'Workflow Barang Medis',
                     'type' => 'medical'
                 ],
                 [
-                    'description' => 'Workflow khusus untuk barang medis dan farmasi',
+                    'description' => 'Workflow untuk barang medis dan farmasi (3 langkah approval)',
                     'workflow_steps' => [
                         [
-                            'name' => 'Technical Expert Review',
+                            'name' => 'Manager IT',
                             'approver_type' => 'role',
-                            'approver_role_id' => $technicalExpertRole ? $technicalExpertRole->id : null,
+                            'approver_role_id' => $managerItRole->id,
                         ],
                         [
-                            'name' => 'Manager IT Approval',
+                            'name' => 'Manager Keuangan',
                             'approver_type' => 'role',
-                            'approver_role_id' => $managerItRole ? $managerItRole->id : null,
+                            'approver_role_id' => $managerKeuanganRole->id,
                         ],
                         [
-                            'name' => 'Manager Keuangan Approval',
+                            'name' => 'Direktur RS',
                             'approver_type' => 'role',
-                            'approver_role_id' => $managerKeuanganRole ? $managerKeuanganRole->id : null,
-                        ],
-                        [
-                            'name' => 'Final Approval Direktur',
-                            'approver_type' => 'role',
-                            'approver_role_id' => $direkturRole ? $direkturRole->id : null,
+                            'approver_role_id' => $direkturRole->id,
                         ]
                     ],
                     'is_active' => true,
@@ -63,25 +60,25 @@ class ApprovalWorkflowSeeder extends Seeder
             );
         }
 
-        // 2. Non-Medical Items Workflow (simplified - only 2 steps like standard approval)
-        if ($nonMedisType) {
+        // 2. Workflow Barang Non Medis (2 langkah: Manager IT -> Manager Keuangan)
+        if ($nonMedisType && $managerItRole && $managerKeuanganRole) {
             $nonMedicalWorkflow = ApprovalWorkflow::firstOrCreate(
                 [
                     'name' => 'Workflow Barang Non Medis',
                     'type' => 'non_medical'
                 ],
                 [
-                    'description' => 'Workflow sederhana untuk barang non medis dan umum (2 langkah approval)',
+                    'description' => 'Workflow untuk barang non medis dan umum (2 langkah approval)',
                     'workflow_steps' => [
                         [
-                            'name' => 'Manager IT Approval',
+                            'name' => 'Manager IT',
                             'approver_type' => 'role',
-                            'approver_role_id' => $managerItRole ? $managerItRole->id : null,
+                            'approver_role_id' => $managerItRole->id,
                         ],
                         [
-                            'name' => 'Manager Keuangan Approval',
+                            'name' => 'Manager Keuangan',
                             'approver_type' => 'role',
-                            'approver_role_id' => $managerKeuanganRole ? $managerKeuanganRole->id : null,
+                            'approver_role_id' => $managerKeuanganRole->id,
                         ]
                     ],
                     'is_active' => true,
@@ -90,6 +87,32 @@ class ApprovalWorkflowSeeder extends Seeder
                 ]
             );
         }
+        
+        // 3. Default/Fallback Workflow (jika ada submission type lain atau item type yang tidak terdefinisi)
+        $defaultWorkflow = ApprovalWorkflow::firstOrCreate(
+            [
+                'name' => 'Standard Approval Workflow',
+                'type' => 'standard'
+            ],
+            [
+                'description' => 'Workflow standar untuk permintaan approval umum',
+                'workflow_steps' => [
+                    [
+                        'name' => 'Manager IT',
+                        'approver_type' => 'role',
+                        'approver_role_id' => $managerItRole ? $managerItRole->id : null,
+                    ],
+                    [
+                        'name' => 'Manager Keuangan',
+                        'approver_type' => 'role',
+                        'approver_role_id' => $managerKeuanganRole ? $managerKeuanganRole->id : null,
+                    ]
+                ],
+                'is_active' => true,
+                'is_specific_type' => false,
+                'item_type_id' => null
+            ]
+        );
 
         $this->command->info('Approval workflows seeded successfully!');
     }

@@ -35,6 +35,17 @@ Route::get('/', function () {
     return redirect('/login');
 });
 
+    // Static print view for Identifikasi Kebutuhan form
+    Route::get('approval-requests/formstatis', function () {
+        return view('approval-requests.formstatis');
+    })->name('approval-requests.formstatis');
+
+    // Minimal input view for Identifikasi Kebutuhan form
+    Route::get('approval-requests/formstatis-input', function () {
+        return view('approval-requests.formstatis_input');
+    })->name('approval-requests.formstatis-input');
+
+
 // Authentication routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -99,6 +110,7 @@ Route::middleware('auth')->group(function () {
     // Show approval request - accessible to users who can view any approval or are the requester
     Route::get('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'show'])->name('approval-requests.show');
 
+
     // User-specific approval routes
     Route::middleware('permission:view_my_approvals')->group(function () {
         Route::get('my-requests', [ApprovalRequestController::class, 'myRequests'])->name('approval-requests.my-requests');
@@ -132,7 +144,7 @@ Route::middleware('auth')->group(function () {
         Route::get('reports/approval-requests', [ReportController::class, 'approvalRequests'])->name('reports.approval-requests');
     });
 
-    // Purchasing per-item UI pages and endpoints
+    // Purchasing per-item endpoints (moved to ReportController)
     Route::middleware('permission:manage_purchasing')->group(function () {
         // Report Purchasing process page (server-rendered)
         Route::get('reports/approval-requests/process-purchasing', [\App\Http\Controllers\ReportController::class, 'processPurchasing'])
@@ -140,24 +152,28 @@ Route::middleware('auth')->group(function () {
         // Set received date for approval request (tanggal diterima)
         Route::post('approval-requests/{approvalRequest}/received-date', [\App\Http\Controllers\ApprovalRequestController::class, 'setReceivedDate'])
             ->name('approval-requests.set-received-date');
-        // UI pages
-        Route::get('purchasing/items', [\App\Http\Controllers\PurchasingItemController::class, 'index'])
-            ->name('purchasing.items.index');
-        Route::get('purchasing/items/{purchasingItem}', [\App\Http\Controllers\PurchasingItemController::class, 'show'])
-            ->name('purchasing.items.show');
-
-        Route::post('purchasing/items/{purchasingItem}/benchmarking', [\App\Http\Controllers\PurchasingItemController::class, 'saveBenchmarking'])
+        
+        // Purchasing API endpoints (now handled by ReportController)
+        Route::post('purchasing/items/{purchasingItem}/benchmarking', [\App\Http\Controllers\ReportController::class, 'saveBenchmarking'])
             ->name('purchasing.items.benchmarking');
-        Route::post('purchasing/items/{purchasingItem}/preferred', [\App\Http\Controllers\PurchasingItemController::class, 'selectPreferred'])
+        Route::post('purchasing/items/{purchasingItem}/preferred', [\App\Http\Controllers\ReportController::class, 'selectPreferred'])
             ->name('purchasing.items.preferred');
-        Route::post('purchasing/items/{purchasingItem}/po', [\App\Http\Controllers\PurchasingItemController::class, 'issuePO'])
+        Route::post('purchasing/items/{purchasingItem}/po', [\App\Http\Controllers\ReportController::class, 'issuePO'])
             ->name('purchasing.items.po');
-        Route::post('purchasing/items/{purchasingItem}/grn', [\App\Http\Controllers\PurchasingItemController::class, 'receiveGRN'])
+        Route::post('purchasing/items/{purchasingItem}/grn', [\App\Http\Controllers\ReportController::class, 'receiveGRN'])
             ->name('purchasing.items.grn');
-        Route::post('purchasing/items/{purchasingItem}/done', [\App\Http\Controllers\PurchasingItemController::class, 'markDone'])
+        Route::post('purchasing/items/{purchasingItem}/done', [\App\Http\Controllers\ReportController::class, 'markDone'])
             ->name('purchasing.items.done');
-        Route::post('purchasing/items/{purchasingItem}/invoice', [\App\Http\Controllers\PurchasingItemController::class, 'saveInvoice'])
+        Route::post('purchasing/items/{purchasingItem}/invoice', [\App\Http\Controllers\ReportController::class, 'saveInvoice'])
             ->name('purchasing.items.invoice');
+        Route::delete('purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'deletePurchasingItem'])
+            ->name('purchasing.items.delete');
+    });
+    
+    // Export route for reports
+    Route::middleware('permission:view_reports')->group(function () {
+        Route::get('reports/approval-requests/export', [\App\Http\Controllers\ReportController::class, 'exportApprovalRequests'])
+            ->name('reports.approval-requests.export');
     });
 
     // API routes for AJAX requests
@@ -175,12 +191,10 @@ Route::middleware('auth')->group(function () {
     Route::get('api/suppliers/suggest', [SupplierLookupController::class, 'suggest'])->name('api.suppliers.suggest');
     Route::post('api/suppliers/resolve', [SupplierLookupController::class, 'resolve'])->name('api.suppliers.resolve');
 
-    // Purchasing item lookup endpoints
-    Route::get('api/purchasing/items/suggest', [\App\Http\Controllers\PurchasingItemController::class, 'suggest'])
-        ->name('api.purchasing.items.suggest');
-    Route::get('api/purchasing/items/{purchasingItem}', [\App\Http\Controllers\PurchasingItemController::class, 'showJson'])
+    // Purchasing item lookup endpoints (now handled by ReportController)
+    Route::get('api/purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'showPurchasingItemJson'])
         ->name('api.purchasing.items.show');
-    Route::post('api/purchasing/items/resolve', [\App\Http\Controllers\PurchasingItemController::class, 'resolveByRequestAndItem'])
+    Route::post('api/purchasing/items/resolve', [\App\Http\Controllers\ReportController::class, 'resolvePurchasingItemByRequestAndItem'])
         ->name('api.purchasing.items.resolve');
     
     // API routes for step details and status updates

@@ -98,6 +98,11 @@
                                 $unitPrice = $item->pivot->unit_price; // nullable, no fallback to master item
                                 $totalPrice = $item->pivot->total_price; // nullable, no fallback calculation
                             @endphp
+                            @php
+                                // Sembunyikan kartu untuk item hasil Form Statis (yang kita append otomatis)
+                                $__hideFormStatis = \Illuminate\Support\Str::contains($item->name ?? '', '(Form Statis)');
+                            @endphp
+                            @continue($__hideFormStatis)
                             <div class="bg-white border border-gray-200 rounded-xl p-2 shadow-sm">
                                 <!-- Row 1: header/meta on left, KPIs + brand/vendor on right -->
                                 <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-2 leading-snug">

@@ -25,9 +25,9 @@ class DepartmentSeeder extends Seeder
                 'approval_level' => 1,
             ],
             [
-                'name' => 'Departemen Pemasaran',
-                'code' => 'PEM',
-                'description' => 'Departemen Pemasaran dan Marketing',
+                'name' => 'Departemen Pengadaan',
+                'code' => 'PGD',
+                'description' => 'Departemen Pengadaan/Procurement',
                 'level' => 1,
                 'approval_level' => 1,
             ],
@@ -57,64 +57,40 @@ class DepartmentSeeder extends Seeder
 
         // Set parent-child relationships (all departments report to Direktur)
         $createdDepartments['IT']->update(['parent_id' => $createdDepartments['DIR']->id]);
-        $createdDepartments['PEM']->update(['parent_id' => $createdDepartments['DIR']->id]);
+        $createdDepartments['PGD']->update(['parent_id' => $createdDepartments['DIR']->id]);
         $createdDepartments['KEU']->update(['parent_id' => $createdDepartments['DIR']->id]);
 
-        // Buat sample users untuk struktur Rumah Sakit
+        // Buat users sesuai data pada gambar (4 pengguna)
         $users = [
-            // Administrator
+            // Administrator (Muhamad Miftahudin) - IT (Manager IT)
             [
-                'name' => 'Dr. Admin Sistem',
+                'name' => 'Muhamad Miftahudin',
                 'username' => 'admin',
-                'email' => 'admin@rs.com',
+                'email' => 'admin@azra.com',
                 'password' => bcrypt('password'),
                 'role_id' => Role::where('name', 'admin')->first()->id,
-                'department' => 'IT',
-                'position' => 'System Administrator',
-                'is_primary' => true,
-                'is_manager' => false,
-            ],
-            // Technical Expert - IT
-            [
-                'name' => 'Budi Santoso, S.Kom',
-                'username' => 'budi.santoso',
-                'email' => 'budi.santoso@rs.com',
-                'password' => bcrypt('password'),
-                'role_id' => Role::where('name', 'technical_expert')->first()->id,
-                'department' => 'IT',
-                'position' => 'Technical Expert IT',
-                'is_primary' => true,
-                'is_manager' => false,
-            ],
-            // Manager IT
-            [
-                'name' => 'Dr. Andi Pratama, S.Kom, M.T',
-                'username' => 'andi.pratama',
-                'email' => 'andi.pratama@rs.com',
-                'password' => bcrypt('password'),
-                'role_id' => Role::where('name', 'manager_it')->first()->id,
                 'department' => 'IT',
                 'position' => 'Manager IT',
                 'is_primary' => true,
                 'is_manager' => true,
             ],
-            // Manager Peminta - Pemasaran
+            // Direktur RS (dr. Irma Rismayanti, MM) - DIR
             [
-                'name' => 'Siti Nurhaliza, S.E',
-                'username' => 'siti.nurhaliza',
-                'email' => 'siti.nurhaliza@rs.com',
+                'name' => 'dr. Irma Rismayanti, MM',
+                'username' => 'irma.rismayanti',
+                'email' => 'irma@azra.com',
                 'password' => bcrypt('password'),
-                'role_id' => Role::where('name', 'manager_peminta')->first()->id,
-                'department' => 'PEM',
-                'position' => 'Manager Pemasaran',
+                'role_id' => Role::where('name', 'direktur')->first()->id,
+                'department' => 'DIR',
+                'position' => 'Direktur RS',
                 'is_primary' => true,
-                'is_manager' => true,
+                'is_manager' => false,
             ],
-            // Manager Keuangan
+            // Manager Keuangan (Ria Fajarrohmi) - KEU (Manager)
             [
-                'name' => 'Ahmad Wijaya, S.E, M.Ak',
-                'username' => 'ahmad.wijaya',
-                'email' => 'ahmad.wijaya@rs.com',
+                'name' => 'Ria Fajarrohmi',
+                'username' => 'ria.fajarrohmi',
+                'email' => 'ria@azra.com',
                 'password' => bcrypt('password'),
                 'role_id' => Role::where('name', 'manager_keuangan')->first()->id,
                 'department' => 'KEU',
@@ -122,65 +98,53 @@ class DepartmentSeeder extends Seeder
                 'is_primary' => true,
                 'is_manager' => true,
             ],
-            // Direktur RS
+            // Manager Pengadaan - PGD (Manager)
             [
-                'name' => 'Dr. Prof. H. Muhammad Rizki, Sp.PD',
-                'username' => 'direktur',
-                'email' => 'direktur@rs.com',
+                'name' => 'Manager Pengadaan',
+                'username' => 'manager.pengadaan',
+                'email' => 'pengadaan@azra.com',
                 'password' => bcrypt('password'),
-                'role_id' => Role::where('name', 'direktur')->first()->id,
-                'department' => 'DIR',
-                'position' => 'Direktur Rumah Sakit',
+                'role_id' => Role::where('name', 'purchasing')->first()->id,
+                'department' => 'PGD',
+                'position' => 'Manager Pengadaan',
                 'is_primary' => true,
                 'is_manager' => true,
             ],
-            // Additional users for testing
+            // Pengguna (Indah Triyani) - tanpa departemen (sesuai tabel departemen: PEM 0 users)
             [
-                'name' => 'Sarah Putri, S.Kom',
-                'username' => 'sarah.putri',
-                'email' => 'sarah.putri@rs.com',
-                'password' => bcrypt('password'),
-                'role_id' => Role::where('name', 'technical_expert')->first()->id,
-                'department' => 'IT',
-                'position' => 'IT Support',
-                'is_primary' => false,
-                'is_manager' => false,
-            ],
-            [
-                'name' => 'Rudi Hartono, S.E',
-                'username' => 'rudi.hartono',
-                'email' => 'rudi.hartono@rs.com',
+                'name' => 'Indah Triyani',
+                'username' => 'indah.triyani',
+                'email' => 'indah@azra.com',
                 'password' => bcrypt('password'),
                 'role_id' => Role::where('name', 'user')->first()->id,
-                'department' => 'PEM',
-                'position' => 'Staff Pemasaran',
-                'is_primary' => true,
-                'is_manager' => false,
+                // sengaja tidak diberi key 'department' agar tidak menambah count users di PEM
             ],
         ];
 
         foreach ($users as $userData) {
-            $department = $createdDepartments[$userData['department']];
-            $position = $userData['position'];
-            $isPrimary = $userData['is_primary'];
-            $isManager = $userData['is_manager'];
+            $departmentCode = $userData['department'] ?? null;
+            $position = $userData['position'] ?? null;
+            $isPrimary = $userData['is_primary'] ?? false;
+            $isManager = $userData['is_manager'] ?? false;
             unset($userData['department'], $userData['position'], $userData['is_primary'], $userData['is_manager']);
-            
+
             $user = User::firstOrCreate(['email' => $userData['email']], $userData);
-            
-            // Attach user to department if not already attached
-            if (!$user->departments()->wherePivot('department_id', $department->id)->exists()) {
-                $user->departments()->attach($department->id, [
-                    'position' => $position,
-                    'is_primary' => $isPrimary,
-                    'is_manager' => $isManager,
-                    'start_date' => now(),
-                ]);
-            }
-            
-            // Set as manager if needed
-            if ($isManager && !$department->manager_id) {
-                $department->update(['manager_id' => $user->id]);
+
+            if ($departmentCode && isset($createdDepartments[$departmentCode])) {
+                $department = $createdDepartments[$departmentCode];
+                // Attach user to department if not already attached
+                if (!$user->departments()->wherePivot('department_id', $department->id)->exists()) {
+                    $user->departments()->attach($department->id, [
+                        'position' => $position,
+                        'is_primary' => $isPrimary,
+                        'is_manager' => $isManager,
+                        'start_date' => now(),
+                    ]);
+                }
+                // Set manager departemen bila is_manager = true
+                if ($isManager && !$department->manager_id) {
+                    $department->update(['manager_id' => $user->id]);
+                }
             }
         }
 

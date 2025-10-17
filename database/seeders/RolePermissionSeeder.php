@@ -26,6 +26,7 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_suppliers', 'display_name' => 'Kelola Supplier', 'description' => 'Mengelola data vendor/supplier'],
             ['name' => 'manage_submission_types', 'display_name' => 'Kelola Jenis Pengajuan', 'description' => 'Mengelola jenis pengajuan (Barang/Jasa/Program Kerja)'],
             ['name' => 'view_reports', 'display_name' => 'Lihat Reports', 'description' => 'Mengakses halaman laporan'],
+            ['name' => 'manage_purchasing', 'display_name' => 'Kelola Purchasing', 'description' => 'Mengelola proses purchasing per item'],
         ];
 
         foreach ($permissions as $permission) {
@@ -75,6 +76,12 @@ class RolePermissionSeeder extends Seeder
             'description' => 'Role untuk pengguna umum'
         ]);
 
+        $purchasingRole = Role::firstOrCreate(['name' => 'purchasing'], [
+            'name' => 'purchasing',
+            'display_name' => 'Purchasing',
+            'description' => 'Role untuk staff purchasing'
+        ]);
+
         // Assign permissions to roles
         $adminRole->permissions()->sync(Permission::all()); // Admin gets all permissions
         
@@ -121,8 +128,16 @@ class RolePermissionSeeder extends Seeder
         $userRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_my_approvals',
-                'approval',
                 'manage_approvals'
+            ])->get()
+        );
+        
+        // Purchasing role permissions (aligned to purchasing features)
+        $purchasingRole->permissions()->sync(
+            Permission::whereIn('name', [
+                'view_reports',
+                'manage_purchasing',
+                'manage_suppliers',
             ])->get()
         );
     }

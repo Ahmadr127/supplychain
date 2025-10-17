@@ -10,7 +10,7 @@
     emptyMessage="Belum ada data">
 
     <x-slot name="filters">
-        <form method="GET" class="w-full">
+        <form method="GET" class="w-full" id="filter-form">
             <div class="space-y-2">
                 <!-- Row 1: Search, Date From, Date To, Year, Buttons -->
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
@@ -31,8 +31,14 @@
                         <input type="number" name="year" value="{{ request('year') }}" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" placeholder="YYYY">
                     </div>
                     <div class="md:col-span-2 flex md:justify-end gap-2">
-                        <button class="h-8 px-3 bg-indigo-600 text-white rounded-md text-xs whitespace-nowrap">Filter</button>
+                        <button type="submit" class="h-8 px-3 bg-indigo-600 text-white rounded-md text-xs whitespace-nowrap">Filter</button>
                         <a href="{{ route('reports.approval-requests') }}" class="h-8 px-3 border border-gray-300 rounded-md text-xs flex items-center whitespace-nowrap">Reset</a>
+                        <button type="button" onclick="exportData()" class="h-8 px-3 bg-green-600 text-white rounded-md text-xs whitespace-nowrap flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Export CSV
+                        </button>
                     </div>
                 </div>
 
@@ -76,11 +82,6 @@
                     </div>
                 </div>
 
-                @if(auth()->user()->hasPermission('manage_purchasing'))
-                <div class="flex justify-end">
-                    <a href="{{ route('purchasing.items.index') }}" class="h-8 px-3 bg-emerald-600 text-white rounded-md text-xs whitespace-nowrap">Purchasing</a>
-                </div>
-                @endif
             </div>
         </form>
     </x-slot>
@@ -96,3 +97,15 @@
  
 
 @endsection
+
+@push('scripts')
+<script>
+function exportData() {
+    const form = document.getElementById('filter-form');
+    const formData = new FormData(form);
+    const params = new URLSearchParams(formData);
+    const exportUrl = '{{ route('reports.approval-requests.export') }}?' + params.toString();
+    window.location.href = exportUrl;
+}
+</script>
+@endpush

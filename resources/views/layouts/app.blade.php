@@ -9,8 +9,25 @@
     <link rel="icon" type="image/x-icon" href="{{ asset('images/logo.png') }}">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Global overflow prevention */
+        html, body {
+            overflow-x: hidden;
+            max-width: 100%;
+        }
+        
+        /* Ensure all containers respect boundaries */
+        * {
+            max-width: 100%;
+        }
+        
+        /* Allow specific elements to have wider content with scroll */
+        .allow-horizontal-scroll {
+            max-width: none;
+        }
+    </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-100 overflow-x-hidden">
     <div x-data="{
             sidebarOpen: false,
             sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === '1',
@@ -26,7 +43,7 @@
             // Dispatch custom event for responsive table components
             document.dispatchEvent(new CustomEvent('sidebar-toggled'));
         })"
-        class="min-h-screen flex">
+        class="min-h-screen flex overflow-x-hidden">
         <!-- Sidebar -->
         <div :class="[
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full',
@@ -176,15 +193,6 @@
                 </li>
                 @endif
 
-                @if(auth()->user()->hasPermission('manage_purchasing'))
-                <li>
-                    <a href="{{ route('purchasing.items.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('purchasing.items.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Purchasing">
-                        <i class="fas fa-shopping-cart w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Purchasing</span>
-                    </a>
-                </li>
-                @endif
-
                 </ul>
 
                 <!-- Approval Section -->
@@ -194,7 +202,7 @@
                     <ul class="mt-2 space-y-1">
                         @if(auth()->user()->hasPermission('view_my_approvals'))
                         <li>
-                            <a href="{{ route('approval-requests.my-requests') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.my-requests') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="My Requests">
+                            <a href="{{ route('approval-requests.my-requests') }}" class="js-my-requests flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.my-requests') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="My Requests">
                                 <i class="fas fa-file-alt w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
                                 <span x-show="!sidebarCollapsed">My Requests</span>
                             </a>
@@ -216,7 +224,7 @@
         </div>
 
         <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col lg:ml-0">
+        <div class="flex-1 flex flex-col lg:ml-0 overflow-x-hidden max-w-full">
             <!-- Top Navigation Bar -->
             <header class="bg-white shadow-sm border-b border-gray-200">
                 <div class="flex items-center justify-between h-16 px-6">
@@ -316,7 +324,7 @@
             </header>
 
             <!-- Page Content -->
-            <main class="flex-1 p-3 sm:p-4 lg:p-5 bg-gray-50">
+            <main class="flex-1 p-3 sm:p-4 lg:p-5 bg-gray-50 overflow-x-hidden max-w-full">
                 @if(session('success'))
                     <div class="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
                         <div class="flex items-center">

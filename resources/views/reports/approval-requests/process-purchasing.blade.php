@@ -4,11 +4,44 @@
 
 @section('content')
 <div class="space-y-3">
+    @if($errors->any())
+        <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+            <div class="font-medium mb-1">Terdapat kesalahan:</div>
+            <ul class="list-disc list-inside text-sm">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <!-- Header (with inline received date on the right) -->
     <div class="flex items-center justify-between">
-        <div>
-            <h2 class="text-xl font-semibold text-gray-900">Purchasing Item</h2>
-            <p class="text-sm text-gray-600">Request: {{ $item->approvalRequest->request_number ?? '-' }} • Item: {{ $item->masterItem->name ?? '-' }}</p>
+        <div class="flex items-start gap-3">
+            <!-- Back button -->
+            <a href="{{ route('reports.approval-requests') }}" class="mt-1 p-1.5 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+            </a>
+            <div>
+                <h2 class="text-xl font-semibold text-gray-900">Purchasing Item</h2>
+                <p class="text-sm text-gray-600">Request: {{ $item->approvalRequest->request_number ?? '-' }} • Item: {{ $item->masterItem->name ?? '-' }}</p>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="text-xs text-gray-500">Status:</span>
+                    @php
+                        $statusColor = match($item->status ?? 'unprocessed') {
+                            'done' => 'bg-green-100 text-green-800',
+                            'in_progress' => 'bg-yellow-100 text-yellow-800',
+                            'unprocessed' => 'bg-gray-100 text-gray-800',
+                            default => 'bg-gray-100 text-gray-800'
+                        };
+                    @endphp
+                    <span class="px-2 py-0.5 text-xs font-medium rounded-full {{ $statusColor }}">
+                        {{ ucfirst($item->status ?? 'unprocessed') }}
+                    </span>
+                </div>
+            </div>
         </div>
         <div class="flex items-center gap-2">
             @if(auth()->user()->hasPermission('manage_purchasing'))
@@ -27,7 +60,6 @@
     </div>
 
     
-
     <!-- Benchmarking Vendors -->
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">
@@ -136,12 +168,30 @@
         </div>
     </div>
 
-    <!-- Mark DONE -->
+    <!-- Action Buttons -->
     @if(auth()->user()->hasPermission('manage_purchasing'))
-    <div class="flex justify-end">
+    <div class="flex justify-between">
+        <!-- Delete button -->
+        <form method="POST" action="{{ route('purchasing.items.delete', $item) }}" onsubmit="return confirm('Hapus purchasing item ini? Data benchmarking dan semua data terkait akan dihapus.');">
+            @csrf
+            @method('DELETE')
+            <button type="submit" class="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition-colors">
+                <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+                Hapus Item
+            </button>
+        </form>
+        
+        <!-- Mark DONE button -->
         <form method="POST" action="{{ route('purchasing.items.done', $item) }}" onsubmit="return confirm('Tandai item ini sebagai DONE?');">
             @csrf
-            <button class="px-3 py-1.5 bg-green-600 text-white rounded text-sm">Mark as DONE</button>
+            <button type="submit" class="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors">
+                <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Mark as DONE
+            </button>
         </form>
     </div>
     @endif
