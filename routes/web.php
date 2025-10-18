@@ -19,6 +19,7 @@ use App\Http\Controllers\SubmissionTypeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierLookupController;
+use App\Http\Controllers\SettingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -129,7 +130,6 @@ Route::middleware('auth')->group(function () {
         Route::resource('units', UnitController::class);
     });
 
-    // Submission Types Management routes
     Route::middleware('permission:manage_submission_types')->group(function () {
         Route::resource('submission-types', SubmissionTypeController::class)->except(['show', 'create', 'edit']);
     });
@@ -139,12 +139,19 @@ Route::middleware('auth')->group(function () {
         Route::resource('suppliers', SupplierController::class);
     });
 
+    // Settings management
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
+        Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
+    });
+    // API endpoint for getting settings (accessible to all authenticated users)
+    Route::get('api/settings', [SettingController::class, 'getSettings'])->name('api.settings.get');
+    
     // Reports
     Route::middleware('permission:view_reports')->group(function () {
         Route::get('reports/approval-requests', [ReportController::class, 'approvalRequests'])->name('reports.approval-requests');
     });
 
-    // Purchasing per-item endpoints (moved to ReportController)
     Route::middleware('permission:manage_purchasing')->group(function () {
         // Report Purchasing process page (server-rendered)
         Route::get('reports/approval-requests/process-purchasing', [\App\Http\Controllers\ReportController::class, 'processPurchasing'])

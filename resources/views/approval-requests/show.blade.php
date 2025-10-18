@@ -182,6 +182,30 @@
                                     </div>
                                 </div>
                                 
+                                <!-- FS Document Section for this item -->
+                                @if($item->pivot->fs_document ?? false)
+                                <div class="mt-2 border-t border-gray-200 pt-2">
+                                    <div class="flex items-center justify-between">
+                                        <div class="text-xs font-semibold text-gray-700">
+                                            <i class="fas fa-file-alt mr-1 text-blue-600"></i>
+                                            Dokumen FS Item
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <a href="{{ Storage::url($item->pivot->fs_document) }}" 
+                                               target="_blank"
+                                               class="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                                                <i class="fas fa-eye mr-1"></i>Lihat
+                                            </a>
+                                            <a href="{{ Storage::url($item->pivot->fs_document) }}" 
+                                               download
+                                               class="text-xs text-gray-600 hover:text-gray-800 hover:underline">
+                                                <i class="fas fa-download mr-1"></i>Download
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                @endif
+                                
                                 <!-- Form Extra Data Section -->
                                 @php
                                     $itemExtra = isset($itemExtras) ? $itemExtras->get($item->id) : null;

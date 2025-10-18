@@ -1,5 +1,20 @@
 {{-- Form Statis HTML Template for Per-Item --}}
 <script type="text/html" id="form-statis-template">
+    <!-- FS Document Upload Section - Simplified and moved to top -->
+    <div class="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
+        <div class="flex items-center justify-between">
+            <div class="text-xs font-medium text-gray-700">
+                <i class="fas fa-file-alt mr-1 text-blue-600"></i>
+                Dokumen Feasibility Study (FS)
+            </div>
+            <input type="file" 
+                name="items[__ROW_INDEX__][fs_document]" 
+                class="fs-document-input text-xs file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                accept=".pdf,.doc,.docx"
+                data-row-index="__ROW_INDEX__">
+        </div>
+    </div>
+    
     <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div class="space-y-1">
             <div class="text-xs font-medium text-gray-700">A. Identifikasi Kebutuhan Barang</div>

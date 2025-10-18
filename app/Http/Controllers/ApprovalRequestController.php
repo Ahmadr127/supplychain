@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use App\Services\ItemResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\Setting;
 
 class ApprovalRequestController extends Controller
 {
@@ -143,7 +144,10 @@ class ApprovalRequestController extends Controller
         // Load submission types for the edit view (used in the form)
         $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
-        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments'));
+        // Get FS document settings
+        $fsSettings = Setting::getGroup('approval_request');
+        
+        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments', 'fsSettings'));
     }
 
     public function store(Request $request)
@@ -169,7 +173,8 @@ class ApprovalRequestController extends Controller
             'items.*.allocation_department_id' => 'nullable|exists:departments,id',
             'items.*.letter_number' => 'nullable|string|max:255',
             'items.*.notes' => 'nullable|string|max:500',
-            'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480'
+            'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480',
+            'items.*.fs_document' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // Per-item FS document
         ]);
 
         // Additional conditional validation: new items must include a category
@@ -280,6 +285,12 @@ class ApprovalRequestController extends Controller
                     $supplierId = $this->resolveOrCreateSupplierByName($itemData['supplier_name']);
                 }
 
+                // Handle per-item FS document
+                $fsDocumentPath = null;
+                if (isset($itemData['fs_document']) && $itemData['fs_document'] instanceof \Illuminate\Http\UploadedFile) {
+                    $fsDocumentPath = $itemData['fs_document']->store('fs_documents');
+                }
+
                 $approvalRequest->masterItems()->attach($masterItemId, [
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
@@ -291,6 +302,7 @@ class ApprovalRequestController extends Controller
                     'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
                     'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
                     'letter_number' => $itemData['letter_number'] ?? null,
+                    'fs_document' => $fsDocumentPath,
                 ]);
 
                 // Handle form extra data if provided
@@ -437,9 +449,12 @@ class ApprovalRequestController extends Controller
         // Departments needed by the form (allocation dropdown, etc.)
         $departments = \App\Models\Department::orderBy('name')->get();
         
+        // Get FS document settings
+        $fsSettings = Setting::getGroup('approval_request');
+        
         $approvalRequest->load(['masterItems', 'itemType', 'submissionType']);
         
-        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments'));
+        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'fsSettings'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -484,7 +499,8 @@ class ApprovalRequestController extends Controller
             'items.*.allocation_department_id' => 'nullable|exists:departments,id',
             'items.*.letter_number' => 'nullable|string|max:255',
             'items.*.notes' => 'nullable|string|max:500',
-            'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480'
+            'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480',
+            'items.*.fs_document' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // Per-item FS document
         ]);
 
         // Additional conditional validation: new items must include a category
@@ -547,6 +563,12 @@ class ApprovalRequestController extends Controller
                     $supplierId = $this->resolveOrCreateSupplierByName($itemData['supplier_name']);
                 }
 
+                // Handle per-item FS document
+                $fsDocumentPath = null;
+                if (isset($itemData['fs_document']) && $itemData['fs_document'] instanceof \Illuminate\Http\UploadedFile) {
+                    $fsDocumentPath = $itemData['fs_document']->store('fs_documents');
+                }
+
                 $approvalRequest->masterItems()->attach($masterItemId, [
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
@@ -558,6 +580,7 @@ class ApprovalRequestController extends Controller
                     'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
                     'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
                     'letter_number' => $itemData['letter_number'] ?? null,
+                    'fs_document' => $fsDocumentPath,
                 ]);
 
                 // Handle form extra data if provided (for update)

@@ -183,6 +183,15 @@
                     </a>
                 </li>
                 @endif
+                
+                @if(auth()->user()->hasPermission('manage_settings'))
+                <li>
+                    <a href="{{ route('settings.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('settings.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Pengaturan">
+                        <i class="fas fa-cog w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
+                        <span x-show="!sidebarCollapsed">Pengaturan</span>
+                    </a>
+                </li>
+                @endif
 
                 @if(auth()->user()->hasPermission('view_reports'))
                 <li>

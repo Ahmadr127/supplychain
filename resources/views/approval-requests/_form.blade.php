@@ -194,6 +194,13 @@
     let currentItemTypeId = {!! $isEdit ? $approvalRequest->item_type_id ?? 'null' : 'null' !!};
     const allCategories = {!! json_encode(($itemCategories ?? collect())->map(function($c){return ['id'=>$c->id,'name'=>$c->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
     const allDepartments = {!! json_encode(($departments ?? collect())->map(function($d){return ['id'=>$d->id,'name'=>$d->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
+    
+    // Dynamic FS settings from database
+    const fsSettings = {
+        enabled: {!! json_encode($fsSettings['fs_document_enabled'] ?? true) !!},
+        thresholdPerItem: {!! json_encode($fsSettings['fs_threshold_per_item'] ?? 100000000) !!},
+        thresholdTotal: {!! json_encode($fsSettings['fs_threshold_total'] ?? 500000000) !!}
+    };
 
     document.addEventListener('DOMContentLoaded', function() {
         initializeItemTypeSelection();
@@ -415,16 +422,14 @@
     }
 
     function maybeToggleStaticSection() {
-        const section = document.getElementById('staticFormSection');
-        if (!section) return;
-        const total = computeTotal();
-        if (total >= 100000000) {
-            section.classList.remove('hidden');
-            staticSectionShown = true;
-        } else {
-            // Tetap dibiarkan statis jika sudah muncul sebelumnya (sesuai permintaan)
-            // Jangan menyembunyikan kembali bila sudah muncul.
-        }
+        // This function is kept for backward compatibility but not used anymore
+        // We now use toggleRowStaticSectionForRow for per-item threshold
+    }
+    
+    // Fungsi ini tidak lagi diperlukan karena kita hanya menggunakan FS per-item
+    function checkFSDocumentThreshold() {
+        // Fungsi dikosongkan, hanya untuk backward compatibility
+        // FS document sekarang hanya per-item, tidak ada global FS document
     }
 
     function installTotalWatcher() {
@@ -435,12 +440,16 @@
 
     // Toggle tampilkan Form Statis utk baris tertentu berdasarkan subtotal
     function toggleRowStaticSectionForRow(rowIndex) {
+        if (!fsSettings.enabled) return;
+        
         const row = rows.find(r => r.index === rowIndex);
         if (!row) return;
         const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
         const trFs = document.getElementById(`row-${rowIndex}-static`);
         if (!trFs) return;
-        if (subtotal >= 100000000) {
+        
+        // Use dynamic threshold from settings
+        if (subtotal >= fsSettings.thresholdPerItem) {
             trFs.classList.remove('hidden');
             // Auto-fill when form becomes visible
             autoFillFormExtra(rowIndex);
@@ -668,8 +677,8 @@
         }
         rows.push(row);
         renderRow(row);
-        // Re-evaluasi total setelah menambah baris
-        maybeToggleStaticSection();
+        // Re-evaluasi thresholds setelah menambah baris
+        toggleRowStaticSectionForRow(row.index);
     }
 
     function removeRow(index) {
@@ -1281,6 +1290,8 @@
             formExtraData.e_catatan = gv('.fs-e_catatan');
             formExtraData.e_pelatihan = gvr(`fs-e_pelatihan-${row.index}`);
             formExtraData.e_aspek = gvr(`fs-e_aspek-${row.index}`);
+            
+            // Note: FS document file upload is handled separately via FormData
             
             row.formExtraData = formExtraData;
         });

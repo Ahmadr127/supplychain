@@ -29,6 +29,7 @@ class ApprovalRequest extends Model
         'item_type_id',
         'is_specific_type',
         'received_at',
+        'fs_document',
     ];
 
     protected $casts = [
