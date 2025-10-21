@@ -57,6 +57,33 @@
                                     </span>
                                 </p>
                             </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700">Status Purchasing</label>
+                                @php
+                                    $ps = $approvalRequest->purchasing_status ?? 'unprocessed';
+                                    $psText = match($ps){
+                                        'unprocessed' => 'Belum diproses',
+                                        'benchmarking' => 'Pemilihan vendor',
+                                        'selected' => 'Uji coba/Proses PR sistem',
+                                        'po_issued' => 'Proses di vendor',
+                                        'grn_received' => 'Barang sudah diterima',
+                                        'done' => 'Selesai',
+                                        default => strtoupper($ps),
+                                    };
+                                    $psColor = match($ps){
+                                        'unprocessed' => 'bg-gray-100 text-gray-700',
+                                        'benchmarking' => 'bg-yellow-100 text-yellow-800',
+                                        'selected' => 'bg-blue-100 text-blue-800',
+                                        'po_issued' => 'bg-indigo-100 text-indigo-800',
+                                        'grn_received' => 'bg-teal-100 text-teal-800',
+                                        'done' => 'bg-green-100 text-green-800',
+                                        default => 'bg-gray-100 text-gray-700',
+                                    };
+                                @endphp
+                                <p class="mt-1">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $psColor }}">{{ $psText }}</span>
+                                </p>
+                            </div>
                             
                             <div>
                                 <label class="block text-xs font-medium text-gray-700">Progress</label>
@@ -69,11 +96,6 @@
                                 <label class="block text-xs font-medium text-gray-700">Workflow</label>
                                 <p class="mt-1 text-xs text-gray-900 truncate">{{ $approvalRequest->workflow->name }}</p>
                             </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700">Dibuat</label>
-                                <p class="mt-1 text-xs text-gray-900">{{ $approvalRequest->created_at->format('d/m/Y H:i') }}</p>
-                            </div>
                         </div>
                         
                         <!-- Requester and Department removed to avoid duplication with sidebar -->
@@ -84,6 +106,35 @@
                             <p class="mt-1 text-xs text-gray-900">{{ $approvalRequest->description }}</p>
                         </div>
                         @endif
+
+                        @php
+                            $doneWithNotes = ($approvalRequest->purchasingItems ?? collect())
+                                ->where('status', 'done')
+                                ->filter(fn($pi) => !empty($pi->done_notes));
+                            $notesInline = $doneWithNotes->map(function($pi){
+                                $name = $pi->masterItem->name ?? 'Item';
+                                // Replace new lines to keep single line
+                                $note = trim(preg_replace('/\s+/',' ', (string)$pi->done_notes));
+                                return $name . ': ' . $note;
+                            })->implode(' • ');
+                        @endphp
+                        <div class="mt-3 pt-2 border-t border-gray-200">
+                            <div class="max-w-5xl mx-auto text-center">
+                                <div class="text-xs text-gray-900 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3">
+                                    <div>
+                                        <span class="font-semibold text-gray-700">Dibuat:</span>
+                                        <span>{{ $approvalRequest->created_at->format('d/m/Y H:i') }}</span>
+                                    </div>
+                                    @if($doneWithNotes->count())
+                                    <span class="hidden md:inline text-gray-300">|</span>
+                                    <div class="text-center md:text-left">
+                                        <span class="font-semibold text-gray-700">Catatan Purchasing (DONE):</span>
+                                        <span>{{ $notesInline }}</span>
+                                    </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Items Section -->

@@ -73,7 +73,7 @@ class ApprovalRequest extends Model
     public function masterItems()
     {
         return $this->belongsToMany(MasterItem::class, 'approval_request_master_items')
-                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes', 'specification', 'brand', 'supplier_id', 'alternative_vendor', 'allocation_department_id', 'letter_number'])
+                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes', 'specification', 'brand', 'supplier_id', 'alternative_vendor', 'allocation_department_id', 'letter_number', 'fs_document'])
                     ->withTimestamps();
     }
 
@@ -256,10 +256,30 @@ class ApprovalRequest extends Model
     // Aggregate purchasing status from purchasing_items to approval_requests.purchasing_status
     public function refreshPurchasingStatus(): void
     {
-        // done only if all purchasing items are done and at least one exists
-        $total = $this->purchasingItems()->count();
-        $done = $this->purchasingItems()->where('status', 'done')->count();
-        $status = ($total > 0 && $done === $total) ? 'done' : 'unprocessed';
+        // Define status order from least to most progressed
+        $order = [
+            'unprocessed' => 0,
+            'benchmarking' => 1,
+            'selected' => 2,
+            'po_issued' => 3,
+            'grn_received' => 4,
+            'done' => 5,
+        ];
+
+        $items = $this->purchasingItems()->select(['status'])->get();
+
+        if ($items->isEmpty()) {
+            $status = 'unprocessed';
+        } else {
+            // Pick the most advanced status among child items
+            $max = -1; $agg = 'unprocessed';
+            foreach ($items as $pi) {
+                $rank = $order[$pi->status] ?? 0;
+                if ($rank > $max) { $max = $rank; $agg = $pi->status; }
+            }
+            $status = $agg;
+        }
+
         if ($this->purchasing_status !== $status) {
             $this->update(['purchasing_status' => $status]);
         }

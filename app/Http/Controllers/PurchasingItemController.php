@@ -157,9 +157,12 @@ class PurchasingItemController extends Controller
     }
 
     // POST /purchasing/items/{purchasingItem}/done
-    public function markDone(PurchasingItem $purchasingItem)
+    public function markDone(Request $request, PurchasingItem $purchasingItem)
     {
-        $updated = $this->service->markDone($purchasingItem);
+        $data = $request->validate([
+            'done_notes' => 'nullable|string|max:1000',
+        ]);
+        $updated = $this->service->markDone($purchasingItem, $data['done_notes'] ?? null);
 
         return back()->with('success', 'Purchasing item marked as DONE.');
     }
@@ -199,13 +202,23 @@ class PurchasingItemController extends Controller
         $items = $q->limit($limit)->get();
 
         $data = $items->map(function($pi){
+            $ps = $pi->status ?? 'unprocessed';
+            $psText = match($ps){
+                'unprocessed' => 'Belum diproses',
+                'benchmarking' => 'Pemilihan vendor',
+                'selected' => 'Uji coba/Proses PR sistem',
+                'po_issued' => 'Proses di vendor',
+                'grn_received' => 'Barang sudah diterima',
+                'done' => 'Selesai',
+                default => strtoupper($ps),
+            };
             return [
                 'id' => $pi->id,
                 'request_number' => $pi->approvalRequest?->request_number,
                 'item_name' => $pi->masterItem?->name,
                 'status' => $pi->status,
                 'qty' => (int)$pi->quantity,
-                'label' => trim(($pi->approvalRequest?->request_number ?: '-') . ' • ' . ($pi->masterItem?->name ?: '-') . ' • QTY ' . (int)$pi->quantity . ' • ' . strtoupper($pi->status)),
+                'label' => trim(($pi->approvalRequest?->request_number ?: '-') . ' • ' . ($pi->masterItem?->name ?: '-') . ' • QTY ' . (int)$pi->quantity . ' • ' . $psText),
             ];
         })->values();
 
@@ -235,5 +248,54 @@ class PurchasingItemController extends Controller
         );
 
         return response()->json(['id' => $pi->id]);
+    }
+
+    // GET /api/purchasing/status/{approvalRequest}
+    public function statusDetailsByRequest(ApprovalRequest $approvalRequest)
+    {
+        $order = [
+            'unprocessed' => 0,
+            'benchmarking' => 1,
+            'selected' => 2,
+            'po_issued' => 3,
+            'grn_received' => 4,
+            'done' => 5,
+        ];
+
+        $items = PurchasingItem::with(['statusChanger:id,name'])
+            ->where('approval_request_id', $approvalRequest->id)
+            ->get();
+
+        if ($items->isEmpty()) {
+            return response()->json([
+                'status_code' => 'unprocessed',
+                'status_label' => 'Belum diproses',
+                'changed_at' => null,
+                'changed_by_name' => null,
+            ]);
+        }
+
+        $selected = $items->sortByDesc(function($pi) use ($order){
+            return $order[$pi->status] ?? 0;
+        })->first();
+
+        $code = $selected->status ?? 'unprocessed';
+        $label = match($code){
+            'unprocessed' => 'Belum diproses',
+            'benchmarking' => 'Pemilihan vendor',
+            'selected' => 'Uji coba/Proses PR sistem',
+            'po_issued' => 'Proses di vendor',
+            'grn_received' => 'Barang sudah diterima',
+            'done' => 'Selesai',
+            default => strtoupper($code),
+        };
+
+        return response()->json([
+            'status_code' => $code,
+            'status_label' => $label,
+            'changed_at' => optional($selected->status_changed_at)?->toDateTimeString() ?? optional($selected->updated_at)?->toDateTimeString(),
+            'changed_by_name' => optional($selected->statusChanger)->name,
+            'done_notes' => $selected->done_notes,
+        ]);
     }
 }

@@ -170,7 +170,7 @@
 
     <!-- Action Buttons -->
     @if(auth()->user()->hasPermission('manage_purchasing'))
-    <div class="flex justify-between">
+    <div class="flex items-center justify-between gap-4 flex-wrap">
         <!-- Delete button -->
         <form method="POST" action="{{ route('purchasing.items.delete', $item) }}" onsubmit="return confirm('Hapus purchasing item ini? Data benchmarking dan semua data terkait akan dihapus.');">
             @csrf
@@ -183,15 +183,19 @@
             </button>
         </form>
         
-        <!-- Mark DONE button -->
-        <form method="POST" action="{{ route('purchasing.items.done', $item) }}" onsubmit="return confirm('Tandai item ini sebagai DONE?');">
+        <!-- Mark DONE with notes (refined layout) -->
+        <form method="POST" action="{{ route('purchasing.items.done', $item) }}" onsubmit="return confirm('Tandai item ini sebagai DONE?');" class="w-full md:w-auto">
             @csrf
-            <button type="submit" class="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors">
-                <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                Mark as DONE
-            </button>
+            <label class="sr-only">Catatan (opsional)</label>
+            <div class="flex flex-col md:flex-row gap-2 md:items-center">
+                <textarea name="done_notes" class="flex-1 h-10 px-3 border border-gray-300 rounded text-sm resize-y md:resize-none" placeholder="Tulis catatan untuk penutupan (DONE)...">{{ old('done_notes', $item->done_notes) }}</textarea>
+                <button type="submit" class="h-10 px-4 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors flex items-center justify-center">
+                    <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Mark as DONE
+                </button>
+            </div>
         </form>
     </div>
     @endif

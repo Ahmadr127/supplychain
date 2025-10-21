@@ -16,6 +16,8 @@
                     'submissionTypes' => $submissionTypes,
                     'itemTypes' => $itemTypes,
                     'itemCategories' => $itemCategories,
+                    'itemExtras' => $itemExtras ?? collect(),
+                    'itemFiles' => $itemFiles ?? collect(),
                 ])
             </form>
         </div>

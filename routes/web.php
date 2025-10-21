@@ -20,6 +20,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierLookupController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\PurchasingItemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -203,6 +204,9 @@ Route::middleware('auth')->group(function () {
         ->name('api.purchasing.items.show');
     Route::post('api/purchasing/items/resolve', [\App\Http\Controllers\ReportController::class, 'resolvePurchasingItemByRequestAndItem'])
         ->name('api.purchasing.items.resolve');
+    // Purchasing Status details (JSON)
+    Route::get('api/purchasing/status/{approvalRequest}', [PurchasingItemController::class, 'statusDetailsByRequest'])
+        ->name('api.purchasing.status');
     
     // API routes for step details and status updates
     Route::get('api/approval-steps/{requestId}/{stepNumber}', [ApprovalRequestController::class, 'getStepDetails'])->name('api.approval-steps.details');

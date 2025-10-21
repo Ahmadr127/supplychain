@@ -40,7 +40,28 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
         <div class="bg-white border border-gray-200 rounded-lg p-3">
             <div class="text-xs text-gray-600">Status</div>
-            <div class="text-base font-semibold {{ $item->status==='done' ? 'text-green-700' : 'text-gray-900' }}">{{ strtoupper($item->status) }}</div>
+            @php
+                $ps = $item->status ?? 'unprocessed';
+                $psText = match($ps){
+                    'unprocessed' => 'Belum diproses',
+                    'benchmarking' => 'Pemilihan vendor',
+                    'selected' => 'Uji coba/Proses PR sistem',
+                    'po_issued' => 'Proses di vendor',
+                    'grn_received' => 'Barang sudah diterima',
+                    'done' => 'Selesai',
+                    default => strtoupper($ps),
+                };
+                $psColor = match($ps){
+                    'unprocessed' => 'bg-gray-100 text-gray-700',
+                    'benchmarking' => 'bg-yellow-100 text-yellow-800',
+                    'selected' => 'bg-blue-100 text-blue-800',
+                    'po_issued' => 'bg-indigo-100 text-indigo-800',
+                    'grn_received' => 'bg-teal-100 text-teal-800',
+                    'done' => 'bg-green-100 text-green-800',
+                    default => 'bg-gray-100 text-gray-700',
+                };
+            @endphp
+            <div class="mt-1"><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $psColor }}">{{ $psText }}</span></div>
         </div>
         <div class="bg-white border border-gray-200 rounded-lg p-3">
             <div class="text-xs text-gray-600">Preferred Vendor</div>
@@ -157,9 +178,15 @@
     <!-- Mark DONE -->
     @if(auth()->user()->hasPermission('manage_purchasing'))
     <div class="flex justify-end">
-        <form method="POST" action="{{ route('purchasing.items.done', $item) }}" onsubmit="return confirm('Tandai item ini sebagai DONE?');">
+        <form method="POST" action="{{ route('purchasing.items.done', $item) }}" onsubmit="return confirm('Tandai item ini sebagai DONE?');" class="w-full md:w-auto grid grid-cols-1 md:grid-cols-3 gap-2 md:items-end">
             @csrf
-            <button class="px-4 py-2 bg-green-600 text-white rounded text-sm">Mark as DONE</button>
+            <div class="md:col-span-2">
+                <label class="block text-xs text-gray-600 mb-0.5">Catatan (opsional)</label>
+                <textarea name="done_notes" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Tulis catatan untuk penutupan (DONE)...">{{ old('done_notes', $item->done_notes) }}</textarea>
+            </div>
+            <div>
+                <button class="px-4 py-2 bg-green-600 text-white rounded text-sm w-full">Mark as DONE</button>
+            </div>
         </form>
     </div>
     @endif

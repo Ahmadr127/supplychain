@@ -47,7 +47,30 @@
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->approvalRequest->request_number ?? '-' }}</td>
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->masterItem->name ?? '-' }}</td>
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->quantity }}</td>
-                            <td class="px-3 py-2 text-sm font-medium {{ $pi->status==='done' ? 'text-green-700' : 'text-gray-700' }}">{{ strtoupper($pi->status) }}</td>
+                            <td class="px-3 py-2 text-sm">
+                                @php
+                                    $ps = $pi->status ?? 'unprocessed';
+                                    $psText = match($ps){
+                                        'unprocessed' => 'Belum diproses',
+                                        'benchmarking' => 'Pemilihan vendor',
+                                        'selected' => 'Uji coba/Proses PR sistem',
+                                        'po_issued' => 'Proses di vendor',
+                                        'grn_received' => 'Barang sudah diterima',
+                                        'done' => 'Selesai',
+                                        default => strtoupper($ps),
+                                    };
+                                    $psColor = match($ps){
+                                        'unprocessed' => 'bg-gray-100 text-gray-700',
+                                        'benchmarking' => 'bg-yellow-100 text-yellow-800',
+                                        'selected' => 'bg-blue-100 text-blue-800',
+                                        'po_issued' => 'bg-indigo-100 text-indigo-800',
+                                        'grn_received' => 'bg-teal-100 text-teal-800',
+                                        'done' => 'bg-green-100 text-green-800',
+                                        default => 'bg-gray-100 text-gray-700',
+                                    };
+                                @endphp
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $psColor }}">{{ $psText }}</span>
+                            </td>
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->preferredVendor->name ?? '-' }}</td>
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->po_number ?? '-' }}</td>
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->grn_date ? $pi->grn_date->format('Y-m-d') : '-' }}</td>

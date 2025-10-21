@@ -1,19 +1,19 @@
 <?php
 
-namespace Database\Seeders;
-
-use Illuminate\Database\Seeder;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Permission;
 use App\Models\Role;
 
-class SettingsPermissionSeeder extends Seeder
+return new class extends Migration
 {
     /**
-     * Run the database seeds.
+     * Run the migrations.
      */
-    public function run(): void
+    public function up(): void
     {
-        // Create permission for managing settings
+        // Create permission for managing settings if not exists
         $permission = Permission::firstOrCreate(
             ['name' => 'manage_settings'],
             [
@@ -21,7 +21,7 @@ class SettingsPermissionSeeder extends Seeder
                 'description' => 'Mengelola pengaturan sistem termasuk threshold FS'
             ]
         );
-
+        
         // Assign permission to admin role
         $adminRole = Role::where('name', 'admin')->first();
         if ($adminRole && !$adminRole->permissions->contains($permission->id)) {
@@ -36,4 +36,19 @@ class SettingsPermissionSeeder extends Seeder
             }
         }
     }
-}
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        // Remove the permission
+        $permission = Permission::where('name', 'manage_settings')->first();
+        if ($permission) {
+            // Detach from all roles first
+            $permission->roles()->detach();
+            // Then delete the permission
+            $permission->delete();
+        }
+    }
+};

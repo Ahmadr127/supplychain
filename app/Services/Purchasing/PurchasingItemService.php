@@ -39,7 +39,12 @@ class PurchasingItemService
 
             // Update status to benchmarking if there is data; otherwise keep unprocessed
             $hasVendors = $item->vendors()->exists();
-            $item->update(['status' => $hasVendors ? 'benchmarking' : 'unprocessed']);
+            $newStatus = $hasVendors ? 'benchmarking' : 'unprocessed';
+            $item->update([
+                'status' => $newStatus,
+                'status_changed_at' => now(),
+                'status_changed_by' => auth()->id(),
+            ]);
         });
 
         // refresh aggregated purchasing status
@@ -74,6 +79,8 @@ class PurchasingItemService
                 'preferred_unit_price' => $unitPrice,
                 'preferred_total_price' => $totalPrice,
                 'status' => 'selected',
+                'status_changed_at' => now(),
+                'status_changed_by' => auth()->id(),
             ]);
         });
 
@@ -98,6 +105,8 @@ class PurchasingItemService
         $item->update([
             'po_number' => $poNumber,
             'status' => $newStatus,
+            'status_changed_at' => now(),
+            'status_changed_by' => auth()->id(),
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
         return $item;
@@ -114,6 +123,8 @@ class PurchasingItemService
             'grn_date' => $grnDate->toDateString(),
             'proc_cycle_days' => $cycle,
             'status' => 'grn_received',
+            'status_changed_at' => now(),
+            'status_changed_by' => auth()->id(),
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
         return $item;
@@ -122,9 +133,14 @@ class PurchasingItemService
     /**
      * Mark item done (requires preferred vendor and GRN ideally).
      */
-    public function markDone(PurchasingItem $item): PurchasingItem
+    public function markDone(PurchasingItem $item, ?string $notes = null): PurchasingItem
     {
-        $item->update(['status' => 'done']);
+        $item->update([
+            'status' => 'done',
+            'status_changed_at' => now(),
+            'status_changed_by' => auth()->id(),
+            'done_notes' => $notes,
+        ]);
         $item->approvalRequest->refreshPurchasingStatus();
         return $item;
     }

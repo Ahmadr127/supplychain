@@ -122,6 +122,21 @@
         position: relative;
     }
     
+    /* Smooth rotation for chevron icon */
+    .rotate-180 {
+        transform: rotate(180deg);
+    }
+    
+    /* Transition for form extra toggle */
+    .form-extra-icon {
+        transition: transform 0.2s ease;
+    }
+    
+    /* Form extra content animation */
+    .form-extra-content {
+        transition: all 0.3s ease;
+    }
+    
     /* Table cells should not clip */
     #itemsTableBody td {
         position: static;
@@ -199,8 +214,19 @@
     const fsSettings = {
         enabled: {!! json_encode($fsSettings['fs_document_enabled'] ?? true) !!},
         thresholdPerItem: {!! json_encode($fsSettings['fs_threshold_per_item'] ?? 100000000) !!},
-        thresholdTotal: {!! json_encode($fsSettings['fs_threshold_total'] ?? 500000000) !!}
+        thresholdTotal: {!! json_encode($fsSettings['fs_threshold_total'] ?? 500000000) !!},
+        // Per-item threshold settings
+        perItemShowForm: {!! json_encode($fsSettings['fs_per_item_show_form'] ?? true) !!},
+        perItemEnableInput: {!! json_encode($fsSettings['fs_per_item_enable_input'] ?? true) !!},
+        perItemEnableUpload: {!! json_encode($fsSettings['fs_per_item_enable_upload'] ?? true) !!},
+        // Total threshold settings
+        totalShowForm: {!! json_encode($fsSettings['fs_total_show_form'] ?? true) !!},
+        totalEnableInput: {!! json_encode($fsSettings['fs_total_enable_input'] ?? false) !!},
+        totalEnableUpload: {!! json_encode($fsSettings['fs_total_enable_upload'] ?? false) !!}
     };
+    
+    // Track if total threshold is met
+    let totalThresholdMet = false;
 
     document.addEventListener('DOMContentLoaded', function() {
         initializeItemTypeSelection();
@@ -208,7 +234,9 @@
 
         @if ($isEdit)
             const existing = {!! json_encode(
-                $approvalRequest->masterItems->map(function ($item) {
+                $approvalRequest->masterItems->map(function ($item) use ($itemExtras, $itemFiles) {
+                    $itemExtra = isset($itemExtras) ? $itemExtras->get($item->id) : null;
+                    $filesForItem = isset($itemFiles) ? ($itemFiles->get($item->id) ?? collect()) : collect();
                     return [
                         'master_item_id' => $item->id,
                         'name' => $item->name,
@@ -223,12 +251,23 @@
                         'allocation_department_name' => optional($item->pivot->allocationDepartment)->name,
                         'letter_number' => $item->pivot->letter_number,
                         'notes' => $item->pivot->notes,
+                        'fs_document' => $item->pivot->fs_document,
+                        'existing_files' => $filesForItem->map(function($file) {
+                            return [
+                                'id' => $file->id,
+                                'original_name' => $file->original_name,
+                                'path' => $file->path,
+                            ];
+                        })->values()->toArray(),
+                        'itemExtra' => $itemExtra ? $itemExtra->toArray() : null,
                     ];
                 }),
                 JSON_HEX_APOS | JSON_HEX_QUOT,
             ) !!};
             if (existing.length) {
                 existing.forEach(e => addRow(e));
+                // Check total threshold after loading all items
+                checkTotalThreshold();
             } else {
                 addRow();
             }
@@ -440,22 +479,164 @@
 
     // Toggle tampilkan Form Statis utk baris tertentu berdasarkan subtotal
     function toggleRowStaticSectionForRow(rowIndex) {
-        if (!fsSettings.enabled) return;
-        
         const row = rows.find(r => r.index === rowIndex);
         if (!row) return;
         const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
         const trFs = document.getElementById(`row-${rowIndex}-static`);
         if (!trFs) return;
         
-        // Use dynamic threshold from settings
-        if (subtotal >= fsSettings.thresholdPerItem) {
+        // If FS is disabled globally, always hide the form
+        if (!fsSettings.enabled) {
+            trFs.classList.add('hidden');
+            return;
+        }
+        
+        // Check total threshold first
+        checkTotalThreshold();
+        
+        const meetsPerItemThreshold = subtotal >= fsSettings.thresholdPerItem;
+        const meetsTotalThreshold = totalThresholdMet;
+        
+        // Determine if form should be shown based on settings
+        let shouldShowForm = false;
+        
+        if (meetsPerItemThreshold && fsSettings.perItemShowForm) {
+            shouldShowForm = true;
+        } else if (meetsTotalThreshold && !meetsPerItemThreshold && fsSettings.totalShowForm) {
+            shouldShowForm = true;
+        }
+        
+        if (shouldShowForm) {
             trFs.classList.remove('hidden');
             // Auto-fill when form becomes visible
             autoFillFormExtra(rowIndex);
+            // Configure form state based on which threshold is met
+            configureFormState(rowIndex, meetsPerItemThreshold);
         } else {
             trFs.classList.add('hidden');
         }
+    }
+    
+    // Check if total threshold is met
+    function checkTotalThreshold() {
+        let grandTotal = 0;
+        rows.forEach(row => {
+            const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
+            grandTotal += subtotal;
+        });
+        
+        totalThresholdMet = grandTotal >= fsSettings.thresholdTotal;
+        
+        // Re-evaluate all rows when total threshold status changes
+        if (totalThresholdMet) {
+            rows.forEach(row => {
+                const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
+                // Only show forms that don't meet per-item threshold if total is met
+                if (subtotal < fsSettings.thresholdPerItem && fsSettings.totalShowForm) {
+                    const trFs = document.getElementById(`row-${row.index}-static`);
+                    if (trFs) {
+                        trFs.classList.remove('hidden');
+                        autoFillFormExtra(row.index);
+                        // Configure state for items shown only due to total threshold
+                        configureFormState(row.index, false);
+                    }
+                }
+            });
+        }
+    }
+    
+    // Configure form state based on threshold conditions and settings
+    function configureFormState(rowIndex, meetsPerItemThreshold) {
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs) return;
+        
+        let enableInputs = false;
+        let enableUpload = false;
+        let noticeMessage = '';
+        let noticeType = '';
+        
+        if (!fsSettings.enabled) {
+            // FS completely disabled
+            enableInputs = false;
+            enableUpload = false;
+            noticeMessage = 'Fitur FS dinonaktifkan di pengaturan sistem.';
+            noticeType = 'error';
+        } else if (meetsPerItemThreshold) {
+            // Item meets per-item threshold
+            enableInputs = fsSettings.perItemEnableInput;
+            enableUpload = fsSettings.perItemEnableUpload;
+            if (!enableInputs) {
+                noticeMessage = 'Item memenuhi threshold per-item. Input dinonaktifkan sesuai pengaturan.';
+                noticeType = 'info';
+            }
+        } else if (totalThresholdMet) {
+            // Only total threshold is met
+            enableInputs = fsSettings.totalEnableInput;
+            enableUpload = fsSettings.totalEnableUpload;
+            if (!enableInputs) {
+                noticeMessage = 'Form ditampilkan karena total pengajuan melebihi threshold. Input dinonaktifkan sesuai pengaturan.';
+                noticeType = 'warning';
+            }
+        }
+        
+        // Configure regular inputs
+        const inputs = trFs.querySelectorAll('input:not(.fs-document-input), select, textarea');
+        inputs.forEach(input => {
+            if (enableInputs) {
+                input.disabled = false;
+                input.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
+            } else {
+                input.disabled = true;
+                input.classList.add('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
+            }
+        });
+        
+        // Configure file upload: hide section when not enabled (instead of disabling input)
+        const uploadSection = trFs.querySelector('.fs-upload-section');
+        const fileInput = trFs.querySelector('.fs-document-input');
+        if (uploadSection) {
+            if (enableUpload) {
+                uploadSection.classList.remove('hidden');
+                if (fileInput) {
+                    fileInput.disabled = false; // keep enabled when visible
+                    fileInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
+                }
+            } else {
+                // Hide and clear value for safety so hidden files are not submitted
+                uploadSection.classList.add('hidden');
+                if (fileInput) {
+                    try { fileInput.value = ''; } catch (_) {}
+                }
+            }
+        }
+        
+        // Add visual indicator
+        const formContent = trFs.querySelector('.form-extra-content');
+        if (formContent) {
+            const existingNotice = formContent.querySelector('.threshold-notice');
+            if (existingNotice) {
+                existingNotice.remove();
+            }
+            
+            if (noticeMessage) {
+                const notice = document.createElement('div');
+                const bgColor = noticeType === 'error' ? 'red' : (noticeType === 'warning' ? 'yellow' : 'blue');
+                notice.className = `threshold-notice mb-2 p-2 bg-${bgColor}-50 border border-${bgColor}-200 rounded-md`;
+                const iconClass = noticeType === 'error' ? 'exclamation-circle' : 'info-circle';
+                notice.innerHTML = `
+                    <p class="text-xs text-${bgColor}-800">
+                        <i class="fas fa-${iconClass} mr-1"></i>
+                        ${noticeMessage}
+                    </p>
+                `;
+                formContent.insertBefore(notice, formContent.firstChild);
+            }
+        }
+    }
+    
+    // Backward compatibility - keep old function name
+    function setFormStatisInputsState(rowIndex, meetsPerItemThreshold) {
+        configureFormState(rowIndex, meetsPerItemThreshold);
     }
 
     // Kumpulkan field dari setiap Form Statis per-baris yang aktif dan append item terkunci
@@ -668,7 +849,10 @@
             allocation_department_id: defaults.allocation_department_id || '',
             allocation_department_name: defaults.allocation_department_name || '',
             letter_number: defaults.letter_number || '',
-            locked: defaults.locked || false
+            fs_document: defaults.fs_document || '', // Add existing FS document
+            existing_files: defaults.existing_files || [], // Add existing files
+            locked: defaults.locked || false,
+            itemExtra: defaults.itemExtra || null // Add itemExtra data
         };
         // Get department name if ID exists but name doesn't
         if (row.allocation_department_id && !row.allocation_department_name) {
@@ -679,6 +863,27 @@
         renderRow(row);
         // Re-evaluasi thresholds setelah menambah baris
         toggleRowStaticSectionForRow(row.index);
+        
+        // Load itemExtra data if exists (for edit mode)
+        if (row.itemExtra) {
+            setTimeout(() => loadItemExtraData(row.index, row.itemExtra), 100);
+        }
+        
+        // Show existing FS document status if exists (for edit mode)
+        if (row.fs_document) {
+            setTimeout(() => {
+                const trFs = document.getElementById(`row-${row.index}-static`);
+                if (trFs) {
+                    const uploadSection = trFs.querySelector('.fs-upload-section');
+                    if (uploadSection) {
+                        const existingNote = document.createElement('div');
+                        existingNote.className = 'text-xs text-green-700 mt-1';
+                        existingNote.innerHTML = '<i class="fas fa-check-circle mr-1"></i>Dokumen FS sudah tersimpan';
+                        uploadSection.appendChild(existingNote);
+                    }
+                }
+            }, 150);
+        }
     }
 
     function removeRow(index) {
@@ -689,6 +894,8 @@
         document.getElementById(`row-${index}-static`)?.remove();
         // Update numbering for remaining items
         updateItemNumbers();
+        // Re-check total threshold after removing item
+        checkTotalThreshold();
     }
     
     function updateItemNumbers() {
@@ -789,12 +996,21 @@
             </div>
             <div>
                 <label class="block text-xs text-gray-600">Dokumen</label>
-                <div class="flex items-center">
-                    <input type="file" name="items[${row.index}][files][]" class="item-files hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
-                    <button type="button" class="item-files-btn h-6 px-2 inline-flex items-center justify-center text-gray-700 hover:text-blue-700 hover:bg-blue-50 border border-gray-300 rounded text-xs" title="Unggah dokumen">
-                        <i class="fas fa-paperclip mr-0.5 text-xs"></i> <span class="text-xs">Upload</span>
-                    </button>
-                    <span class="item-files-count text-xs text-gray-600 ml-1"></span>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center">
+                        <input type="file" name="items[${row.index}][files][]" class="item-files hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
+                        <button type="button" class="item-files-btn h-6 px-2 inline-flex items-center justify-center text-gray-700 hover:text-blue-700 hover:bg-blue-50 border border-gray-300 rounded text-xs" title="Unggah dokumen">
+                            <i class="fas fa-paperclip mr-0.5 text-xs"></i> <span class="text-xs">Upload</span>
+                        </button>
+                        <span class="item-files-count text-xs text-gray-600 ml-1"></span>
+                        ${row.fs_document ? `<input type="hidden" name="items[${row.index}][existing_fs_document]" value="${escapeHtml(row.fs_document)}">` : ''}
+                    </div>
+                    ${row.existing_files && row.existing_files.length > 0 ? `
+                        <div class="existing-files text-xs text-gray-600">
+                            <span class="font-medium">File tersimpan:</span>
+                            ${row.existing_files.map(f => `<span class="ml-1">${escapeHtml(f.original_name)}</span>`).join(', ')}
+                        </div>
+                    ` : ''}
                 </div>
             </div>
         </div>`;
@@ -807,6 +1023,14 @@
         // Use the template function from _form-extra.blade.php
         trFs.innerHTML = getFormStatisHTML(row.index);
         container.appendChild(trFs);
+        
+        // Add event listener for toggle button
+        const toggleBtn = trFs.querySelector('.form-extra-toggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                toggleFormExtra(this);
+            });
+        }
 
         bindRowEvents(itemDiv, row);
         // Kunci elemen jika baris locked (statis)
@@ -876,6 +1100,8 @@
         qtyInput.addEventListener('change', function() {
             row.quantity = parseInt(this.value) || 1;
             toggleRowStaticSectionForRow(row.index);
+            // Check total threshold for all items
+            checkTotalThreshold();
             // update total display
             const q = parseInt(row.quantity || 0) || 0;
             const p = parseInt(row.unit_price || 0) || 0;
@@ -887,6 +1113,8 @@
             row.unit_price = normalized; // numeric string, can be long, integer only
             priceInput.value = formatRupiahInputValue(row.unit_price);
             toggleRowStaticSectionForRow(row.index);
+            // Check total threshold for all items
+            checkTotalThreshold();
             // update total display
             const q = parseInt(row.quantity || 0) || 0;
             const p = parseInt(row.unit_price || 0) || 0;
@@ -1334,6 +1562,80 @@
         if (penggunaInput && !penggunaInput.value && row.allocation_department_name) {
             penggunaInput.value = row.allocation_department_name;
         }
+    }
+    
+    // Load item extra data into form statis (for edit mode)
+    function loadItemExtraData(rowIndex, itemExtraData) {
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs || !itemExtraData) return;
+        
+        // Helper to set value
+        const sv = (selector, value) => {
+            const el = trFs.querySelector(selector);
+            if (el && value !== null && value !== undefined) {
+                el.value = value;
+            }
+        };
+        
+        // Helper to set radio
+        const sr = (name, value) => {
+            const el = trFs.querySelector(`input[name="${name}"][value="${value}"]`);
+            if (el) el.checked = true;
+        };
+        
+        // Helper to set checkbox
+        const sc = (selector, value) => {
+            const el = trFs.querySelector(selector);
+            if (el) el.checked = value === true || value === 1 || value === '1';
+        };
+        
+        // Load Section A data
+        sv('.fs-a_nama', itemExtraData.a_nama);
+        sv('.fs-a_fungsi', itemExtraData.a_fungsi);
+        sv('.fs-a_ukuran', itemExtraData.a_ukuran);
+        sv('.fs-a_jumlah', itemExtraData.a_jumlah);
+        sv('.fs-a_satuan', itemExtraData.a_satuan);
+        sv('.fs-a_waktu', itemExtraData.a_waktu);
+        sv('.fs-a_waktu_satuan', itemExtraData.a_waktu_satuan);
+        sv('.fs-a_pengguna', itemExtraData.a_pengguna);
+        sv('.fs-a_leadtime', itemExtraData.a_leadtime);
+        sr(`fs-a_ekatalog-${rowIndex}`, itemExtraData.a_ekatalog);
+        sv('.fs-a_ekatalog_ket', itemExtraData.a_ekatalog_ket);
+        sv('.fs-a_harga', itemExtraData.a_harga);
+        sr(`fs-a_kategori_perm-${rowIndex}`, itemExtraData.a_kategori_perm);
+        sr(`fs-a_lampiran-${rowIndex}`, itemExtraData.a_lampiran);
+        
+        // Load Section B data
+        sv('.fs-b_jml_pegawai', itemExtraData.b_jml_pegawai);
+        sv('.fs-b_jml_dokter', itemExtraData.b_jml_dokter);
+        sr(`fs-b_beban-${rowIndex}`, itemExtraData.b_beban);
+        sr(`fs-b_barang_ada-${rowIndex}`, itemExtraData.b_barang_ada);
+        
+        // Load Section C data
+        sv('.fs-c_jumlah', itemExtraData.c_jumlah);
+        sv('.fs-c_satuan', itemExtraData.c_satuan);
+        sr(`fs-c_kondisi-${rowIndex}`, itemExtraData.c_kondisi);
+        sv('.fs-c_kondisi_lain', itemExtraData.c_kondisi_lain);
+        sv('.fs-c_lokasi', itemExtraData.c_lokasi);
+        sr(`fs-c_sumber-${rowIndex}`, itemExtraData.c_sumber);
+        sr(`fs-c_kemudahan-${rowIndex}`, itemExtraData.c_kemudahan);
+        sr(`fs-c_produsen-${rowIndex}`, itemExtraData.c_produsen);
+        sc('.fs-c_kriteria_dn', itemExtraData.c_kriteria_dn);
+        sc('.fs-c_kriteria_impor', itemExtraData.c_kriteria_impor);
+        sc('.fs-c_kriteria_kerajinan', itemExtraData.c_kriteria_kerajinan);
+        sc('.fs-c_kriteria_jasa', itemExtraData.c_kriteria_jasa);
+        sr(`fs-c_tkdn-${rowIndex}`, itemExtraData.c_tkdn);
+        sv('.fs-c_tkdn_min', itemExtraData.c_tkdn_min);
+        
+        // Load Section D/E data
+        sv('.fs-e_kirim', itemExtraData.e_kirim);
+        sv('.fs-e_angkut', itemExtraData.e_angkut);
+        sv('.fs-e_instalasi', itemExtraData.e_instalasi);
+        sv('.fs-e_penyimpanan', itemExtraData.e_penyimpanan);
+        sr(`fs-e_operasi-${rowIndex}`, itemExtraData.e_operasi);
+        sv('.fs-e_catatan', itemExtraData.e_catatan);
+        sr(`fs-e_pelatihan-${rowIndex}`, itemExtraData.e_pelatihan);
+        sr(`fs-e_aspek-${rowIndex}`, itemExtraData.e_aspek);
     }
     
     // expose functions to window

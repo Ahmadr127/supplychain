@@ -81,6 +81,7 @@
                     <th class="w-48 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Peruntukan</th>
                     <th class="w-32 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Petugas</th>
                     <th class="w-1/3 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                    <th class="w-40 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status Purchasing</th>
                     <th class="w-20 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th class="w-20 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                 </tr>
@@ -168,6 +169,31 @@
                                 @endforeach
                             </div>
                         </div>
+                    </td>
+                    <td class="w-40 px-2 py-1">
+                        @php
+                            $ps = $request->purchasing_status ?? 'unprocessed';
+                            $psText = match($ps){
+                                'unprocessed' => 'Belum diproses',
+                                'benchmarking' => 'Pemilihan vendor',
+                                'selected' => 'Uji coba/Proses PR sistem',
+                                'po_issued' => 'Proses di vendor',
+                                'grn_received' => 'Barang sudah diterima',
+                                'done' => 'Selesai',
+                                default => strtoupper($ps),
+                            };
+                            // Colors per request: benchmarking=red, selected=yellow, po_issued=orange, grn_received=green (white text)
+                            $psColor = match($ps){
+                                'benchmarking' => 'bg-red-600 text-white',
+                                'selected' => 'bg-yellow-400 text-black',
+                                'po_issued' => 'bg-orange-500 text-white',
+                                'grn_received' => 'bg-green-600 text-white',
+                                'unprocessed' => 'bg-gray-200 text-gray-800',
+                                'done' => 'bg-green-700 text-white',
+                                default => 'bg-gray-200 text-gray-800',
+                            };
+                        @endphp
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $request->id }}')">{{ $psText }}</span>
                     </td>
                     <td class="w-20 px-2 py-1">
                         @php
@@ -367,5 +393,56 @@ document.addEventListener('click', function(e) {
         }
     }
 });
-</script>
+</div>
+
 @endsection
+
+@push('scripts')
+<script>
+    async function openPurchasingStatusModal(code, label, requestId) {
+        const body = document.getElementById('ps-modal-body');
+        body.innerHTML = '<div class="p-3 text-sm text-gray-600">Memuat...</div>';
+        document.getElementById('ps-modal').classList.remove('hidden');
+
+        try {
+            const url = `{{ url('api/purchasing/status') }}/${requestId}`;
+            const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const data = await res.json();
+            const changedAt = data.changed_at ? new Date(data.changed_at).toLocaleString('id-ID') : '-';
+            const changedBy = data.changed_by_name || 'Tidak tersedia';
+            const notes = (data.status_code === 'done' && data.done_notes) ? data.done_notes : null;
+
+            body.innerHTML = `
+                <div class="space-y-2 text-sm">
+                    <div><span class="font-semibold">Request ID:</span> ${requestId}</div>
+                    <div><span class="font-semibold">Status Purchasing:</span> ${data.status_label || label}</div>
+                    <div><span class="font-semibold">Waktu aksi:</span> ${changedAt}</div>
+                    <div><span class="font-semibold">Diubah oleh:</span> ${changedBy}</div>
+                    ${notes ? `<div><span class=\"font-semibold\">Catatan DONE:</span> ${notes}</div>` : ''}
+                    <div class="mt-2 text-gray-600">Status ini adalah status gabungan dari item-item pembelian pada request ini.</div>
+                </div>`;
+        } catch (e) {
+            body.innerHTML = '<div class="p-3 text-sm text-red-600">Gagal memuat detail status.</div>';
+        }
+    }
+    function closePurchasingStatusModal(){
+        document.getElementById('ps-modal').classList.add('hidden');
+    }
+</script>
+@endpush
+
+@push('modals')
+<div id="ps-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+    <div class="absolute inset-0 bg-black bg-opacity-40" onclick="closePurchasingStatusModal()"></div>
+    <div class="relative bg-white rounded-lg shadow-lg w-full max-w-md mx-3">
+        <div class="px-4 py-3 border-b flex items-center justify-between">
+            <h3 class="text-sm font-semibold">Detail Status Purchasing</h3>
+            <button class="text-gray-500 hover:text-gray-700" onclick="closePurchasingStatusModal()">&times;</button>
+        </div>
+        <div id="ps-modal-body" class="px-4 py-3"></div>
+        <div class="px-4 py-3 border-t flex justify-end">
+            <button class="px-3 py-1.5 text-sm rounded bg-gray-800 text-white" onclick="closePurchasingStatusModal()">Tutup</button>
+        </div>
+    </div>
+</div>
+@endpush

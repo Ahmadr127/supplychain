@@ -288,7 +288,7 @@ class ApprovalRequestController extends Controller
                 // Handle per-item FS document
                 $fsDocumentPath = null;
                 if (isset($itemData['fs_document']) && $itemData['fs_document'] instanceof \Illuminate\Http\UploadedFile) {
-                    $fsDocumentPath = $itemData['fs_document']->store('fs_documents');
+                    $fsDocumentPath = $itemData['fs_document']->store('fs_documents', 'public');
                 }
 
                 $approvalRequest->masterItems()->attach($masterItemId, [
@@ -321,8 +321,8 @@ class ApprovalRequestController extends Controller
                 // Store per-item files if any
                 if (isset($itemData['files']) && is_array($itemData['files'])) {
                     foreach ($itemData['files'] as $uploaded) {
-                        if (!$uploaded) continue;
-                        $path = $uploaded->store('approval_items');
+                        if (!$uploaded || !($uploaded instanceof \Illuminate\Http\UploadedFile)) continue;
+                        $path = $uploaded->store('approval_items', 'public');
                         \DB::table('approval_request_item_files')->insert([
                             'approval_request_id' => $approvalRequest->id,
                             'master_item_id' => $masterItemId,
@@ -452,9 +452,18 @@ class ApprovalRequestController extends Controller
         // Get FS document settings
         $fsSettings = Setting::getGroup('approval_request');
         
-        $approvalRequest->load(['masterItems', 'itemType', 'submissionType']);
+        $approvalRequest->load(['masterItems', 'itemType', 'submissionType', 'itemExtras']);
         
-        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'fsSettings'));
+        // Group item extras by master_item_id for easy access in view
+        $itemExtras = $approvalRequest->itemExtras->keyBy('master_item_id');
+        
+        // Load item files grouped by master_item_id to show existing files
+        $itemFiles = \DB::table('approval_request_item_files')
+            ->where('approval_request_id', $approvalRequest->id)
+            ->get()
+            ->groupBy('master_item_id');
+        
+        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'fsSettings', 'itemExtras', 'itemFiles'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -563,10 +572,23 @@ class ApprovalRequestController extends Controller
                     $supplierId = $this->resolveOrCreateSupplierByName($itemData['supplier_name']);
                 }
 
+                // Get existing FS document if any
+                $existingFsDocument = null;
+                $existingItem = $approvalRequest->masterItems()->where('master_item_id', $masterItemId)->first();
+                if ($existingItem && $existingItem->pivot->fs_document) {
+                    $existingFsDocument = $existingItem->pivot->fs_document;
+                }
+
                 // Handle per-item FS document
                 $fsDocumentPath = null;
                 if (isset($itemData['fs_document']) && $itemData['fs_document'] instanceof \Illuminate\Http\UploadedFile) {
-                    $fsDocumentPath = $itemData['fs_document']->store('fs_documents');
+                    $fsDocumentPath = $itemData['fs_document']->store('fs_documents', 'public');
+                } elseif (isset($itemData['existing_fs_document'])) {
+                    // Keep existing FS document if no new file uploaded
+                    $fsDocumentPath = $itemData['existing_fs_document'];
+                } elseif ($existingFsDocument) {
+                    // Keep existing FS document from database if no new file and no hidden field
+                    $fsDocumentPath = $existingFsDocument;
                 }
 
                 $approvalRequest->masterItems()->attach($masterItemId, [
@@ -582,6 +604,24 @@ class ApprovalRequestController extends Controller
                     'letter_number' => $itemData['letter_number'] ?? null,
                     'fs_document' => $fsDocumentPath,
                 ]);
+
+                // Store per-item files if any (dokumen pendukung)
+                if (isset($itemData['files']) && is_array($itemData['files'])) {
+                    foreach ($itemData['files'] as $uploaded) {
+                        if (!$uploaded || !($uploaded instanceof \Illuminate\Http\UploadedFile)) continue;
+                        $path = $uploaded->store('approval_items', 'public');
+                        \DB::table('approval_request_item_files')->insert([
+                            'approval_request_id' => $approvalRequest->id,
+                            'master_item_id' => $masterItemId,
+                            'original_name' => $uploaded->getClientOriginalName(),
+                            'path' => $path,
+                            'mime' => $uploaded->getClientMimeType(),
+                            'size' => $uploaded->getSize(),
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
+                }
 
                 // Handle form extra data if provided (for update)
                 if (isset($itemData['form_extra']) && is_array($itemData['form_extra'])) {
@@ -885,10 +925,11 @@ class ApprovalRequestController extends Controller
         if (!$file) {
             abort(404, 'File tidak ditemukan.');
         }
-        if (!\Storage::exists($file->path)) {
+        // Use public disk since files are stored there
+        if (!\Storage::disk('public')->exists($file->path)) {
             abort(404, 'Path file tidak ditemukan.');
         }
-        return \Storage::download($file->path, $file->original_name);
+        return \Storage::disk('public')->download($file->path, $file->original_name);
     }
 
     public function viewAttachment($attachmentId)
@@ -897,15 +938,16 @@ class ApprovalRequestController extends Controller
         if (!$file) {
             abort(404, 'File tidak ditemukan.');
         }
-        if (!\Storage::exists($file->path)) {
+        // Use public disk since files are stored there
+        if (!\Storage::disk('public')->exists($file->path)) {
             abort(404, 'Path file tidak ditemukan.');
         }
         // Only allow inline view for PDFs; others fallback to download
-        $mime = $file->mime ?: \Storage::mimeType($file->path);
+        $mime = $file->mime ?: \Storage::disk('public')->mimeType($file->path);
         if ($mime !== 'application/pdf') {
-            return \Storage::download($file->path, $file->original_name);
+            return \Storage::disk('public')->download($file->path, $file->original_name);
         }
-        $stream = \Storage::readStream($file->path);
+        $stream = \Storage::disk('public')->readStream($file->path);
         return response()->stream(function() use ($stream) {
             fpassthru($stream);
         }, 200, [

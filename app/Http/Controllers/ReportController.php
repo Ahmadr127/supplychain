@@ -90,8 +90,17 @@ class ReportController extends Controller
             // Umur Pengajuan = selisih Tanggal Terima Dokumen dengan Tanggal Pengajuan (real days, float)
             $ageDays = ($createdAt && $receivedAt) ? $createdAt->diffInRealDays($receivedAt) : null;
 
-            // Purchasing status simplified: UNPROCESSED or DONE (from DB flag)
-            $purchasingStatus = strtoupper(($req->purchasing_status ?? 'unprocessed') === 'done' ? 'DONE' : 'UNPROCESSED');
+            // Purchasing status mapping to human-friendly Indonesian
+            $purchasingStatusCode = $req->purchasing_status ?? 'unprocessed';
+            $purchasingStatus = match($purchasingStatusCode) {
+                'unprocessed' => 'Belum diproses',
+                'benchmarking' => 'Pemilihan vendor',
+                'selected' => 'Uji coba/Proses PR sistem',
+                'po_issued' => 'Proses di vendor',
+                'grn_received' => 'Barang sudah diterima',
+                'done' => 'Selesai',
+                default => strtoupper($purchasingStatusCode),
+            };
 
             foreach ($req->masterItems as $m) {
                 $qty = (int) ($m->pivot->quantity ?? 0);
@@ -448,8 +457,11 @@ class ReportController extends Controller
 
     public function markDone(Request $request, PurchasingItem $purchasingItem)
     {
+        $data = $request->validate([
+            'done_notes' => 'nullable|string|max:1000',
+        ]);
         $service = app(PurchasingItemService::class);
-        $service->markDone($purchasingItem);
+        $service->markDone($purchasingItem, $data['done_notes'] ?? null);
         
         return back()->with('success', 'Item berhasil ditandai sebagai DONE.');
     }
@@ -578,7 +590,16 @@ class ReportController extends Controller
             $createdAt = $req->created_at;
             $receivedAt = $req->received_at ? \Carbon\Carbon::parse($req->received_at) : null;
             $ageDays = ($createdAt && $receivedAt) ? $createdAt->diffInRealDays($receivedAt) : null;
-            $purchasingStatus = strtoupper(($req->purchasing_status ?? 'unprocessed') === 'done' ? 'DONE' : 'UNPROCESSED');
+            $purchasingStatusCode = $req->purchasing_status ?? 'unprocessed';
+            $purchasingStatus = match($purchasingStatusCode) {
+                'unprocessed' => 'Belum diproses',
+                'benchmarking' => 'Pemilihan vendor',
+                'selected' => 'Uji coba/Proses PR sistem',
+                'po_issued' => 'Proses di vendor',
+                'grn_received' => 'Barang sudah diterima',
+                'done' => 'Selesai',
+                default => strtoupper($purchasingStatusCode),
+            };
 
             foreach ($req->masterItems as $m) {
                 $qty = (int) ($m->pivot->quantity ?? 0);

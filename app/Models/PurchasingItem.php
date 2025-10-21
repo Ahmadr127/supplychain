@@ -15,6 +15,8 @@ class PurchasingItem extends Model
         'pivot_ref_id',
         'quantity',
         'status',
+        'status_changed_at',
+        'status_changed_by',
         'preferred_vendor_id',
         'preferred_unit_price',
         'preferred_total_price',
@@ -22,10 +24,12 @@ class PurchasingItem extends Model
         'po_number',
         'grn_date',
         'proc_cycle_days',
+        'done_notes',
     ];
 
     protected $casts = [
         'grn_date' => 'date',
+        'status_changed_at' => 'datetime',
     ];
 
     public function approvalRequest()
@@ -46,5 +50,10 @@ class PurchasingItem extends Model
     public function preferredVendor()
     {
         return $this->belongsTo(Supplier::class, 'preferred_vendor_id');
+    }
+
+    public function statusChanger()
+    {
+        return $this->belongsTo(User::class, 'status_changed_by');
     }
 }
