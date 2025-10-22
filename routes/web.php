@@ -162,10 +162,6 @@ Route::middleware('auth')->group(function () {
             ->name('approval-requests.set-received-date');
         
         // Purchasing API endpoints (now handled by ReportController)
-        Route::post('purchasing/items/{purchasingItem}/benchmarking', [\App\Http\Controllers\ReportController::class, 'saveBenchmarking'])
-            ->name('purchasing.items.benchmarking');
-        Route::post('purchasing/items/{purchasingItem}/preferred', [\App\Http\Controllers\ReportController::class, 'selectPreferred'])
-            ->name('purchasing.items.preferred');
         Route::post('purchasing/items/{purchasingItem}/po', [\App\Http\Controllers\ReportController::class, 'issuePO'])
             ->name('purchasing.items.po');
         Route::post('purchasing/items/{purchasingItem}/grn', [\App\Http\Controllers\ReportController::class, 'receiveGRN'])
@@ -177,6 +173,14 @@ Route::middleware('auth')->group(function () {
         Route::delete('purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'deletePurchasingItem'])
             ->name('purchasing.items.delete');
     });
+    
+    // Standalone vendor form page + vendor actions (permission checked in controller to allow OR logic)
+    Route::post('purchasing/items/{purchasingItem}/benchmarking', [ReportController::class, 'saveBenchmarking'])
+        ->name('purchasing.items.benchmarking');
+    Route::post('purchasing/items/{purchasingItem}/preferred', [ReportController::class, 'selectPreferred'])
+        ->name('purchasing.items.preferred');
+    Route::get('purchasing/items/{purchasingItem}/vendor', [ReportController::class, 'vendorForm'])
+        ->name('purchasing.items.vendor');
     
     // Export route for reports
     Route::middleware('permission:view_reports')->group(function () {

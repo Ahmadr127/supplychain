@@ -216,8 +216,17 @@ class ReportController extends Controller
                             'color' => 'emerald',
                             'url' => route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId])
                         ];
+                        // Vendor page button (if user can manage vendor or purchasing)
+                        if (auth()->user()->hasPermission('manage_vendor') || auth()->user()->hasPermission('manage_purchasing')) {
+                            $actions[] = [
+                                'type' => 'link',
+                                'label' => 'Vendor',
+                                'color' => 'blue',
+                                'url' => route('purchasing.items.vendor', $piId)
+                            ];
+                        }
                     } else {
-                        // If no purchasing item, create it first then redirect
+                        // If no purchasing item, create it first then redirect to process page
                         $actions[] = [
                             'type' => 'button',
                             'label' => 'Proses',
@@ -330,6 +339,24 @@ class ReportController extends Controller
         return view('reports.approval-requests.process-purchasing', compact('item'));
     }
 
+    public function vendorForm(PurchasingItem $purchasingItem)
+    {
+        // Authorization: allow if user has manage_vendor OR manage_purchasing
+        if (!(auth()->user()?->hasPermission('manage_vendor') || auth()->user()?->hasPermission('manage_purchasing'))) {
+            abort(403, 'Unauthorized action.');
+        }
+        $purchasingItem->loadMissing([
+            'approvalRequest',
+            'masterItem',
+            'vendors.supplier',
+            'preferredVendor',
+        ]);
+
+        return view('purchasing.items.form-vendor', [
+            'item' => $purchasingItem,
+        ]);
+    }
+
     // Purchasing Item API methods (moved from PurchasingItemController)
     public function showPurchasingItemJson(PurchasingItem $purchasingItem)
     {
@@ -398,26 +425,47 @@ class ReportController extends Controller
 
     public function saveBenchmarking(Request $request, PurchasingItem $purchasingItem)
     {
-        $data = $request->validate([
+        if (!(auth()->user()?->hasPermission('manage_vendor') || auth()->user()?->hasPermission('manage_purchasing'))) {
+            abort(403, 'Unauthorized action.');
+        }
+        // Pre-filter rows: only keep rows that have a supplier selected.
+        // This prevents validation error for empty rows or rows where user typed prices without selecting a supplier.
+        $rows = collect($request->input('vendors', []))
+            ->filter(function ($row) {
+                return isset($row['supplier_id']) && $row['supplier_id'] !== null && $row['supplier_id'] !== '';
+            })
+            ->values()
+            ->all();
+
+        if (count($rows) === 0) {
+            return back()->withErrors(['vendors' => 'Minimal 1 baris vendor diisi.'])->withInput();
+        }
+
+        // Validate only the filtered rows
+        $validator = \Validator::make(['vendors' => $rows], [
             'vendors' => 'required|array|min:1',
             'vendors.*.supplier_id' => 'required|integer|exists:suppliers,id',
-            'vendors.*.unit_price' => 'nullable|numeric|min:0',
-            'vendors.*.total_price' => 'nullable|numeric|min:0',
+            'vendors.*.unit_price' => 'nullable|numeric|min:0|max:999999999999.99',
+            'vendors.*.total_price' => 'nullable|numeric|min:0|max:999999999999.99',
             'vendors.*.notes' => 'nullable|string|max:255',
         ]);
+        $validator->validate();
 
         $service = app(PurchasingItemService::class);
-        $service->saveBenchmarking($purchasingItem, $data['vendors']);
+        $service->saveBenchmarking($purchasingItem, $rows);
         
         return back()->with('success', 'Benchmarking berhasil disimpan.');
     }
 
     public function selectPreferred(Request $request, PurchasingItem $purchasingItem)
     {
+        if (!(auth()->user()?->hasPermission('manage_vendor') || auth()->user()?->hasPermission('manage_purchasing'))) {
+            abort(403, 'Unauthorized action.');
+        }
         $data = $request->validate([
             'supplier_id' => 'required|integer|exists:suppliers,id',
-            'unit_price' => 'nullable|numeric|min:0',
-            'total_price' => 'nullable|numeric|min:0',
+            'unit_price' => 'nullable|numeric|min:0|max:999999999999.99',
+            'total_price' => 'nullable|numeric|min:0|max:999999999999.99',
         ]);
 
         $service = app(PurchasingItemService::class);

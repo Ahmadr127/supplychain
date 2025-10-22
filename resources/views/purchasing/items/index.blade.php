@@ -74,7 +74,10 @@
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->preferredVendor->name ?? '-' }}</td>
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->po_number ?? '-' }}</td>
                             <td class="px-3 py-2 text-sm text-gray-900">{{ $pi->grn_date ? $pi->grn_date->format('Y-m-d') : '-' }}</td>
-                            <td class="px-3 py-2 text-sm">
+                            <td class="px-3 py-2 text-sm flex items-center gap-3">
+                                @if(auth()->user()->hasPermission('manage_vendor') || auth()->user()->hasPermission('manage_purchasing'))
+                                    <a href="{{ route('purchasing.items.vendor', $pi) }}" class="text-blue-600 hover:underline">Vendor</a>
+                                @endif
                                 <a href="{{ route('purchasing.items.show', $pi) }}" class="text-indigo-600 hover:underline">Buka</a>
                             </td>
                         </tr>
