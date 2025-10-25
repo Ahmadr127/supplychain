@@ -67,11 +67,11 @@
                 <tr>
                     <th class="w-16 text-left">No</th>
                     <th class="w-24 text-left">Tanggal</th>
-                    <th class="w-1/3 text-left">Request</th>
+                    <th class="w-1/4 text-left">Request</th>
                     <th class="w-48 text-left">Unit Peruntukan</th>
-                    <th class="w-1/2 text-left">Progress</th>
-                    <th class="w-40 text-left">Status Purchasing</th>
+                    <th class="w-3/5 text-left">Progress</th>
                     <th class="w-20 text-left">Status</th>
+                    <th class="w-40 text-left">Status Purchasing</th>
                     <th class="w-20 text-left">Aksi</th>
                 </tr>
             </thead>
@@ -83,7 +83,7 @@
                         <div>{{ $request->created_at->format('d/m/Y') }}</div>
                         <div class="text-xs">{{ $request->created_at->format('H:i') }}</div>
                     </td>
-                    <td class="w-1/3">
+                    <td class="w-1/4">
                         <div class="min-w-0">
                             <div class="text-sm font-medium text-gray-900 truncate">
                                 <span class="inline-block bg-gray-100 text-gray-800 text-xs px-1 py-0.5 rounded mr-1">
@@ -116,7 +116,7 @@
                         @endphp
                         <span class="text-sm text-gray-900">{{ $deptNames->count() ? $deptNames->implode(', ') : '-' }}</span>
                     </td>
-                    <td class="w-1/2">
+                    <td class="w-3/5">
                         <div class="min-w-0">
                             <div class="flex flex-nowrap gap-1 overflow-x-auto">
                                 @foreach($request->workflow->steps as $step)
@@ -153,7 +153,11 @@
                                         }
                                     @endphp
                                     <div class="flex flex-col flex-shrink-0">
-                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap {{ $stepColor }}">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap {{ $stepColor }} cursor-pointer step-badge" 
+                                              data-step-name="{{ $step->step_name }}" 
+                                              data-step-status="{{ $stepStatusText }}" 
+                                              data-step-number="{{ $step->step_number }}" 
+                                              data-request-id="{{ $request->id }}">
                                             {{ $step->step_name }}
                                         </span>
                                         <div class="mt-0.5 text-[11px] text-gray-600 step-meta" data-request-id="{{ $request->id }}" data-step-number="{{ $step->step_number }}">
@@ -163,31 +167,6 @@
                                 @endforeach
                             </div>
                         </div>
-                    </td>
-                    <td class="w-40">
-                        @php
-                            $ps = $request->purchasing_status ?? 'unprocessed';
-                            $psText = match($ps){
-                                'unprocessed' => 'Belum diproses',
-                                'benchmarking' => 'Pemilihan vendor',
-                                'selected' => 'Uji coba/Proses PR sistem',
-                                'po_issued' => 'Proses di vendor',
-                                'grn_received' => 'Barang sudah diterima',
-                                'done' => 'Selesai',
-                                default => strtoupper($ps),
-                            };
-                            // Colors per request: benchmarking=red, selected=yellow, po_issued=orange, grn_received=green (white text)
-                            $psColor = match($ps){
-                                'benchmarking' => 'bg-red-600 text-white',
-                                'selected' => 'bg-yellow-400 text-black',
-                                'po_issued' => 'bg-orange-500 text-white',
-                                'grn_received' => 'bg-green-600 text-white',
-                                'unprocessed' => 'bg-gray-200 text-gray-800',
-                                'done' => 'bg-green-700 text-white',
-                                default => 'bg-gray-200 text-gray-800',
-                            };
-                        @endphp
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $request->id }}')">{{ $psText }}</span>
                     </td>
                     <td class="w-20">
                         @php
@@ -214,6 +193,31 @@
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $statusColor }}">
                             {{ $displayStatus }}
                         </span>
+                    </td>
+                    <td class="w-40">
+                        @php
+                            $ps = $request->purchasing_status ?? 'unprocessed';
+                            $psText = match($ps){
+                                'unprocessed' => 'Belum diproses',
+                                'benchmarking' => 'Pemilihan vendor',
+                                'selected' => 'Uji coba/Proses PR sistem',
+                                'po_issued' => 'Proses di vendor',
+                                'grn_received' => 'Barang sudah diterima',
+                                'done' => 'Selesai',
+                                default => strtoupper($ps),
+                            };
+                            // Colors per request: benchmarking=red, selected=yellow, po_issued=orange, grn_received=green (white text)
+                            $psColor = match($ps){
+                                'benchmarking' => 'bg-red-600 text-white',
+                                'selected' => 'bg-yellow-400 text-black',
+                                'po_issued' => 'bg-orange-500 text-white',
+                                'grn_received' => 'bg-green-600 text-white',
+                                'unprocessed' => 'bg-gray-200 text-gray-800',
+                                'done' => 'bg-green-700 text-white',
+                                default => 'bg-gray-200 text-gray-800',
+                            };
+                        @endphp
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $request->id }}')">{{ $psText }}</span>
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
@@ -460,6 +464,19 @@ document.addEventListener('click', function(e) {
 <script>
 // Populate inline step metadata (status, approved by, time) under each step badge
 document.addEventListener('DOMContentLoaded', function() {
+    // Add click event listeners to step badges
+    const stepBadges = document.querySelectorAll('.step-badge');
+    stepBadges.forEach(badge => {
+        badge.addEventListener('click', function() {
+            const stepName = this.getAttribute('data-step-name');
+            const stepStatus = this.getAttribute('data-step-status');
+            const stepNumber = this.getAttribute('data-step-number');
+            const requestId = this.getAttribute('data-request-id');
+            showStepStatus(stepName, stepStatus, stepNumber, requestId);
+        });
+    });
+
+    // Populate metadata
     const metas = document.querySelectorAll('.step-meta');
     metas.forEach(async el => {
         const requestId = el.getAttribute('data-request-id');

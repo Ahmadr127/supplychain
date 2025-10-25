@@ -102,8 +102,8 @@
                     <th class="w-48 text-left">Unit Peruntukan</th>
                     <th class="w-32 text-left">Pengaju</th>
                     <th class="w-1/3 text-left">Progress</th>
-                    <th class="w-40 text-left">Status Purchasing</th>
                     <th class="w-20 text-left">Status</th>
+                    <th class="w-40 text-left">Status Purchasing</th>
                     <th class="w-20 text-left">Aksi</th>
                 </tr>
             </thead>
@@ -207,31 +207,6 @@
                             </div>
                         </div>
                     </td>
-                    <td class="w-40">
-                        @php
-                            $ps = $request->purchasing_status ?? 'unprocessed';
-                            $psText = match($ps){
-                                'unprocessed' => 'Belum diproses',
-                                'benchmarking' => 'Pemilihan vendor',
-                                'selected' => 'Uji coba/Proses PR sistem',
-                                'po_issued' => 'Proses di vendor',
-                                'grn_received' => 'Barang sudah diterima',
-                                'done' => 'Selesai',
-                                default => strtoupper($ps),
-                            };
-                            // Colors per request: benchmarking=red, selected=yellow, po_issued=orange, grn_received=green (white text)
-                            $psColor = match($ps){
-                                'benchmarking' => 'bg-red-600 text-white',
-                                'selected' => 'bg-yellow-400 text-black',
-                                'po_issued' => 'bg-orange-500 text-white',
-                                'grn_received' => 'bg-green-600 text-white',
-                                'unprocessed' => 'bg-gray-200 text-gray-800',
-                                'done' => 'bg-green-700 text-white',
-                                default => 'bg-gray-200 text-gray-800',
-                            };
-                        @endphp
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $request->id }}')">{{ $psText }}</span>
-                    </td>
                     <td class="w-20">
                         @php
                             $displayStatus = $request->status;
@@ -257,6 +232,31 @@
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $statusColor }}">
                             {{ $displayStatus }}
                         </span>
+                    </td>
+                    <td class="w-40">
+                        @php
+                            $ps = $request->purchasing_status ?? 'unprocessed';
+                            $psText = match($ps){
+                                'unprocessed' => 'Belum diproses',
+                                'benchmarking' => 'Pemilihan vendor',
+                                'selected' => 'Uji coba/Proses PR sistem',
+                                'po_issued' => 'Proses di vendor',
+                                'grn_received' => 'Barang sudah diterima',
+                                'done' => 'Selesai',
+                                default => strtoupper($ps),
+                            };
+                            // Colors per request: benchmarking=red, selected=yellow, po_issued=orange, grn_received=green (white text)
+                            $psColor = match($ps){
+                                'benchmarking' => 'bg-red-600 text-white',
+                                'selected' => 'bg-yellow-400 text-black',
+                                'po_issued' => 'bg-orange-500 text-white',
+                                'grn_received' => 'bg-green-600 text-white',
+                                'unprocessed' => 'bg-gray-200 text-gray-800',
+                                'done' => 'bg-green-700 text-white',
+                                default => 'bg-gray-200 text-gray-800',
+                            };
+                        @endphp
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $request->id }}')">{{ $psText }}</span>
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">

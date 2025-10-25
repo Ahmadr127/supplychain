@@ -61,12 +61,12 @@
                 <tr>
                     <th class="w-16 text-left">No</th>
                     <th class="w-24 text-left">Tanggal</th>
-                    <th class="w-1/4 text-left">Request</th>
+                    <th class="w-1/5 text-left">Request</th>
                     <th class="w-48 text-left">Unit Peruntukan</th>
                     <th class="w-32 text-left">Pengaju</th>
-                    <th class="w-48 text-left">Progress</th>
-                    <th class="w-40 text-left">Status Purchasing</th>
+                    <th class="w-1/2 text-left">Progress</th>
                     <th class="w-20 text-left">Status</th>
+                    <th class="w-40 text-left">Status Purchasing</th>
                     <th class="w-20 text-left">Aksi</th>
                 </tr>
             </thead>
@@ -78,7 +78,7 @@
                         <div>{{ $step->request->created_at->format('d/m/Y') }}</div>
                         <div class="text-xs">{{ $step->request->created_at->format('H:i') }}</div>
                     </td>
-                    <td class="w-1/4">
+                    <td class="w-1/5">
                         <div class="min-w-0">
                             <div class="text-sm font-medium text-gray-900 truncate">
                                 <span class="inline-block bg-gray-100 text-gray-800 text-xs px-1 py-0.5 rounded mr-1">
@@ -114,75 +114,59 @@
                         <span class="text-sm text-gray-900">{{ $deptNames->count() ? $deptNames->implode(', ') : '-' }}</span>
                     </td>
                     <td class="w-32">
-                        <div class="flex items-center min-w-0">
-                            <div class="flex-shrink-0 h-5 w-5">
-                                <div class="h-5 w-5 rounded-full bg-gray-300 flex items-center justify-center">
-                                    <span class="text-gray-600 text-xs font-medium">
-                                        {{ substr($step->request->requester->name, 0, 2) }}
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="ml-1 min-w-0 flex-1">
-                                <div class="text-sm font-medium text-gray-900 truncate">{{ $step->request->requester->name }}</div>
-                            </div>
-                        </div>
+                        <div class="text-sm font-medium text-gray-900">{{ $step->request->requester->name }}</div>
                     </td>
-                    <td class="w-48 align-top">
-                        @php
-                            $procStatus = $step->status ?? 'pending';
-                            $procColor = match($procStatus){
-                                'approved' => 'bg-green-600 text-white',
-                                'rejected' => 'bg-red-600 text-white',
-                                'pending' => 'bg-yellow-500 text-white',
-                                default => 'bg-gray-200 text-gray-800',
-                            };
-                        @endphp
+                    <td class="w-1/2">
                         <div class="min-w-0">
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap {{ $procColor }}">
-                                {{ $step->step_name ?? 'Progress' }}
-                            </span>
-                            @php
-                                $actedBy = $step->approved_by_name ?? ($step->approved_by->name ?? null) ?? null;
-                                $actedAt = $step->approved_at ?? null;
-                            @endphp
-                            @if($actedBy || $actedAt)
-                                <div class="mt-0.5 text-[11px] text-gray-600">
-                                    @php $__t = $actedAt ? \Carbon\Carbon::parse($actedAt)->format('d/m/Y') : null; @endphp
-                                    @if($actedBy && $__t)
-                                        <span>{{ $actedBy }} • {{ $__t }}</span>
-                                    @elseif($actedBy)
-                                        <span>{{ $actedBy }}</span>
-                                    @elseif($__t)
-                                        <span>{{ $__t }}</span>
-                                    @endif
-                                </div>
-                            @endif
+                            <div class="flex flex-nowrap gap-1 overflow-x-auto">
+                                @foreach($step->request->workflow->steps as $wfStep)
+                                    @php
+                                        $stepStatus = 'pending';
+                                        $stepColor = 'bg-gray-100 text-gray-600';
+                                        $stepStatusText = 'Pending';
+                                        
+                                        if ($step->request->status == 'approved') {
+                                            // If request is fully approved, all steps should be green
+                                            $stepStatus = 'completed';
+                                            $stepColor = 'bg-green-600 text-white';
+                                            $stepStatusText = 'Approved';
+                                        } elseif ($step->request->status == 'rejected') {
+                                            // If request is rejected, steps at or after current step should be red
+                                            if ($wfStep->step_number >= $step->request->current_step) {
+                                                $stepColor = 'bg-red-600 text-white';
+                                                $stepStatusText = 'Rejected';
+                                            } else {
+                                                $stepColor = 'bg-green-600 text-white';
+                                                $stepStatusText = 'Approved';
+                                            }
+                                        } else {
+                                            // For on progress and pending requests
+                                            if ($wfStep->step_number < $step->request->current_step) {
+                                                $stepStatus = 'completed';
+                                                $stepColor = 'bg-green-600 text-white';
+                                                $stepStatusText = 'Approved';
+                                            } elseif ($wfStep->step_number == $step->request->current_step) {
+                                                $stepStatus = 'current';
+                                                $stepColor = 'bg-blue-600 text-white';
+                                                $stepStatusText = 'On Progress';
+                                            }
+                                        }
+                                    @endphp
+                                    <div class="flex flex-col flex-shrink-0">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap {{ $stepColor }} cursor-pointer step-badge" 
+                                              data-step-name="{{ $wfStep->step_name }}" 
+                                              data-step-status="{{ $stepStatusText }}" 
+                                              data-step-number="{{ $wfStep->step_number }}" 
+                                              data-request-id="{{ $step->request->id }}">
+                                            {{ $wfStep->step_name }}
+                                        </span>
+                                        <div class="mt-0.5 text-[11px] text-gray-600 step-meta" data-request-id="{{ $step->request->id }}" data-step-number="{{ $wfStep->step_number }}">
+                                            <!-- info disisipkan via JS: status, oleh, pada -->
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
                         </div>
-                    </td>
-                    <td class="w-40">
-                        @php
-                            $ps = $step->request->purchasing_status ?? 'unprocessed';
-                            $psText = match($ps){
-                                'unprocessed' => 'Belum diproses',
-                                'benchmarking' => 'Pemilihan vendor',
-                                'selected' => 'Uji coba/Proses PR sistem',
-                                'po_issued' => 'Proses di vendor',
-                                'grn_received' => 'Barang sudah diterima',
-                                'done' => 'Selesai',
-                                default => strtoupper($ps),
-                            };
-                            // Colors per request: benchmarking=red, selected=yellow, po_issued=orange, grn_received=green (white text)
-                            $psColor = match($ps){
-                                'benchmarking' => 'bg-red-600 text-white',
-                                'selected' => 'bg-yellow-400 text-black',
-                                'po_issued' => 'bg-orange-500 text-white',
-                                'grn_received' => 'bg-green-600 text-white',
-                                'unprocessed' => 'bg-gray-200 text-gray-800',
-                                'done' => 'bg-green-700 text-white',
-                                default => 'bg-gray-200 text-gray-800',
-                            };
-                        @endphp
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $step->request->id }}')">{{ $psText }}</span>
                     </td>
                     <td class="w-20">
                         @php
@@ -226,6 +210,31 @@
                             {{ $statusText }}
                         </span>
                     </td>
+                    <td class="w-40">
+                        @php
+                            $ps = $step->request->purchasing_status ?? 'unprocessed';
+                            $psText = match($ps){
+                                'unprocessed' => 'Belum diproses',
+                                'benchmarking' => 'Pemilihan vendor',
+                                'selected' => 'Uji coba/Proses PR sistem',
+                                'po_issued' => 'Proses di vendor',
+                                'grn_received' => 'Barang sudah diterima',
+                                'done' => 'Selesai',
+                                default => strtoupper($ps),
+                            };
+                            // Colors per request: benchmarking=red, selected=yellow, po_issued=orange, grn_received=green (white text)
+                            $psColor = match($ps){
+                                'benchmarking' => 'bg-red-600 text-white',
+                                'selected' => 'bg-yellow-400 text-black',
+                                'po_issued' => 'bg-orange-500 text-white',
+                                'grn_received' => 'bg-green-600 text-white',
+                                'unprocessed' => 'bg-gray-200 text-gray-800',
+                                'done' => 'bg-green-700 text-white',
+                                default => 'bg-gray-200 text-gray-800',
+                            };
+                        @endphp
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $step->request->id }}')">{{ $psText }}</span>
+                    </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
                             <a href="{{ route('approval-requests.show', $step->request) }}" 
@@ -255,6 +264,143 @@
 </div>
 
 <script>
+function showStepStatus(stepName, status, stepNumber, requestId) {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('stepStatusModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'stepStatusModal';
+        modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden';
+        modal.innerHTML = `
+            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-lg font-medium text-gray-900">Detail Status Step</h3>
+                        <button onclick="closeStepStatusModal()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="stepStatusContent">
+                        <!-- Content will be populated here -->
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    // Fetch step details via AJAX
+    fetch(`/api/approval-steps/${requestId}/${stepNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            const content = document.getElementById('stepStatusContent');
+            content.innerHTML = `
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Nama Step</label>
+                        <p class="text-sm text-gray-900">${stepName}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Status</label>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}">
+                            ${status}
+                        </span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Step Number</label>
+                        <p class="text-sm text-gray-900">${stepNumber}</p>
+                    </div>
+                    ${data.approved_at ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Waktu Aksi</label>
+                        <p class="text-sm text-gray-900">${new Date(data.approved_at).toLocaleString('id-ID')}</p>
+                    </div>
+                    ` : ''}
+                    ${data.approved_by_name ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Diapprove Oleh</label>
+                        <p class="text-sm text-gray-900">${data.approved_by_name}</p>
+                    </div>
+                    ` : ''}
+                    ${data.comments ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Komentar</label>
+                        <p class="text-sm text-gray-900">${data.comments}</p>
+                    </div>
+                    ` : ''}
+                    <div class="pt-3">
+                        <button onclick="closeStepStatusModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            `;
+        })
+        .catch(error => {
+            console.error('Error fetching step details:', error);
+            const content = document.getElementById('stepStatusContent');
+            content.innerHTML = `
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Nama Step</label>
+                        <p class="text-sm text-gray-900">${stepName}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Status</label>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}">
+                            ${status}
+                        </span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Step Number</label>
+                        <p class="text-sm text-gray-900">${stepNumber}</p>
+                    </div>
+                    <div class="pt-3">
+                        <button onclick="closeStepStatusModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    
+    // Show modal
+    modal.classList.remove('hidden');
+}
+
+function closeStepStatusModal() {
+    const modal = document.getElementById('stepStatusModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function getStatusColor(status) {
+    switch(status.toLowerCase()) {
+        case 'approved':
+            return 'bg-green-100 text-green-800';
+        case 'rejected':
+            return 'bg-red-100 text-red-800';
+        case 'on progress':
+            return 'bg-blue-100 text-blue-800';
+        case 'pending':
+        default:
+            return 'bg-yellow-100 text-yellow-800';
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('stepStatusModal');
+    if (modal && !modal.classList.contains('hidden')) {
+        if (e.target === modal) {
+            closeStepStatusModal();
+        }
+    }
+});
+
 async function openPurchasingStatusModal(code, label, requestId) {
     const body = document.getElementById('ps-modal-body');
     body.innerHTML = '<div class="p-3 text-sm text-gray-600">Memuat...</div>';
@@ -284,6 +430,67 @@ async function openPurchasingStatusModal(code, label, requestId) {
 function closePurchasingStatusModal(){
     document.getElementById('ps-modal').classList.add('hidden');
 }
+
+// Close purchasing status modal on outside click
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('ps-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+        if (e.target === modal) {
+            closePurchasingStatusModal();
+        }
+    }
+});
+</script>
+
+<script>
+// Populate inline step metadata (status, approved by, time) under each step badge
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click event listeners to step badges
+    const stepBadges = document.querySelectorAll('.step-badge');
+    stepBadges.forEach(badge => {
+        badge.addEventListener('click', function() {
+            const stepName = this.getAttribute('data-step-name');
+            const stepStatus = this.getAttribute('data-step-status');
+            const stepNumber = this.getAttribute('data-step-number');
+            const requestId = this.getAttribute('data-request-id');
+            showStepStatus(stepName, stepStatus, stepNumber, requestId);
+        });
+    });
+
+    // Populate metadata
+    const metas = document.querySelectorAll('.step-meta');
+    metas.forEach(async el => {
+        const requestId = el.getAttribute('data-request-id');
+        const stepNumber = el.getAttribute('data-step-number');
+        try {
+            const res = await fetch(`/api/approval-steps/${requestId}/${stepNumber}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!res.ok) throw new Error('Failed');
+            const data = await res.json();
+            const approvedBy = data.approved_by_name || null;
+            let approvedAt = data.approved_at ? new Date(data.approved_at) : null;
+            // Format: d/m/Y (date only)
+            const pad = n => String(n).padStart(2, '0');
+            let approvedAtStr = null;
+            if (approvedAt) {
+                const d = pad(approvedAt.getDate());
+                const m = pad(approvedAt.getMonth() + 1);
+                const y = approvedAt.getFullYear();
+                approvedAtStr = `${d}/${m}/${y}`;
+            }
+            if (approvedBy && approvedAtStr) {
+                el.innerHTML = `<span>${approvedBy} • ${approvedAtStr}</span>`;
+            } else if (approvedBy) {
+                el.innerHTML = `<span>${approvedBy}</span>`;
+            } else if (approvedAtStr) {
+                el.innerHTML = `<span>${approvedAtStr}</span>`;
+            } else {
+                el.innerHTML = '';
+            }
+        } catch (e) {
+            el.innerHTML = '';
+        }
+    });
+});
 </script>
 
 @endsection
