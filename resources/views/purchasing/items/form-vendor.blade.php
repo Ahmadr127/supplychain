@@ -26,14 +26,19 @@
             <p class="text-sm text-gray-600">Request: {{ $item->approvalRequest->request_number ?? '-' }} • Item: {{ $item->masterItem->name ?? '-' }}</p>
         </div>
         <div class="flex gap-2">
-            <a href="{{ url()->previous() }}" class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-50">Kembali</a>
+            <a href="{{ route('reports.approval-requests') }}" class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-50">Kembali</a>
         </div>
     </div>
 
-    @include('purchasing.items._form', ['item' => $item])
+    @include('purchasing.items._form', [
+        'item' => $item,
+        'disableBenchmarking' => true,
+        'disablePreferred' => false,
+    ])
 </div>
 @endsection
 
 @push('scripts')
     @include('purchasing.items._form-scripts', ['item' => $item])
 @endpush
+

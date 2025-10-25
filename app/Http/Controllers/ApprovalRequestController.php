@@ -192,6 +192,45 @@ class ApprovalRequestController extends Controller
             }
         });
 
+        // Conditional requirement: FS document must be uploaded when FS section is shown
+        $validator->after(function($v) use ($request) {
+            $fs = Setting::getGroup('approval_request') ?? [];
+            $enabled = (bool)($fs['fs_document_enabled'] ?? true);
+            if (!$enabled) return;
+            $thPerItem = (int)($fs['fs_threshold_per_item'] ?? 100000000);
+            $thTotal = (int)($fs['fs_threshold_total'] ?? 500000000);
+            $perItemEnableUpload = (bool)($fs['fs_per_item_enable_upload'] ?? true);
+            $totalEnableUpload = (bool)($fs['fs_total_enable_upload'] ?? false);
+
+            $items = $request->input('items', []);
+            // Compute grand total based on provided quantities and prices
+            $grandTotal = 0;
+            foreach ($items as $row) {
+                $qty = (int)($row['quantity'] ?? 0);
+                $price = (int)($row['unit_price'] ?? 0);
+                $grandTotal += max(0, $qty) * max(0, $price);
+            }
+
+            foreach ($items as $idx => $row) {
+                $qty = (int)($row['quantity'] ?? 0);
+                $price = (int)($row['unit_price'] ?? 0);
+                $subtotal = max(0, $qty) * max(0, $price);
+                $meetsPerItem = $subtotal >= $thPerItem;
+                $meetsTotalOnly = !$meetsPerItem && ($grandTotal >= $thTotal);
+
+                $shouldRequireUpload = false;
+                if ($meetsPerItem && $perItemEnableUpload) $shouldRequireUpload = true;
+                elseif ($meetsTotalOnly && $totalEnableUpload) $shouldRequireUpload = true;
+
+                if ($shouldRequireUpload) {
+                    $file = $request->file("items.$idx.fs_document");
+                    if (!$file) {
+                        $v->errors()->add("items.$idx.fs_document", 'Dokumen FS wajib diunggah untuk item ini.');
+                    }
+                }
+            }
+        });
+
         if ($validator->fails()) {
             Log::warning('ApprovalRequest.update.validation_failed', [
                 'request_id' => $approvalRequest->id,
@@ -545,6 +584,11 @@ class ApprovalRequestController extends Controller
 
         // Handle items update
         if ($request->has('items') && is_array($request->items)) {
+            // Snapshot existing fs_document per master_item before detach
+            $existingFsByItem = $approvalRequest->masterItems()
+                ->pluck('approval_request_master_items.fs_document', 'master_items.id')
+                ->toArray();
+
             // Remove existing items
             $approvalRequest->masterItems()->detach();
             
@@ -572,12 +616,8 @@ class ApprovalRequestController extends Controller
                     $supplierId = $this->resolveOrCreateSupplierByName($itemData['supplier_name']);
                 }
 
-                // Get existing FS document if any
-                $existingFsDocument = null;
-                $existingItem = $approvalRequest->masterItems()->where('master_item_id', $masterItemId)->first();
-                if ($existingItem && $existingItem->pivot->fs_document) {
-                    $existingFsDocument = $existingItem->pivot->fs_document;
-                }
+                // Get existing FS document (from snapshot) if any
+                $existingFsDocument = $existingFsByItem[$masterItemId] ?? null;
 
                 // Handle per-item FS document
                 $fsDocumentPath = null;

@@ -50,6 +50,10 @@ class ReportController extends Controller
         if ($request->filled('status')) {
             $q->where('status', $request->status);
         }
+        // Filter by purchasing process/status if provided
+        if ($request->filled('purchasing_status')) {
+            $q->where('purchasing_status', $request->purchasing_status);
+        }
         if ($request->filled('year')) {
             $q->whereYear('created_at', (int)$request->year);
         }
@@ -75,7 +79,14 @@ class ReportController extends Controller
         $sortDir = $request->sort_dir === 'asc' ? 'asc' : 'desc';
         $q->orderBy($sortBy, $sortDir);
 
-        $requests = $q->paginate(25)->withQueryString();
+        // Get per_page parameter with default of 10
+        $perPage = $request->get('per_page', 10);
+        // Validate per_page value
+        if (!in_array($perPage, [10, 25, 50, 100])) {
+            $perPage = 10;
+        }
+
+        $requests = $q->paginate($perPage)->withQueryString();
         // Preload department name map for allocation lookup
         $deptMap = Department::pluck('name', 'id');
 
@@ -87,8 +98,13 @@ class ReportController extends Controller
             $procurementYear = $req->procurement_year ?? ($req->created_at?->format('Y'));
             $createdAt = $req->created_at; // Tanggal Pengajuan (Carbon|null)
             $receivedAt = $req->received_at ? \Carbon\Carbon::parse($req->received_at) : null; // Tanggal Terima Dokumen
-            // Umur Pengajuan = selisih Tanggal Terima Dokumen dengan Tanggal Pengajuan (real days, float)
-            $ageDays = ($createdAt && $receivedAt) ? $createdAt->diffInRealDays($receivedAt) : null;
+            // Umur Pengajuan = selisih Tanggal Terima Dokumen dengan Tanggal Pengajuan (real days, float, non-negative)
+            if ($createdAt && $receivedAt) {
+                $ageSeconds = $createdAt->diffInRealSeconds($receivedAt, false); // signed seconds
+                $ageDays = $ageSeconds <= 0 ? 0.0 : ($ageSeconds / 86400);
+            } else {
+                $ageDays = null;
+            }
 
             // Purchasing status mapping to human-friendly Indonesian
             $purchasingStatusCode = $req->purchasing_status ?? 'unprocessed';
@@ -150,7 +166,12 @@ class ReportController extends Controller
 
                 // Proc Cycle = selisih Tanggal GRN dengan Tanggal Pengajuan
                 $grnAt = $pi && $pi->grn_date ? \Carbon\Carbon::parse($pi->grn_date) : null;
-                $procDays = ($createdAt && $grnAt) ? $createdAt->diffInRealDays($grnAt) : null;
+                if ($createdAt && $grnAt) {
+                    $procSeconds = $createdAt->diffInRealSeconds($grnAt, false);
+                    $procDays = $procSeconds <= 0 ? 0.0 : ($procSeconds / 86400);
+                } else {
+                    $procDays = null;
+                }
 
                 // Format: 1 decimal with comma separator
                 $ageText = $ageDays !== null ? (number_format((float)$ageDays, 1, ',', '.') . ' hari') : '-';
@@ -161,6 +182,8 @@ class ReportController extends Controller
                     'master_item_id' => $m->id,
                     'no_input' => $req->request_number ?? '-',
                     'process' => $processText,
+                    // also include raw code for color mapping in view
+                    'process_code' => $purchasingStatusCode,
                     // Jenis diisi nama item (bukan submission type)
                     'jenis' => $m->name ?? '-',
                     'unit_pengaju' => $primaryDept ?? '-',
@@ -205,36 +228,42 @@ class ReportController extends Controller
 
                 // Add action buttons based on status
                 $actions = [];
-                
+                $user = auth()->user();
+                $canManagePurchasing = $user && $user->hasPermission('manage_purchasing');
+                $canManageVendor = $user && $user->hasPermission('manage_vendor');
+
                 if ($req->status === 'approved') {
-                    // Always show process button for approved requests
-                    if ($piId) {
-                        // If purchasing item exists, direct link to process page
-                        $actions[] = [
-                            'type' => 'link',
-                            'label' => 'Proses',
-                            'color' => 'emerald',
-                            'url' => route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId])
-                        ];
-                        // Vendor page button (if user can manage vendor or purchasing)
-                        if (auth()->user()->hasPermission('manage_vendor') || auth()->user()->hasPermission('manage_purchasing')) {
+                    // Show process action only if user has manage_purchasing
+                    if ($canManagePurchasing) {
+                        if ($piId) {
+                            // If purchasing item exists, direct link to process page
                             $actions[] = [
                                 'type' => 'link',
-                                'label' => 'Vendor',
-                                'color' => 'blue',
-                                'url' => route('purchasing.items.vendor', $piId)
+                                'label' => 'Proses',
+                                'color' => 'emerald',
+                                'url' => route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId])
+                            ];
+                        } else {
+                            // If no purchasing item, create it first then redirect to process page
+                            $actions[] = [
+                                'type' => 'button',
+                                'label' => 'Proses',
+                                'color' => 'emerald',
+                                'onclick' => "(async function(){try{const res=await fetch('" . route('api.purchasing.items.resolve') . "',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]')?.getAttribute('content')||''},body:JSON.stringify({approval_request_id:'{$req->id}',master_item_id:'{$m->id}'})});if(!res.ok){const err=await res.json();alert(err.error||'Request belum approved atau ada kesalahan.');return;}const data=await res.json();if(data&&data.id){window.location.href='" . route('reports.approval-requests.process-purchasing') . "?purchasing_item_id='+data.id;}}catch(e){alert('Gagal membuka halaman purchasing.');}})()"
                             ];
                         }
-                    } else {
-                        // If no purchasing item, create it first then redirect to process page
+                    }
+
+                    // Vendor page button (only if user can manage vendor)
+                    if ($piId && $canManageVendor) {
                         $actions[] = [
-                            'type' => 'button',
-                            'label' => 'Proses',
-                            'color' => 'emerald',
-                            'onclick' => "(async function(){try{const res=await fetch('" . route('api.purchasing.items.resolve') . "',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]')?.getAttribute('content')||''},body:JSON.stringify({approval_request_id:'{$req->id}',master_item_id:'{$m->id}'})});if(!res.ok){const err=await res.json();alert(err.error||'Request belum approved atau ada kesalahan.');return;}const data=await res.json();if(data&&data.id){window.location.href='" . route('reports.approval-requests.process-purchasing') . "?purchasing_item_id='+data.id;}}catch(e){alert('Gagal membuka halaman purchasing.');}})()" 
+                            'type' => 'link',
+                            'label' => 'Vendor',
+                            'color' => 'blue',
+                            'url' => route('purchasing.items.vendor', $piId)
                         ];
                     }
-                    
+
                     // View approval request button
                     $actions[] = [
                         'type' => 'link',
@@ -277,7 +306,25 @@ class ReportController extends Controller
         return view('reports.approval-requests.index', [
             'columns' => [
                 ['label' => 'NO INPUT','field' => 'no_input','width' => 'w-36'],
-                ['label' => 'PROCESS','field' => 'process','width' => 'w-32'],
+                [
+                    'label' => 'PROCESS',
+                    'width' => 'w-32',
+                    'render' => function($row){
+                        $code = $row['process_code'] ?? 'unprocessed';
+                        $text = $row['process'] ?? '-';
+                        // Map purchasing status to Tailwind classes (align with my-requests.blade.php)
+                        $cls = match($code){
+                            'benchmarking' => 'bg-red-600 text-white',
+                            'selected' => 'bg-yellow-400 text-black',
+                            'po_issued' => 'bg-orange-500 text-white',
+                            'grn_received' => 'bg-green-600 text-white',
+                            'done' => 'bg-green-700 text-white',
+                            'unprocessed' => 'bg-gray-200 text-gray-800',
+                            default => 'bg-gray-200 text-gray-800',
+                        };
+                        return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium '.$cls.'">'.e($text).'</span>';
+                    }
+                ],
                 ['label' => 'Jenis Barang/Jasa/Program Kerja','field' => 'jenis','width' => 'w-56'],
                 ['label' => 'Unit Pengaju','field' => 'unit_pengaju','width' => 'w-48'],
                 ['label' => 'Tanggal Pengajuan','field' => 'tanggal_pengajuan','width' => 'w-40'],
@@ -312,6 +359,7 @@ class ReportController extends Controller
             ],
             'rows' => $rows,
             'paginator' => $requests,
+            'perPage' => $perPage,
             'submissionTypes' => $submissionTypes,
             'departments' => $departments,
             'categories' => $categories,
@@ -320,6 +368,10 @@ class ReportController extends Controller
 
     public function processPurchasing(Request $request)
     {
+        // Authorization: only users with manage_purchasing may access
+        if (!(auth()->user()?->hasPermission('manage_purchasing'))) {
+            abort(403, 'Unauthorized action.');
+        }
         $id = (int) $request->query('purchasing_item_id');
         if (!$id) {
             return redirect()->route('reports.approval-requests')->with('error', 'Purchasing Item tidak ditemukan.');
@@ -341,8 +393,8 @@ class ReportController extends Controller
 
     public function vendorForm(PurchasingItem $purchasingItem)
     {
-        // Authorization: allow if user has manage_vendor OR manage_purchasing
-        if (!(auth()->user()?->hasPermission('manage_vendor') || auth()->user()?->hasPermission('manage_purchasing'))) {
+        // Authorization: only users with manage_vendor may access vendor form
+        if (!auth()->user()?->hasPermission('manage_vendor')) {
             abort(403, 'Unauthorized action.');
         }
         $purchasingItem->loadMissing([
@@ -637,7 +689,12 @@ class ReportController extends Controller
             $procurementYear = $req->procurement_year ?? ($req->created_at?->format('Y'));
             $createdAt = $req->created_at;
             $receivedAt = $req->received_at ? \Carbon\Carbon::parse($req->received_at) : null;
-            $ageDays = ($createdAt && $receivedAt) ? $createdAt->diffInRealDays($receivedAt) : null;
+            if ($createdAt && $receivedAt) {
+                $ageSeconds = $createdAt->diffInRealSeconds($receivedAt, false);
+                $ageDays = $ageSeconds <= 0 ? 0.0 : ($ageSeconds / 86400);
+            } else {
+                $ageDays = null;
+            }
             $purchasingStatusCode = $req->purchasing_status ?? 'unprocessed';
             $purchasingStatus = match($purchasingStatusCode) {
                 'unprocessed' => 'Belum diproses',

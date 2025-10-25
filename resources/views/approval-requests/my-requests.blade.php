@@ -13,82 +13,110 @@
     emptyActionLabel="Buat Request Pertama">
     
     <x-slot name="filters">
-        <form method="GET" class="flex flex-wrap gap-3 items-end">
-            <div class="flex-1 min-w-48">
-                <input type="text" name="search" value="{{ request('search') }}" 
-                       placeholder="Cari nomor request, jenis pengajuan, atau deskripsi..."
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+        <div class="space-y-2">
+            <!-- Main Filter Bar with Action Buttons -->
+            <div class="flex flex-col lg:flex-row gap-2">
+                <!-- Search and Filter Section -->
+                <form method="GET" class="flex flex-1 gap-2 items-center">
+                    <div class="flex-1 max-w-md">
+                        <div class="relative">
+                            <input type="text" name="search" value="{{ request('search') }}" 
+                                   placeholder="Cari request..."
+                                   class="w-full h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <svg class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <select name="status" class="h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Semua Status</option>
+                        <option value="on progress" {{ request('status') === 'on progress' ? 'selected' : '' }}>On Progress</option>
+                        <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                        <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
+                        <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                        <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                    </select>
+                    <button type="submit" class="h-9 px-4 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors">
+                        <i class="fas fa-search mr-1"></i>
+                        Filter
+                    </button>
+                </form>
+                
+                <!-- Action Buttons -->
+                <div class="flex gap-2 flex-shrink-0">
+                    <a href="{{ route('approval-requests.pending-approvals') }}" 
+                       class="h-9 px-3 inline-flex items-center text-sm font-medium bg-yellow-600 hover:bg-yellow-700 text-white rounded-md transition-colors">
+                        <i class="fas fa-clock mr-1.5"></i>
+                        <span class="hidden sm:inline">Pending Approvals</span>
+                    </a>
+                    <a href="{{ route('approval-requests.create') }}" 
+                       class="h-9 px-3 inline-flex items-center text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors">
+                        <i class="fas fa-plus mr-1.5"></i>
+                        <span class="hidden sm:inline">Buat Request</span>
+                    </a>
+                </div>
             </div>
-            <div class="w-32">
-                <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                    <option value="">Semua Status</option>
-                    <option value="on progress" {{ request('status') === 'on progress' ? 'selected' : '' }}>On Progress</option>
-                    <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
-                    <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
-                    <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
-                    <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                </select>
-            </div>
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm">
-                Filter
-            </button>
-        </form>
-    </x-slot>
-
-    <!-- Action Buttons -->
-    <div class="p-6 bg-white border-b border-gray-200">
-        <div class="flex flex-wrap gap-2">
-            <a href="{{ route('approval-requests.pending-approvals') }}" 
-               class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
-                Pending Approvals
-            </a>
-            <a href="{{ route('approval-requests.create') }}" 
-               class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
-                Buat Request
-            </a>
+            
+            <!-- Info Status -->
+            <x-info-status class="py-1" variant="status" size="sm" />
         </div>
-    </div>
-
+    </x-slot>
     <div class="overflow-x-auto">
         <table class="responsive-table min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="w-16 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
-                    <th class="w-24 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
-                    <th class="w-1/3 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request</th>
-                    <th class="w-48 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Peruntukan</th>
-                    <th class="w-1/2 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
-                    <th class="w-40 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status Purchasing</th>
-                    <th class="w-20 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="w-20 px-2 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                    <th class="w-16 text-left">No</th>
+                    <th class="w-24 text-left">Tanggal</th>
+                    <th class="w-1/3 text-left">Request</th>
+                    <th class="w-48 text-left">Unit Peruntukan</th>
+                    <th class="w-1/2 text-left">Progress</th>
+                    <th class="w-40 text-left">Status Purchasing</th>
+                    <th class="w-20 text-left">Status</th>
+                    <th class="w-20 text-left">Aksi</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @foreach($requests as $index => $request)
                 <tr class="hover:bg-gray-50 transition-colors duration-150">
-                    <td class="w-16 px-2 py-1 text-sm text-gray-900">{{ $requests->firstItem() + $index }}</td>
-                    <td class="w-24 px-2 py-1 text-sm text-gray-500">
+                    <td class="w-16">{{ $requests->firstItem() + $index }}</td>
+                    <td class="w-24">
                         <div>{{ $request->created_at->format('d/m/Y') }}</div>
                         <div class="text-xs">{{ $request->created_at->format('H:i') }}</div>
                     </td>
-                    <td class="w-1/3 px-2 py-1">
+                    <td class="w-1/3">
                         <div class="min-w-0">
                             <div class="text-sm font-medium text-gray-900 truncate">
                                 <span class="inline-block bg-gray-100 text-gray-800 text-xs px-1 py-0.5 rounded mr-1">
                                     {{ $request->request_number }}
                                 </span>
                             </div>
-                            <div class="text-sm text-gray-900 truncate">{{ $request->submissionType->name ?? '-' }}</div>
+                            @php
+                                $itemNames = collect($request->masterItems ?? [])->pluck('name')->filter()->values();
+                            @endphp
+                            <div class="text-xs text-gray-900 min-w-0">
+                                @if($itemNames->isEmpty())
+                                    <span class="text-gray-500">-</span>
+                                @else
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach($itemNames->take(3) as $nm)
+                                            <span class="inline-block bg-gray-100 border border-gray-200 text-gray-800 px-1 py-0.5 rounded">{{ $nm }}</span>
+                                        @endforeach
+                                        @if($itemNames->count() > 3)
+                                            <span class="text-gray-500">+{{ $itemNames->count() - 3 }} lainnya</span>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                     </td>
-                    <td class="w-48 px-2 py-1 align-top">
+                    <td class="w-48 align-top">
                         @php
                             $deptIds = collect($request->masterItems)->pluck('pivot.allocation_department_id')->filter()->unique()->values();
                             $deptNames = $deptIds->map(fn($id) => $departmentsMap[$id] ?? null)->filter()->values();
                         @endphp
                         <span class="text-sm text-gray-900">{{ $deptNames->count() ? $deptNames->implode(', ') : '-' }}</span>
                     </td>
-                    <td class="w-1/2 px-2 py-1">
+                    <td class="w-1/2">
                         <div class="min-w-0">
                             <div class="flex flex-nowrap gap-1 overflow-x-auto">
                                 @foreach($request->workflow->steps as $step)
@@ -124,16 +152,19 @@
                                             }
                                         }
                                     @endphp
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap flex-shrink-0 {{ $stepColor }} cursor-pointer hover:opacity-80 transition-opacity" 
-                                          onclick="showStepStatus('{{ $step->step_name }}', '{{ $stepStatusText }}', '{{ $step->step_number }}', '{{ $request->id }}')"
-                                          title="Klik untuk melihat detail status">
-                                        {{ $step->step_name }}
-                                    </span>
+                                    <div class="flex flex-col flex-shrink-0">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap {{ $stepColor }}">
+                                            {{ $step->step_name }}
+                                        </span>
+                                        <div class="mt-0.5 text-[11px] text-gray-600 step-meta" data-request-id="{{ $request->id }}" data-step-number="{{ $step->step_number }}">
+                                            <!-- info disisipkan via JS: status, oleh, pada -->
+                                        </div>
+                                    </div>
                                 @endforeach
                             </div>
                         </div>
                     </td>
-                    <td class="w-40 px-2 py-1">
+                    <td class="w-40">
                         @php
                             $ps = $request->purchasing_status ?? 'unprocessed';
                             $psText = match($ps){
@@ -158,7 +189,7 @@
                         @endphp
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $request->id }}')">{{ $psText }}</span>
                     </td>
-                    <td class="w-20 px-2 py-1">
+                    <td class="w-20">
                         @php
                             $displayStatus = $request->status;
                             $statusColor = 'bg-gray-500 text-white';
@@ -184,7 +215,7 @@
                             {{ $displayStatus }}
                         </span>
                     </td>
-                    <td class="w-20 px-2 py-1 text-sm font-medium">
+                    <td class="w-20">
                         <div class="flex space-x-1">
                             <a href="{{ route('approval-requests.show', $request) }}" 
                                class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Lihat">👁</a>
@@ -423,6 +454,44 @@ document.addEventListener('click', function(e) {
             closePurchasingStatusModal();
         }
     }
+});
+</script>
+
+<script>
+// Populate inline step metadata (status, approved by, time) under each step badge
+document.addEventListener('DOMContentLoaded', function() {
+    const metas = document.querySelectorAll('.step-meta');
+    metas.forEach(async el => {
+        const requestId = el.getAttribute('data-request-id');
+        const stepNumber = el.getAttribute('data-step-number');
+        try {
+            const res = await fetch(`/api/approval-steps/${requestId}/${stepNumber}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!res.ok) throw new Error('Failed');
+            const data = await res.json();
+            const approvedBy = data.approved_by_name || null;
+            let approvedAt = data.approved_at ? new Date(data.approved_at) : null;
+            // Format: d/m/Y (date only)
+            const pad = n => String(n).padStart(2, '0');
+            let approvedAtStr = null;
+            if (approvedAt) {
+                const d = pad(approvedAt.getDate());
+                const m = pad(approvedAt.getMonth() + 1);
+                const y = approvedAt.getFullYear();
+                approvedAtStr = `${d}/${m}/${y}`;
+            }
+            if (approvedBy && approvedAtStr) {
+                el.innerHTML = `<span>${approvedBy} • ${approvedAtStr}</span>`;
+            } else if (approvedBy) {
+                el.innerHTML = `<span>${approvedBy}</span>`;
+            } else if (approvedAtStr) {
+                el.innerHTML = `<span>${approvedAtStr}</span>`;
+            } else {
+                el.innerHTML = '';
+            }
+        } catch (e) {
+            el.innerHTML = '';
+        }
+    });
 });
 </script>
 @endsection

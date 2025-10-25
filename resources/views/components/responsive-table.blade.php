@@ -7,7 +7,8 @@
     'emptyMessage' => 'Tidak ada data',
     'emptyIcon' => 'fas fa-inbox',
     'emptyActionRoute' => null,
-    'emptyActionLabel' => 'Tambah Data Pertama'
+    'emptyActionLabel' => 'Tambah Data Pertama',
+    'filtersBorder' => true,
 ])
 
 <div class="w-full mx-auto responsive-table-container" 
@@ -74,7 +75,7 @@
     <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
         <!-- Filters Section -->
         @if($filters)
-            <div class="p-4 border-b border-gray-200 bg-white">
+            <div class="p-4 bg-white" @class(['border-b border-gray-200' => $filtersBorder])>
                 {{ $filters }}
             </div>
         @endif
@@ -226,17 +227,19 @@
     z-index: 10;
     background-color: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
-    padding: 0.75rem 1rem;
+    padding: 0.125rem 0.125rem;
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.025em;
 }
 
 .responsive-table tbody td {
-    padding: 1rem;
+    padding: 0.125rem 0.125rem;
     vertical-align: top;
     border-bottom: 1px solid #f3f4f6;
+    font-size: 0.8125rem;
+    line-height: 1.3;
 }
 
 .responsive-table tbody tr {

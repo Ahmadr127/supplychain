@@ -103,26 +103,29 @@
         </div>
         <div class="p-2">
             @if(auth()->user()->hasPermission('manage_purchasing'))
-            <form method="POST" action="{{ route('purchasing.items.preferred', $item) }}" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end" id="preferred-form">
+            <form method="POST" action="{{ route('purchasing.items.preferred', $item) }}" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end opacity-60" id="preferred-form">
                 @csrf
                 <div class="md:col-span-2 relative">
                     <label class="block text-xs text-gray-600 mb-0.5">Vendor (benchmark)</label>
-                    <input type="hidden" name="supplier_id" class="preferred-supplier-id" value="{{ $item->preferred_vendor_id }}" />
-                    <input type="text" class="preferred-supplier-name h-8 w-full px-2 border border-gray-300 rounded text-sm" placeholder="Cari vendor dari hasil benchmarking..." autocomplete="off" value="{{ $item->preferredVendor->name ?? '' }}" />
+                    <input type="hidden" name="supplier_id" class="preferred-supplier-id" value="{{ $item->preferred_vendor_id }}" disabled />
+                    <input type="text" class="preferred-supplier-name h-8 w-full px-2 border border-gray-300 rounded text-sm" placeholder="Cari vendor dari hasil benchmarking..." autocomplete="off" value="{{ $item->preferredVendor->name ?? '' }}" disabled />
                     <div class="preferred-supplier-suggest absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-md shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
                 </div>
                 <div>
                     <label class="block text-xs text-gray-600 mb-0.5">Unit Price</label>
-                    <input type="text" name="unit_price" value="{{ $item->preferred_unit_price }}" class="w-full h-8 px-2 border border-gray-300 rounded text-sm currency-input" placeholder="Rp" />
+                    <input type="text" name="unit_price" value="{{ $item->preferred_unit_price }}" class="w-full h-8 px-2 border border-gray-300 rounded text-sm currency-input" placeholder="Rp" disabled />
                 </div>
                 <div>
                     <label class="block text-xs text-gray-600 mb-0.5">Total Price</label>
-                    <input type="text" name="total_price" value="{{ $item->preferred_total_price }}" class="w-full h-8 px-2 border border-gray-300 rounded text-sm currency-input" placeholder="Rp" />
+                    <input type="text" name="total_price" value="{{ $item->preferred_total_price }}" class="w-full h-8 px-2 border border-gray-300 rounded text-sm currency-input" placeholder="Rp" disabled />
                 </div>
                 <div>
-                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan Preferred</button>
+                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs" disabled>Simpan Preferred</button>
                 </div>
             </form>
+            <div class="mt-1 text-xs text-gray-500">
+                Pengisian Preferred Vendor hanya dapat dilakukan di halaman Kelola Vendor.
+            </div>
             @else
                 <div class="text-sm text-gray-600">Preferred Vendor: <span class="font-medium text-gray-900">{{ $item->preferredVendor->name ?? '-' }}</span></div>
             @endif

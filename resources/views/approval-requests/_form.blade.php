@@ -203,6 +203,29 @@
         return digits;
     }
 
+    // Sync main inputs -> Form Statis (Section A) for the same row
+    function syncFormExtraFields(rowIndex, opts = { force: false }) {
+        const row = (rows || []).find(r => r.index === rowIndex);
+        if (!row) return;
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs) return;
+        const setIfEmpty = (selector, val) => {
+            const el = trFs.querySelector(selector);
+            if (!el) return;
+            const current = (el.value ?? '').toString().trim();
+            if (opts.force || current === '') {
+                el.value = val != null ? String(val) : '';
+            }
+        };
+        // a_nama from main item name
+        setIfEmpty('.fs-a_nama', row.name || '');
+        // a_jumlah from main quantity
+        setIfEmpty('.fs-a_jumlah', (row.quantity != null && row.quantity !== '') ? row.quantity : '');
+        // a_harga from main unit_price, formatted
+        const harga = (row.unit_price != null && row.unit_price !== '') ? formatRupiahInputValue(row.unit_price) : '';
+        setIfEmpty('.fs-a_harga', harga);
+    }
+
     let rows = [];
     let staticSectionShown = false;
     let staticRowsAppended = false;
@@ -443,6 +466,18 @@
                         }
                     });
                 }
+
+                // Preserve existing per-item FS document on edit if no new file selected
+                try {
+                    const trFs = document.getElementById(`row-${row.index}-static`);
+                    const fileInput = trFs ? trFs.querySelector('.fs-document-input') : null;
+                    const hasNewFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
+                    if (row.fs_document && !hasNewFile) {
+                        form.insertAdjacentHTML('beforeend',
+                            `<input class="item-hidden" type="hidden" name="items[${row.index}][existing_fs_document]" value="${escapeHtml(row.fs_document)}">`
+                        );
+                    }
+                } catch (_) { /* no-op */ }
             });
 
             form.submit();
@@ -488,6 +523,8 @@
         // If FS is disabled globally, always hide the form
         if (!fsSettings.enabled) {
             trFs.classList.add('hidden');
+            // Ensure radios are not required when hidden
+            setRadiosRequired(trFs, false);
             return;
         }
         
@@ -508,12 +545,12 @@
         
         if (shouldShowForm) {
             trFs.classList.remove('hidden');
-            // Auto-fill when form becomes visible
-            autoFillFormExtra(rowIndex);
             // Configure form state based on which threshold is met
             configureFormState(rowIndex, meetsPerItemThreshold);
         } else {
             trFs.classList.add('hidden');
+            // When hidden, remove required from radios to avoid HTML5 validation errors
+            setRadiosRequired(trFs, false);
         }
     }
     
@@ -536,7 +573,6 @@
                     const trFs = document.getElementById(`row-${row.index}-static`);
                     if (trFs) {
                         trFs.classList.remove('hidden');
-                        autoFillFormExtra(row.index);
                         // Configure state for items shown only due to total threshold
                         configureFormState(row.index, false);
                     }
@@ -546,6 +582,16 @@
     }
     
     // Configure form state based on threshold conditions and settings
+    // Helper: toggle required attribute for all radios inside a form-static container
+    function setRadiosRequired(container, shouldRequire) {
+        if (!container) return;
+        const radios = container.querySelectorAll('input[type="radio"]');
+        radios.forEach(r => {
+            if (shouldRequire) r.setAttribute('required', '');
+            else r.removeAttribute('required');
+        });
+    }
+
     function configureFormState(rowIndex, meetsPerItemThreshold) {
         const trFs = document.getElementById(`row-${rowIndex}-static`);
         if (!trFs) return;
@@ -590,6 +636,10 @@
                 input.classList.add('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
             }
         });
+
+        // Required handling: only require radios when visible and inputs are enabled
+        const isHidden = trFs.classList.contains('hidden');
+        setRadiosRequired(trFs, enableInputs && !isHidden);
         
         // Configure file upload: hide section when not enabled (instead of disabling input)
         const uploadSection = trFs.querySelector('.fs-upload-section');
@@ -600,12 +650,20 @@
                 if (fileInput) {
                     fileInput.disabled = false; // keep enabled when visible
                     fileInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
+                    // Make FS file input required when visible and no existing FS document
+                    try {
+                        const row = (rows || []).find(r => r.index === rowIndex);
+                        const hasExisting = !!(row && row.fs_document);
+                        fileInput.required = !hasExisting;
+                    } catch (_) { fileInput.required = true; }
                 }
             } else {
                 // Hide and clear value for safety so hidden files are not submitted
                 uploadSection.classList.add('hidden');
                 if (fileInput) {
                     try { fileInput.value = ''; } catch (_) {}
+                    // Ensure not required when hidden
+                    fileInput.required = false;
                 }
             }
         }
@@ -631,6 +689,11 @@
                 `;
                 formContent.insertBefore(notice, formContent.firstChild);
             }
+        }
+
+        // Prefill visible form statis fields from main inputs when enabling inputs
+        if (enableInputs && !trFs.classList.contains('hidden')) {
+            try { syncFormExtraFields(rowIndex); } catch(_) {}
         }
     }
     
@@ -1069,6 +1132,8 @@
         nameInput.addEventListener('input', async function() {
             row.name = this.value;
             row.master_item_id = '';
+            // Realtime sync to form statis (force overwrite to mirror main field)
+            syncFormExtraFields(row.index, { force: true });
             if (this.value.trim().length < 2) {
                 sugBox.classList.add('hidden');
                 return;
@@ -1106,6 +1171,8 @@
             const q = parseInt(row.quantity || 0) || 0;
             const p = parseInt(row.unit_price || 0) || 0;
             if (totalInput) totalInput.value = formatRupiahInputValue(q * p);
+            // Realtime sync quantity to form statis
+            syncFormExtraFields(row.index, { force: true });
         });
         const handlePriceInput = function() {
             const v = (priceInput.value || '').trim();
@@ -1119,6 +1186,8 @@
             const q = parseInt(row.quantity || 0) || 0;
             const p = parseInt(row.unit_price || 0) || 0;
             if (totalInput) totalInput.value = formatRupiahInputValue(q * p);
+            // Realtime sync price to form statis
+            syncFormExtraFields(row.index, { force: true });
         };
         priceInput.addEventListener('input', handlePriceInput);
         priceInput.addEventListener('blur', handlePriceInput);
@@ -1525,43 +1594,10 @@
         });
     }
     
-    // Auto-fill form extra from main form when form statis becomes visible
+    // Disable auto-fill of form extra to avoid default values
     function autoFillFormExtra(rowIndex) {
-        const row = rows.find(r => r.index === rowIndex);
-        if (!row) return;
-        
-        const trFs = document.getElementById(`row-${rowIndex}-static`);
-        if (!trFs) return;
-        
-        // Auto-fill nama from item name
-        const namaInput = trFs.querySelector('.fs-a_nama');
-        if (namaInput && !namaInput.value && row.name) {
-            namaInput.value = row.name;
-        }
-        
-        // Auto-fill fungsi from specification
-        const fungsiInput = trFs.querySelector('.fs-a_fungsi');
-        if (fungsiInput && !fungsiInput.value && row.specification) {
-            fungsiInput.value = row.specification;
-        }
-        
-        // Auto-fill jumlah from quantity
-        const jumlahInput = trFs.querySelector('.fs-a_jumlah');
-        if (jumlahInput && !jumlahInput.value && row.quantity) {
-            jumlahInput.value = row.quantity;
-        }
-        
-        // Auto-fill harga from unit_price
-        const hargaInput = trFs.querySelector('.fs-a_harga');
-        if (hargaInput && !hargaInput.value && row.unit_price) {
-            hargaInput.value = 'Rp ' + formatRupiahInputValue(row.unit_price);
-        }
-        
-        // Auto-fill pengguna from allocation department
-        const penggunaInput = trFs.querySelector('.fs-a_pengguna');
-        if (penggunaInput && !penggunaInput.value && row.allocation_department_name) {
-            penggunaInput.value = row.allocation_department_name;
-        }
+        // Intentionally left blank: no default auto-filling
+        return;
     }
     
     // Load item extra data into form statis (for edit mode)

@@ -11,77 +11,109 @@
 
     <x-slot name="filters">
         <form method="GET" class="w-full" id="filter-form">
-            <div class="space-y-2">
-                <!-- Row 1: Search, Date From, Date To, Year, Buttons -->
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                    <div class="md:col-span-5">
-                        <label class="block text-xs font-medium text-gray-600 mb-0.5">Pencarian</label>
-                        <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari no input / item / status" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+            <div class="space-y-2" x-data="{ showAdvanced: false }" @toggle-advanced-filter.window="showAdvanced = !showAdvanced">
+                <!-- Main Filter Bar -->
+                <div class="flex flex-col lg:flex-row gap-2">
+                    <!-- Search Section -->
+                    <div class="flex flex-1 gap-2 items-center">
+                        <div class="flex-1 max-w-md">
+                            <div class="relative">
+                                <input type="text" name="search" value="{{ request('search') }}" 
+                                       placeholder="Cari request..."
+                                       class="w-full h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <svg class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- Purchasing Status Filter -->
+                        <select name="purchasing_status" class="h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Proses</option>
+                            <option value="unprocessed" {{ request('purchasing_status') === 'unprocessed' ? 'selected' : '' }}>Belum diproses</option>
+                            <option value="benchmarking" {{ request('purchasing_status') === 'benchmarking' ? 'selected' : '' }}>Pemilihan vendor</option>
+                            <option value="selected" {{ request('purchasing_status') === 'selected' ? 'selected' : '' }}>Uji coba/PR Sistem</option>
+                            <option value="po_issued" {{ request('purchasing_status') === 'po_issued' ? 'selected' : '' }}>Proses di vendor</option>
+                            <option value="grn_received" {{ request('purchasing_status') === 'grn_received' ? 'selected' : '' }}>Barang diterima</option>
+                            <option value="done" {{ request('purchasing_status') === 'done' ? 'selected' : '' }}>Selesai</option>
+                        </select>
+                        
+                        <!-- Advanced Filters Toggle -->
+                        <button type="button" @click="$dispatch('toggle-advanced-filter')" 
+                                class="h-9 px-3 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md hover:bg-gray-50">
+                            <i class="fas fa-filter mr-1"></i>
+                            <span x-data="{ open: false }" @toggle-advanced-filter.window="open = !open" x-text="open ? 'Sembunyikan' : 'Filter Lanjutan'"></span>
+                        </button>
+                        
+                        <!-- Submit Button -->
+                        <button type="submit" class="h-9 px-4 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors">
+                            <i class="fas fa-search mr-1"></i>
+                            Filter
+                        </button>
                     </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-0.5">Dari</label>
-                        <input type="date" name="date_from" value="{{ request('date_from') }}" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-0.5">Sampai</label>
-                        <input type="date" name="date_to" value="{{ request('date_to') }}" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-gray-600 mb-0.5">Tahun</label>
-                        <input type="number" name="year" value="{{ request('year') }}" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" placeholder="YYYY">
-                    </div>
-                    <div class="md:col-span-2 flex md:justify-end gap-2">
-                        <button type="submit" class="h-8 px-3 bg-indigo-600 text-white rounded-md text-xs whitespace-nowrap">Filter</button>
-                        <a href="{{ route('reports.approval-requests') }}" class="h-8 px-3 border border-gray-300 rounded-md text-xs flex items-center whitespace-nowrap">Reset</a>
-                        <button type="button" onclick="exportData()" class="h-8 px-3 bg-green-600 text-white rounded-md text-xs whitespace-nowrap flex items-center gap-1">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
-                            Export CSV
+                    
+                    <!-- Action Buttons -->
+                    <div class="flex gap-2 flex-shrink-0">
+                        <!-- Per Page Selector -->
+                        <select name="per_page" class="h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="this.form.submit()">
+                            <option value="10" {{ $perPage == 10 ? 'selected' : '' }}>10</option>
+                            <option value="25" {{ $perPage == 25 ? 'selected' : '' }}>25</option>
+                            <option value="50" {{ $perPage == 50 ? 'selected' : '' }}>50</option>
+                            <option value="100" {{ $perPage == 100 ? 'selected' : '' }}>100</option>
+                        </select>
+                        
+                        <a href="{{ route('reports.approval-requests') }}" 
+                           class="h-9 px-3 inline-flex items-center text-sm font-medium border border-gray-300 hover:bg-gray-50 rounded-md transition-colors"
+                           title="Reset Filter">
+                            <i class="fas fa-undo"></i>
+                        </a>
+                        
+                        <button type="button" onclick="exportData()" 
+                                class="h-9 px-3 inline-flex items-center text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+                                title="Export CSV">
+                            <i class="fas fa-download mr-1.5"></i>
+                            <span class="hidden sm:inline">Export</span>
                         </button>
                     </div>
                 </div>
-
-                <!-- Row 2: Jenis, Unit, Kategori, Status -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-0.5">Jenis</label>
-                        <select name="submission_type_id" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="">Semua</option>
+                
+                <!-- Advanced Filters Row (shown below main filter) -->
+                <div x-show="showAdvanced" x-transition 
+                     class="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Tanggal</label>
+                        <input type="date" id="single-date" 
+                               value="{{ request('date_from') && request('date_to') && request('date_from')===request('date_to') ? request('date_from') : '' }}" 
+                               class="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="hidden" name="date_from" id="date_from" value="{{ request('date_from') }}">
+                        <input type="hidden" name="date_to" id="date_to" value="{{ request('date_to') }}">
+                    </div>
+                    
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Jenis Pengajuan</label>
+                        <select name="submission_type_id" class="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Jenis</option>
                             @foreach($submissionTypes as $s)
                                 <option value="{{ $s->id }}" {{ request('submission_type_id') == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-0.5">Unit Pengaju</label>
-                        <select name="department_id" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="">Semua</option>
+                    
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Unit Pengaju</label>
+                        <select name="department_id" class="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Unit</option>
                             @foreach($departments as $d)
                                 <option value="{{ $d->id }}" {{ request('department_id') == $d->id ? 'selected' : '' }}>{{ $d->name }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-0.5">Kategori</label>
-                        <select name="category_id" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="">Semua</option>
-                            @foreach($categories as $c)
-                                <option value="{{ $c->id }}" {{ request('category_id') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-0.5">Status/Process</label>
-                        <select name="status" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="">Semua</option>
-                            @foreach(['pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected','cancelled'=>'Cancelled'] as $k=>$v)
-                                <option value="{{ $k }}" {{ request('status') === $k ? 'selected' : '' }}>{{ $v }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    
+                    
                 </div>
-
+                
+                <!-- Info Status -->
+                <x-info-status class="py-1" variant="purchasing" size="sm" />
             </div>
         </form>
     </x-slot>
@@ -107,5 +139,17 @@ function exportData() {
     const exportUrl = '{{ route('reports.approval-requests.export') }}?' + params.toString();
     window.location.href = exportUrl;
 }
+// Keep single date in sync with backend date_from/date_to
+document.addEventListener('DOMContentLoaded', function(){
+    const single = document.getElementById('single-date');
+    const from = document.getElementById('date_from');
+    const to = document.getElementById('date_to');
+    if(single){
+        single.addEventListener('change', function(){
+            from.value = this.value || '';
+            to.value = this.value || '';
+        });
+    }
+});
 </script>
 @endpush

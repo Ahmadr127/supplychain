@@ -66,30 +66,30 @@
                     
                     @if($actions)
                         <td class="w-32 px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex space-x-2">
+                            <div class="flex flex-col space-y-2">
                                 @if(isset($item['actions']) && count($item['actions']) > 0)
                                     @foreach($item['actions'] as $action)
                                         @if(isset($action['type']) && $action['type'] === 'link')
                                             <a href="{{ $action['url'] }}" 
-                                               class="text-{{ $action['color'] ?? 'blue' }}-600 hover:text-{{ $action['color'] ?? 'blue' }}-900 transition-colors duration-150">
+                                               class="inline-block px-3 py-1 rounded text-white bg-{{ $action['color'] ?? 'blue' }}-600 hover:bg-{{ $action['color'] ?? 'blue' }}-700 transition-colors duration-150 text-center">
                                                 {{ $action['label'] }}
                                             </a>
                                         @elseif(isset($action['type']) && $action['type'] === 'button')
                                             <button type="button" 
-                                                    class="text-{{ $action['color'] ?? 'blue' }}-600 hover:text-{{ $action['color'] ?? 'blue' }}-900 transition-colors duration-150"
+                                                    class="inline-block px-3 py-1 rounded text-white bg-{{ $action['color'] ?? 'blue' }}-600 hover:bg-{{ $action['color'] ?? 'blue' }}-700 transition-colors duration-150 text-center"
                                                     @if(isset($action['onclick']))
                                                         onclick="{{ $action['onclick'] }}"
                                                     @endif>
                                                 {{ $action['label'] }}
                                             </button>
                                         @elseif(isset($action['type']) && $action['type'] === 'form')
-                                            <form action="{{ $action['url'] }}" method="{{ $action['method'] ?? 'POST' }}" class="inline">
+                                            <form action="{{ $action['url'] }}" method="{{ $action['method'] ?? 'POST' }}" class="block">
                                                 @csrf
                                                 @if(isset($action['method']) && $action['method'] !== 'POST')
                                                     @method($action['method'])
                                                 @endif
                                                 <button type="submit" 
-                                                        class="text-{{ $action['color'] ?? 'red' }}-600 hover:text-{{ $action['color'] ?? 'red' }}-900 transition-colors duration-150"
+                                                        class="inline-block w-full px-3 py-1 rounded text-white bg-{{ $action['color'] ?? 'red' }}-600 hover:bg-{{ $action['color'] ?? 'red' }}-700 transition-colors duration-150 text-center"
                                                         @if(isset($action['confirm']))
                                                             onclick="return confirm('{{ $action['confirm'] }}')"
                                                         @endif>
@@ -97,7 +97,7 @@
                                                 </button>
                                             </form>
                                         @elseif(isset($action['type']) && $action['type'] === 'text')
-                                            <span class="text-{{ $action['color'] ?? 'gray' }}-600">
+                                            <span class="inline-block px-3 py-1 rounded bg-{{ $action['color'] ?? 'gray' }}-100 text-{{ $action['color'] ?? 'gray' }}-700 text-center">
                                                 {{ $action['label'] }}
                                             </span>
                                         @endif

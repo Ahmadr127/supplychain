@@ -73,10 +73,18 @@ class PurchasingItemController extends Controller
             $q->where('status', $request->status);
         }
 
-        $items = $q->paginate(15)->withQueryString();
+        // Get per_page parameter with default of 10
+        $perPage = $request->get('per_page', 10);
+        // Validate per_page value
+        if (!in_array($perPage, [10, 25, 50, 100])) {
+            $perPage = 10;
+        }
+
+        $items = $q->paginate($perPage)->withQueryString();
 
         return view('purchasing.items.index', [
             'items' => $items,
+            'perPage' => $perPage,
         ]);
     }
 

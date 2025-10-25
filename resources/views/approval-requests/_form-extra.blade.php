@@ -65,21 +65,21 @@
             <input type="text" class="fs-a_leadtime w-full h-7 px-1 border border-gray-300 rounded-md text-xs" placeholder="cth: 2 minggu" data-row-index="__ROW_INDEX__" />
             <label class="block text-xs text-gray-600">8. Ada di e-Katalog LKPP?</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_ekatalog-__ROW_INDEX__" value="ya" class="mr-1"> Ya</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_ekatalog-__ROW_INDEX__" value="tidak" class="mr-1"> Tidak</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_ekatalog-__ROW_INDEX__" value="ya" class="mr-1" required> Ya</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_ekatalog-__ROW_INDEX__" value="tidak" class="mr-1" required> Tidak</label>
                 <input type="text" class="fs-a_ekatalog_ket h-7 px-1 border border-gray-300 rounded-md text-xs w-40" placeholder="Catatan" data-row-index="__ROW_INDEX__" />
             </div>
             <label class="block text-xs text-gray-600">9. Harga Perkiraan</label>
             <input type="text" class="fs-a_harga w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="__ROW_INDEX__" />
             <label class="block text-xs text-gray-600">10. Kategori Permintaan</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_kategori_perm-__ROW_INDEX__" value="baru" class="mr-1"> Investasi Baru</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_kategori_perm-__ROW_INDEX__" value="replacement" class="mr-1"> Replacement</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_kategori_perm-__ROW_INDEX__" value="baru" class="mr-1" required> Investasi Baru</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_kategori_perm-__ROW_INDEX__" value="replacement" class="mr-1" required> Replacement</label>
             </div>
             <label class="block text-xs text-gray-600">11. Lampiran Analisa</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_lampiran-__ROW_INDEX__" value="ada" class="mr-1"> Ada</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_lampiran-__ROW_INDEX__" value="tidak" class="mr-1"> Tidak ada</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_lampiran-__ROW_INDEX__" value="ada" class="mr-1" required> Ada</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-a_lampiran-__ROW_INDEX__" value="tidak" class="mr-1" required> Tidak ada</label>
             </div>
             <!-- B. Dalam rangka menunjang tugas & fungsi unit -->
             <div class="mt-2">
@@ -90,14 +90,14 @@
                 <input type="number" min="0" class="fs-b_jml_dokter w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="__ROW_INDEX__" />
                 <label class="block text-xs text-gray-600 mt-1">15. Tingkat beban tugas</label>
                 <div class="flex items-center gap-3">
-                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_beban-__ROW_INDEX__" value="tinggi" class="mr-1"> Tinggi</label>
-                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_beban-__ROW_INDEX__" value="sedang" class="mr-1"> Sedang</label>
-                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_beban-__ROW_INDEX__" value="rendah" class="mr-1"> Rendah</label>
+                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_beban-__ROW_INDEX__" value="tinggi" class="mr-1" required> Tinggi</label>
+                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_beban-__ROW_INDEX__" value="sedang" class="mr-1" required> Sedang</label>
+                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_beban-__ROW_INDEX__" value="rendah" class="mr-1" required> Rendah</label>
                 </div>
                 <label class="block text-xs text-gray-600 mt-1">16. Barang sejenis sudah tersedia/dimiliki/dikuasai?</label>
                 <div class="flex items-center gap-3">
-                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_barang_ada-__ROW_INDEX__" value="ya" class="mr-1"> Ya</label>
-                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_barang_ada-__ROW_INDEX__" value="tidak" class="mr-1"> Tidak</label>
+                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_barang_ada-__ROW_INDEX__" value="ya" class="mr-1" required> Ya</label>
+                    <label class="text-xs text-gray-700"><input type="radio" name="fs-b_barang_ada-__ROW_INDEX__" value="tidak" class="mr-1" required> Tidak</label>
                 </div>
             </div>
         </div>
@@ -117,29 +117,29 @@
             </div>
             <label class="block text-xs text-gray-600">18. Kondisi/Kelayakan Barang</label>
             <div class="flex flex-wrap items-center gap-2">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kondisi-__ROW_INDEX__" value="layak" class="mr-1"> Layak Pakai</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kondisi-__ROW_INDEX__" value="rusak" class="mr-1"> Rusak</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kondisi-__ROW_INDEX__" value="tdk_dapat_digunakan" class="mr-1"> Tidak dapat digunakan</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kondisi-__ROW_INDEX__" value="lainnya" class="mr-1"> Lainnya</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kondisi-__ROW_INDEX__" value="layak" class="mr-1" required> Layak Pakai</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kondisi-__ROW_INDEX__" value="rusak" class="mr-1" required> Rusak</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kondisi-__ROW_INDEX__" value="tdk_dapat_digunakan" class="mr-1" required> Tidak dapat digunakan</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kondisi-__ROW_INDEX__" value="lainnya" class="mr-1" required> Lainnya</label>
             </div>
             <input type="text" class="fs-c_kondisi_lain h-7 px-1 border border-gray-300 rounded-md text-xs w-full" placeholder="Sebutkan jika lainnya" data-row-index="__ROW_INDEX__" />
             <label class="block text-xs text-gray-600">19. Lokasi/Keberadaan Barang</label>
             <input type="text" class="fs-c_lokasi w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="__ROW_INDEX__" />
             <label class="block text-xs text-gray-600">20. Sumber/Asal barang yang telah tersedia</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_sumber-__ROW_INDEX__" value="milik_rs" class="mr-1"> Milik RS</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_sumber-__ROW_INDEX__" value="kso" class="mr-1"> KSO</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_sumber-__ROW_INDEX__" value="donasi" class="mr-1"> Donasi</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_sumber-__ROW_INDEX__" value="milik_rs" class="mr-1" required> Milik RS</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_sumber-__ROW_INDEX__" value="kso" class="mr-1" required> KSO</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_sumber-__ROW_INDEX__" value="donasi" class="mr-1" required> Donasi</label>
             </div>
             <label class="block text-xs text-gray-600">21. Kemudahan diperoleh di pasar Indonesia</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kemudahan-__ROW_INDEX__" value="ya" class="mr-1"> Ya</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kemudahan-__ROW_INDEX__" value="tidak" class="mr-1"> Tidak</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kemudahan-__ROW_INDEX__" value="ya" class="mr-1" required> Ya</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_kemudahan-__ROW_INDEX__" value="tidak" class="mr-1" required> Tidak</label>
             </div>
             <label class="block text-xs text-gray-600">22. Produsen/Pelaku usaha yang mampu</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_produsen-__ROW_INDEX__" value="banyak" class="mr-1"> Banyak</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_produsen-__ROW_INDEX__" value="terbatas" class="mr-1"> Terbatas</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_produsen-__ROW_INDEX__" value="banyak" class="mr-1" required> Banyak</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_produsen-__ROW_INDEX__" value="terbatas" class="mr-1" required> Terbatas</label>
             </div>
             <label class="block text-xs text-gray-600">23. Kriteria Barang (boleh lebih dari satu)</label>
             <div class="flex flex-wrap items-center gap-2">
@@ -150,8 +150,8 @@
             </div>
             <label class="block text-xs text-gray-600">24. Persyaratan nilai TKDN tertentu</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_tkdn-__ROW_INDEX__" value="ya" class="mr-1"> Ya</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_tkdn-__ROW_INDEX__" value="tidak" class="mr-1"> Tidak</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_tkdn-__ROW_INDEX__" value="ya" class="mr-1" required> Ya</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-c_tkdn-__ROW_INDEX__" value="tidak" class="mr-1" required> Tidak</label>
                 <span class="text-xs text-gray-600">Min TKDN</span>
                 <input type="number" min="0" max="100" step="0.01" class="fs-c_tkdn_min h-7 px-1 border border-gray-300 rounded-md text-xs w-16" placeholder="%" data-row-index="__ROW_INDEX__" />
             </div>
@@ -167,20 +167,20 @@
             <input type="text" class="fs-e_penyimpanan w-full h-7 px-1 border border-gray-300 rounded-md text-xs" data-row-index="__ROW_INDEX__" />
             <label class="block text-xs text-gray-600">29. Pengoperasian</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_operasi-__ROW_INDEX__" value="otomatis" class="mr-1"> Otomatis</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_operasi-__ROW_INDEX__" value="manual" class="mr-1"> Manual</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_operasi-__ROW_INDEX__" value="otomatis" class="mr-1" required> Otomatis</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_operasi-__ROW_INDEX__" value="manual" class="mr-1" required> Manual</label>
             </div>
             <label class="block text-xs text-gray-600">30. Catatan Pengoperasian</label>
             <textarea class="fs-e_catatan w-full h-12 px-1 py-1 border border-gray-300 rounded-md text-xs resize-y" data-row-index="__ROW_INDEX__"></textarea>
             <label class="block text-xs text-gray-600">31. Perlu Pelatihan?</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_pelatihan-__ROW_INDEX__" value="ya" class="mr-1"> Ya</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_pelatihan-__ROW_INDEX__" value="tidak" class="mr-1"> Tidak</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_pelatihan-__ROW_INDEX__" value="ya" class="mr-1" required> Ya</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_pelatihan-__ROW_INDEX__" value="tidak" class="mr-1" required> Tidak</label>
             </div>
             <label class="block text-xs text-gray-600">32. Aspek Bekalan/Layanan</label>
             <div class="flex items-center gap-3">
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_aspek-__ROW_INDEX__" value="ya" class="mr-1"> Ya</label>
-                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_aspek-__ROW_INDEX__" value="tidak" class="mr-1"> Tidak</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_aspek-__ROW_INDEX__" value="ya" class="mr-1" required> Ya</label>
+                <label class="text-xs text-gray-700"><input type="radio" name="fs-e_aspek-__ROW_INDEX__" value="tidak" class="mr-1" required> Tidak</label>
             </div>
         </div>
     </div>
@@ -204,9 +204,17 @@
         if (content.classList.contains('hidden')) {
             content.classList.remove('hidden');
             icon.classList.add('rotate-180');
+            // When showing, require radios only if they are enabled
+            const radios = content.querySelectorAll('input[type="radio"]');
+            radios.forEach(r => {
+                if (!r.disabled) r.setAttribute('required', '');
+            });
         } else {
             content.classList.add('hidden');
             icon.classList.remove('rotate-180');
+            // When hiding, remove required to avoid focusable validation errors
+            const radios = content.querySelectorAll('input[type="radio"]');
+            radios.forEach(r => r.removeAttribute('required'));
         }
     }
 </script>

@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         // Call seeders in order
         $this->call([
             RolePermissionSeeder::class,
+            VendorPermissionSeeder::class,
             SettingsPermissionSeeder::class, // Add settings permission seeder
             DepartmentSeeder::class,
             SubmissionTypeSeeder::class,

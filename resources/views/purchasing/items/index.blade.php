@@ -5,7 +5,7 @@
 @section('content')
 <div class="space-y-3">
     <div class="bg-white p-3 rounded-lg border border-gray-200">
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-7 gap-2 items-end">
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-600 mb-0.5">Pencarian</label>
                 <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari No Input / Nama Item" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
@@ -17,6 +17,15 @@
                     @foreach(['unprocessed','benchmarking','comparing','selected','po_issued','grn_received','done'] as $st)
                         <option value="{{ $st }}" {{ request('status')===$st ? 'selected' : '' }}>{{ strtoupper($st) }}</option>
                     @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-0.5">Tampilkan</label>
+                <select name="per_page" class="w-full h-8 px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
+                    <option value="10" {{ $perPage == 10 ? 'selected' : '' }}>10</option>
+                    <option value="25" {{ $perPage == 25 ? 'selected' : '' }}>25</option>
+                    <option value="50" {{ $perPage == 50 ? 'selected' : '' }}>50</option>
+                    <option value="100" {{ $perPage == 100 ? 'selected' : '' }}>100</option>
                 </select>
             </div>
             <div class="md:col-span-2 flex gap-2">
@@ -89,7 +98,89 @@
                 </tbody>
             </table>
         </div>
-        <div class="p-2 border-t">{{ $items->links() }}</div>
+        <!-- Pagination Section -->
+        <div class="px-4 py-3 border-t border-gray-200 bg-white">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <!-- Show entries info -->
+                <div class="text-sm text-gray-700">
+                    <span class="font-medium">Menampilkan</span>
+                    <span class="font-semibold text-gray-900">{{ $items->firstItem() ?? 0 }}</span>
+                    <span class="font-medium">sampai</span>
+                    <span class="font-semibold text-gray-900">{{ $items->lastItem() ?? 0 }}</span>
+                    <span class="font-medium">dari</span>
+                    <span class="font-semibold text-gray-900">{{ $items->total() }}</span>
+                    <span class="font-medium">data</span>
+                </div>
+                
+                <!-- Custom Pagination -->
+                <div class="flex items-center space-x-1">
+                    @if ($items->onFirstPage())
+                        <span class="px-3 py-2 text-sm text-gray-400 bg-gray-100 border border-gray-300 rounded-l-md cursor-not-allowed">
+                            <i class="fas fa-chevron-left"></i>
+                        </span>
+                    @else
+                        <a href="{{ $items->previousPageUrl() }}" class="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    @endif
+
+                    @php
+                        $currentPage = $items->currentPage();
+                        $lastPage = $items->lastPage();
+                        $startPage = max(1, $currentPage - 2);
+                        $endPage = min($lastPage, $currentPage + 2);
+                        
+                        // Adjust range if we're near the beginning or end
+                        if ($currentPage <= 3) {
+                            $endPage = min(5, $lastPage);
+                        }
+                        if ($currentPage >= $lastPage - 2) {
+                            $startPage = max(1, $lastPage - 4);
+                        }
+                    @endphp
+
+                    @if ($startPage > 1)
+                        <a href="{{ $items->url(1) }}" class="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150">
+                            1
+                        </a>
+                        @if ($startPage > 2)
+                            <span class="px-2 py-2 text-sm text-gray-500">...</span>
+                        @endif
+                    @endif
+
+                    @for ($page = $startPage; $page <= $endPage; $page++)
+                        @if ($page == $currentPage)
+                            <span class="px-3 py-2 text-sm font-semibold text-white bg-blue-600 border border-blue-600">
+                                {{ $page }}
+                            </span>
+                        @else
+                            <a href="{{ $items->url($page) }}" class="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150">
+                                {{ $page }}
+                            </a>
+                        @endif
+                    @endfor
+
+                    @if ($endPage < $lastPage)
+                        @if ($endPage < $lastPage - 1)
+                            <span class="px-2 py-2 text-sm text-gray-500">...</span>
+                        @endif
+                        <a href="{{ $items->url($lastPage) }}" class="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150">
+                            {{ $lastPage }}
+                        </a>
+                    @endif
+
+                    @if ($items->hasMorePages())
+                        <a href="{{ $items->nextPageUrl() }}" class="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    @else
+                        <span class="px-3 py-2 text-sm text-gray-400 bg-gray-100 border border-gray-300 rounded-r-md cursor-not-allowed">
+                            <i class="fas fa-chevron-right"></i>
+                        </span>
+                    @endif
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 @endsection
