@@ -531,6 +531,20 @@ class ReportController extends Controller
         return back()->with('success', 'Preferred vendor berhasil disimpan.');
     }
 
+    public function saveBenchmarkNotes(Request $request, PurchasingItem $purchasingItem)
+    {
+        if (!(auth()->user()?->hasPermission('manage_vendor') || auth()->user()?->hasPermission('manage_purchasing'))) {
+            abort(403, 'Unauthorized action.');
+        }
+        $data = $request->validate([
+            'benchmark_notes' => 'nullable|string|max:2000',
+        ]);
+        $purchasingItem->update([
+            'benchmark_notes' => $data['benchmark_notes'] ?? null,
+        ]);
+        return back()->with('success', 'Catatan benchmarking berhasil disimpan.');
+    }
+
     public function issuePO(Request $request, PurchasingItem $purchasingItem)
     {
         $data = $request->validate([

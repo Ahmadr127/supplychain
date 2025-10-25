@@ -23,10 +23,7 @@ class DepartmentController extends Controller
             });
         }
 
-        // Level filter
-        if ($request->filled('level')) {
-            $query->where('level', $request->level);
-        }
+        // Level filter removed
 
         // Status filter
         if ($request->filled('status')) {
@@ -54,8 +51,7 @@ class DepartmentController extends Controller
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:departments,id',
             'manager_id' => 'nullable|exists:users,id',
-            'level' => 'required|integer|min:1|max:5',
-            'approval_level' => 'required|integer|min:1|max:5',
+            // removed level and approval_level validations
             'is_active' => 'boolean',
             'members' => 'array',
             'members.*.user_id' => 'required|exists:users,id',
@@ -83,8 +79,6 @@ class DepartmentController extends Controller
             'description' => $request->description,
             'parent_id' => $request->parent_id,
             'manager_id' => $request->manager_id,
-            'level' => $request->level,
-            'approval_level' => $request->approval_level,
             'is_active' => $request->has('is_active')
         ]);
 
@@ -149,8 +143,7 @@ class DepartmentController extends Controller
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:departments,id',
             'manager_id' => 'nullable|exists:users,id',
-            'level' => 'required|integer|min:1|max:5',
-            'approval_level' => 'required|integer|min:1|max:5',
+            // removed level and approval_level validations
             'is_active' => 'boolean',
             'members' => 'array',
             'members.*.user_id' => 'required|exists:users,id',
@@ -180,8 +173,6 @@ class DepartmentController extends Controller
             'description' => $request->description,
             'parent_id' => $request->parent_id,
             'manager_id' => $request->manager_id,
-            'level' => $request->level,
-            'approval_level' => $request->approval_level,
             'is_active' => $request->has('is_active')
         ]);
 

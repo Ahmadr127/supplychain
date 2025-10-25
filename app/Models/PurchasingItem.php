@@ -17,6 +17,7 @@ class PurchasingItem extends Model
         'status',
         'status_changed_at',
         'status_changed_by',
+        'benchmark_notes',
         'preferred_vendor_id',
         'preferred_unit_price',
         'preferred_total_price',

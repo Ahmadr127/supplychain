@@ -52,7 +52,6 @@ class ApprovalWorkflow extends Model
                 'approver_id' => $step['approver_id'] ?? null,
                 'approver_role_id' => $step['approver_role_id'] ?? null,
                 'approver_department_id' => $step['approver_department_id'] ?? null,
-                'approver_level' => $step['approver_level'] ?? null,
             ];
         });
     }
@@ -117,7 +116,6 @@ class ApprovalWorkflow extends Model
                 'approver_id' => $step['approver_id'] ?? null,
                 'approver_role_id' => $step['approver_role_id'] ?? null,
                 'approver_department_id' => $step['approver_department_id'] ?? null,
-                'approver_level' => $step['approver_level'] ?? null,
                 'status' => 'pending'
             ]);
         }

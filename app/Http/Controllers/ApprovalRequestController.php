@@ -864,15 +864,15 @@ class ApprovalRequestController extends Controller
                                   ->orWhereHas('approverDepartment', function($deptQuery) use ($user) {
                                       $deptQuery->where('manager_id', $user->id);
                                   })
-                                  // For department_level approver type - check if user can approve based on department level
-                                  ->orWhere(function($levelQuery) use ($user, $userDepartments) {
-                                      $levelQuery->where('approver_type', 'department_level')
-                                                ->whereExists(function($existsQuery) use ($user, $userDepartments) {
-                                                    $existsQuery->select(\DB::raw(1))
-                                                              ->from('departments')
-                                                              ->whereIn('id', $userDepartments)
-                                                              ->where('level', '>=', \DB::raw('approval_steps.approver_level'));
-                                                });
+                                  // For any_department_manager approver type - user must be a manager in any department
+                                  ->orWhere(function($anyMgrQuery) use ($user) {
+                                      $anyMgrQuery->where('approver_type', 'any_department_manager')
+                                                  ->whereExists(function($exists) use ($user) {
+                                                      $exists->select(\DB::raw(1))
+                                                            ->from('user_departments')
+                                                            ->whereColumn('user_departments.user_id', \DB::raw((int)$user->id))
+                                                            ->where('user_departments.is_manager', true);
+                                                  });
                                   })
                                   // For requester_department_manager approver type - user must be manager of requester's primary department
                                   ->orWhere(function($reqMgrQuery) use ($user) {

@@ -21,14 +21,7 @@
                        placeholder="Cari nama, kode, atau deskripsi..."
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
             </div>
-            <div class="w-32">
-                <select name="level" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                    <option value="">Semua Level</option>
-                    <option value="1" {{ request('level') == '1' ? 'selected' : '' }}>Level 1</option>
-                    <option value="2" {{ request('level') == '2' ? 'selected' : '' }}>Level 2</option>
-                    <option value="3" {{ request('level') == '3' ? 'selected' : '' }}>Level 3</option>
-                </select>
-            </div>
+            
             <div class="w-32">
                 <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     <option value="">Semua Status</option>
@@ -64,9 +57,7 @@
                     <th class="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Kode & Nama
                     </th>
-                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Level
-                    </th>
+                    
                     <th class="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Manager
                     </th>
@@ -102,13 +93,7 @@
                             @endif
                         </div>
                     </td>
-                    <td class="w-1/12 px-6 py-4">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            {{ $department->level == 1 ? 'bg-green-100 text-green-800' : 
-                               ($department->level == 2 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
-                            Level {{ $department->level }}
-                        </span>
-                    </td>
+                    
                     <td class="w-1/6 px-6 py-4">
                         <div class="min-w-0">
                             @if($department->manager)

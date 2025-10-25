@@ -17,7 +17,6 @@ class ApprovalStep extends Model
         'approver_id',
         'approver_role_id',
         'approver_department_id',
-        'approver_level',
         'status',
         'approved_by',
         'approved_at',
@@ -88,13 +87,12 @@ class ApprovalStep extends Model
                     ? $this->request->requester->departments()->wherePivot('is_primary', true)->first()
                     : null;
                 return $requesterDepartment ? $requesterDepartment->manager : null;
-            case 'department_level':
-                // Cari manager berdasarkan level departemen requester
-                $requesterDepartment = $this->request->requester->departments()->wherePivot('is_primary', true)->first();
-                if ($requesterDepartment) {
-                    return $requesterDepartment->getApproverByLevel($this->approver_level);
-                }
-                return null;
+            case 'any_department_manager':
+                // Display only: kembalikan salah satu manager (opsional)
+                $anyManager = \App\Models\User::whereHas('departments', function($q){
+                    $q->where('user_departments.is_manager', true);
+                })->first();
+                return $anyManager ?: null;
             default:
                 return null;
         }
@@ -123,15 +121,9 @@ class ApprovalStep extends Model
                 }
                 $requesterDepartment = $this->request->requester->departments()->wherePivot('is_primary', true)->first();
                 return $requesterDepartment && (int) $requesterDepartment->manager_id === (int) $userId;
-            case 'department_level':
-                // Check apakah user berada di department dengan level yang sesuai atau lebih tinggi
-                $userDepartments = $user->departments()->get();
-                foreach ($userDepartments as $dept) {
-                    if ($dept->level >= $this->approver_level) {
-                        return true;
-                    }
-                }
-                return false;
+            case 'any_department_manager':
+                // User adalah manager di salah satu departemen manapun
+                return $user->departments()->wherePivot('is_manager', true)->exists();
             default:
                 return false;
         }

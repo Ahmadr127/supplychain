@@ -15,8 +15,6 @@ class Department extends Model
         'description',
         'parent_id',
         'manager_id',
-        'level',
-        'approval_level',
         'is_active'
     ];
 
@@ -65,12 +63,6 @@ class Department extends Model
         return $query->where('is_active', true);
     }
 
-    // Scope untuk level tertentu
-    public function scopeLevel($query, $level)
-    {
-        return $query->where('level', $level);
-    }
-
     // Method untuk mendapatkan semua parent departments
     public function getAllParents()
     {
@@ -96,24 +88,5 @@ class Department extends Model
         }
         
         return $children;
-    }
-
-    // Method untuk mendapatkan approver berdasarkan level
-    public function getApproverByLevel($level)
-    {
-        if ($level <= $this->level) {
-            return $this->manager;
-        }
-        
-        // Cari di parent departments
-        $current = $this->parent;
-        while ($current) {
-            if ($current->level >= $level) {
-                return $current->manager;
-            }
-            $current = $current->parent;
-        }
-        
-        return null;
     }
 }

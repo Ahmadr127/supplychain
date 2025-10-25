@@ -42,6 +42,7 @@ class PurchasingItemController extends Controller
                 'grn_date' => optional($purchasingItem->grn_date)?->toDateString(),
                 'invoice_number' => $purchasingItem->invoice_number,
                 'proc_cycle_days' => $purchasingItem->proc_cycle_days,
+                'benchmark_notes' => $purchasingItem->benchmark_notes,
                 'vendors' => $purchasingItem->vendors->map(function($v){
                     return [
                         'supplier_id' => (int) $v->supplier_id,
@@ -111,6 +112,21 @@ class PurchasingItemController extends Controller
         $updated = $this->service->saveBenchmarking($purchasingItem, $data['vendors']);
 
         return back()->with('success', 'Benchmarking saved.');
+    }
+
+    // POST /purchasing/items/{purchasingItem}/benchmark-notes
+    public function saveBenchmarkNotes(Request $request, PurchasingItem $purchasingItem)
+    {
+        $data = $request->validate([
+            'benchmark_notes' => 'nullable|string|max:2000',
+        ]);
+
+        $purchasingItem->update([
+            'benchmark_notes' => $data['benchmark_notes'] ?? null,
+            // Do not change status here; only annotate notes
+        ]);
+
+        return back()->with('success', 'Catatan benchmarking disimpan.');
     }
 
     // POST /purchasing/items/{purchasingItem}/preferred

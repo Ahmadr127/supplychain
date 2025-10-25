@@ -272,8 +272,8 @@
                             <option value="user">User Spesifik</option>
                             <option value="role">Role</option>
                             <option value="department_manager">Manager Department</option>
-                            <option value="department_level">Level Department</option>
-                            <option value="requester_department_manager">Manager Departemen Requester (Tipe approver yang akan diisi oleh manager departemen requester)</option>
+                            <option value="requester_department_manager">Manager Departemen Requester</option>
+                            <option value="any_department_manager">Semua Manager</option>
                         </select>
                     </div>
             <div id="approver_user_${stepNumber}" class="approver-field" style="display: none;">
@@ -308,16 +308,7 @@
                 </select>
             </div>
             
-            <div id="approver_level_${stepNumber}" class="approver-field" style="display: none;">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Level Department</label>
-                <select name="workflow_steps[${stepNumber}][approver_level]"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Pilih Level</option>
-                    <option value="1">Level 1 - Unit</option>
-                    <option value="2">Level 2 - Management</option>
-                    <option value="3">Level 3 - Direktur</option>
-                </select>
-            </div>
+            
         </div>
     `;
         }
@@ -337,10 +328,10 @@
                 document.getElementById(`approver_role_${stepNumber}`).style.display = 'block';
             } else if (approverType === 'department_manager') {
                 document.getElementById(`approver_department_${stepNumber}`).style.display = 'block';
-            } else if (approverType === 'department_level') {
-                document.getElementById(`approver_level_${stepNumber}`).style.display = 'block';
             } else if (approverType === 'requester_department_manager') {
                 // No additional fields needed for requester_department_manager
+            } else if (approverType === 'any_department_manager') {
+                // No additional fields needed for any_department_manager
             }
         }
 

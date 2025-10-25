@@ -82,6 +82,17 @@
                                 @endphp
                                 <p class="mt-1">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $psColor }}">{{ $psText }}</span>
+                                    @php
+                                        $latestPi = ($approvalRequest->purchasingItems ?? collect())
+                                            ->sortByDesc(function($pi){
+                                                $order = ['unprocessed'=>0,'benchmarking'=>1,'selected'=>2,'po_issued'=>3,'grn_received'=>4,'done'=>5];
+                                                return $order[$pi->status] ?? 0;
+                                            })->first();
+                                        $changedAt = optional($latestPi?->status_changed_at)->format('d/m/Y H:i') ?? optional($latestPi?->updated_at)->format('d/m/Y H:i');
+                                    @endphp
+                                    @if($changedAt)
+                                    <div class="text-[11px] text-gray-500 mt-0.5">Update: {{ $changedAt }}</div>
+                                    @endif
                                 </p>
                             </div>
                             
@@ -125,6 +136,23 @@
                                         <span class="font-semibold text-gray-700">Dibuat:</span>
                                         <span>{{ $approvalRequest->created_at->format('d/m/Y H:i') }}</span>
                                     </div>
+                                    @php
+                                        $bmNotes = ($approvalRequest->purchasingItems ?? collect())
+                                            ->filter(fn($pi) => !empty($pi->benchmark_notes));
+                                    @endphp
+                                    @if($bmNotes->count())
+                                    <span class="hidden md:inline text-gray-300">|</span>
+                                    <div class="text-center md:text-left">
+                                        <span class="font-semibold text-gray-700">Catatan Benchmarking:</span>
+                                        <span>
+                                            {{ $bmNotes->map(function($pi){
+                                                $name = $pi->masterItem->name ?? 'Item';
+                                                $note = trim(preg_replace('/\s+/', ' ', (string)$pi->benchmark_notes));
+                                                return $name.': '.$note;
+                                            })->implode(' • ') }}
+                                        </span>
+                                    </div>
+                                    @endif
                                     @if($doneWithNotes->count())
                                     <span class="hidden md:inline text-gray-300">|</span>
                                     <div class="text-center md:text-left">

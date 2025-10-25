@@ -21,22 +21,16 @@ class DepartmentSeeder extends Seeder
                 'name' => 'Departemen IT',
                 'code' => 'IT',
                 'description' => 'Departemen Teknologi Informasi',
-                'level' => 1,
-                'approval_level' => 1,
             ],
             [
                 'name' => 'Departemen Pengadaan',
                 'code' => 'PGD',
                 'description' => 'Departemen Pengadaan/Procurement',
-                'level' => 1,
-                'approval_level' => 1,
             ],
             [
                 'name' => 'Departemen Keuangan',
                 'code' => 'KEU',
                 'description' => 'Departemen Keuangan dan Akuntansi',
-                'level' => 1,
-                'approval_level' => 1,
             ],
             
             // Level 2 - Direktur
@@ -44,8 +38,6 @@ class DepartmentSeeder extends Seeder
                 'name' => 'Direktur',
                 'code' => 'DIR',
                 'description' => 'Direktur Rumah Sakit',
-                'level' => 2,
-                'approval_level' => 2,
             ],
         ];
 

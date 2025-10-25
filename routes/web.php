@@ -170,6 +170,8 @@ Route::middleware('auth')->group(function () {
             ->name('purchasing.items.done');
         Route::post('purchasing/items/{purchasingItem}/invoice', [\App\Http\Controllers\ReportController::class, 'saveInvoice'])
             ->name('purchasing.items.invoice');
+        Route::post('purchasing/items/{purchasingItem}/benchmark-notes', [\App\Http\Controllers\ReportController::class, 'saveBenchmarkNotes'])
+            ->name('purchasing.items.benchmark-notes');
         Route::delete('purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'deletePurchasingItem'])
             ->name('purchasing.items.delete');
     });

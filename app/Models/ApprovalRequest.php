@@ -241,13 +241,11 @@ class ApprovalRequest extends Model
             case 'department_manager':
                 $department = Department::find($currentStep->approver_department_id);
                 return $department ? $department->manager : null;
-            case 'department_level':
-                // Cari manager berdasarkan level departemen requester
-                $requesterDepartment = $this->requester->departments()->wherePivot('is_primary', true)->first();
-                if ($requesterDepartment) {
-                    return $requesterDepartment->getApproverByLevel($currentStep->approver_level);
-                }
-                return null;
+            case 'any_department_manager':
+                // Display-safe: return one manager (not authoritative). Authorization handled elsewhere.
+                return \App\Models\User::whereHas('departments', function($q){
+                    $q->where('user_departments.is_manager', true);
+                })->first();
             default:
                 return null;
         }

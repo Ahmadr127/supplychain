@@ -59,11 +59,10 @@ class ApprovalWorkflowController extends Controller
             'item_type_id' => 'nullable|exists:item_types,id',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
-            'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,department_level,requester_department_manager',
+            'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
             'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
             'workflow_steps.*.approver_department_id' => 'nullable|exists:departments,id',
-            'workflow_steps.*.approver_level' => 'nullable|integer|min:1|max:5',
             'is_active' => 'boolean'
         ]);
 
@@ -113,11 +112,10 @@ class ApprovalWorkflowController extends Controller
             'item_type_id' => 'nullable|exists:item_types,id',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
-            'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,department_level,requester_department_manager',
+            'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
             'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
             'workflow_steps.*.approver_department_id' => 'nullable|exists:departments,id',
-            'workflow_steps.*.approver_level' => 'nullable|integer|min:1|max:5',
             'is_active' => 'boolean'
         ]);
 
@@ -204,14 +202,12 @@ class ApprovalWorkflowController extends Controller
                     }
                     break;
                 
-                case 'department_level':
-                    if (!empty($step['approver_level'])) {
-                        $processedStep['approver_level'] = (int) $step['approver_level'];
-                    }
-                    break;
-                
                 case 'requester_department_manager':
                     // No extra fields needed; approver ditentukan dari departemen primary requester
+                    break;
+
+                case 'any_department_manager':
+                    // No extra fields required; semua manager lintas departemen
                     break;
             }
 

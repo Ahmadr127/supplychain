@@ -59,6 +59,29 @@
         </div>
     </div>
 
+    <!-- Benchmarking Notes -->
+    <div class="bg-white border border-gray-200 rounded-lg">
+        <div class="px-3 py-1.5 border-b border-gray-200">
+            <h3 class="text-sm font-semibold text-gray-900">Catatan Benchmarking</h3>
+        </div>
+        <div class="p-2">
+            @if(auth()->user()->hasPermission('manage_purchasing'))
+            <form method="POST" action="{{ route('purchasing.items.benchmark-notes', $item) }}" class="space-y-2">
+                @csrf
+                <textarea name="benchmark_notes" rows="3" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Tulis catatan benchmarking (opsional)...">{{ old('benchmark_notes', $item->benchmark_notes) }}</textarea>
+                <div class="flex items-center gap-2">
+                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan Catatan</button>
+                    @if($item->benchmark_notes)
+                        <span class="text-xs text-gray-500">Terakhir diperbarui: {{ optional($item->updated_at)->format('d/m/Y H:i') }}</span>
+                    @endif
+                </div>
+            </form>
+            @else
+                <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ $item->benchmark_notes ?? '-' }}</div>
+            @endif
+        </div>
+    </div>
+
     
     <!-- Benchmarking Vendors -->
     <div class="bg-white border border-gray-200 rounded-lg">

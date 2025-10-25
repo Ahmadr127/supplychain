@@ -209,12 +209,18 @@
             radios.forEach(r => {
                 if (!r.disabled) r.setAttribute('required', '');
             });
+            // Do not force file input required here; it's handled by configureFormState based on thresholds
         } else {
             content.classList.add('hidden');
             icon.classList.remove('rotate-180');
             // When hiding, remove required to avoid focusable validation errors
             const radios = content.querySelectorAll('input[type="radio"]');
             radios.forEach(r => r.removeAttribute('required'));
+            // Also ensure FS file input is not required when section is hidden
+            const fileInput = content.querySelector('.fs-document-input');
+            if (fileInput) {
+                fileInput.required = false;
+            }
         }
     }
 </script>

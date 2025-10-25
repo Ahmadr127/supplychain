@@ -65,41 +65,7 @@
                         @enderror
                     </div>
 
-                    <!-- Level -->
-                    <div>
-                        <label for="level" class="block text-sm font-medium text-gray-700 mb-1">
-                            Level <span class="text-red-500">*</span>
-                        </label>
-                        <select id="level" name="level" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('level') border-red-500 @enderror">
-                            <option value="">Pilih Level</option>
-                            <option value="1" {{ old('level', $department->level) == '1' ? 'selected' : '' }}>Level 1 - Unit</option>
-                            <option value="2" {{ old('level', $department->level) == '2' ? 'selected' : '' }}>Level 2 - Management</option>
-                            <option value="3" {{ old('level', $department->level) == '3' ? 'selected' : '' }}>Level 3 - Direktur</option>
-                        </select>
-                        @error('level')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <!-- Approval Level -->
-                    <div>
-                        <label for="approval_level" class="block text-sm font-medium text-gray-700 mb-1">
-                            Approval Level <span class="text-red-500">*</span>
-                        </label>
-                        <select id="approval_level" name="approval_level" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('approval_level') border-red-500 @enderror">
-                            <option value="">Pilih Approval Level</option>
-                            <option value="1" {{ old('approval_level', $department->approval_level) == '1' ? 'selected' : '' }}>Level 1</option>
-                            <option value="2" {{ old('approval_level', $department->approval_level) == '2' ? 'selected' : '' }}>Level 2</option>
-                            <option value="3" {{ old('approval_level', $department->approval_level) == '3' ? 'selected' : '' }}>Level 3</option>
-                            <option value="4" {{ old('approval_level', $department->approval_level) == '4' ? 'selected' : '' }}>Level 4</option>
-                            <option value="5" {{ old('approval_level', $department->approval_level) == '5' ? 'selected' : '' }}>Level 5</option>
-                        </select>
-                        @error('approval_level')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
+                    
 
                     <!-- Manager -->
                     <div>

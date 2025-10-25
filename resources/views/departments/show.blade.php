@@ -41,21 +41,7 @@
                                 </p>
                             </div>
                             
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Level</label>
-                                <p class="mt-1">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                        {{ $department->level == 1 ? 'bg-green-100 text-green-800' : 
-                                           ($department->level == 2 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
-                                        Level {{ $department->level }}
-                                    </span>
-                                </p>
-                            </div>
                             
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Approval Level</label>
-                                <p class="mt-1 text-sm text-gray-900">{{ $department->approval_level }}</p>
-                            </div>
                             
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Status</label>
