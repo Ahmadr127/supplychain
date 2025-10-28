@@ -16,15 +16,15 @@
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-red-600 text-white">Rejected</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-gray-500 text-white">Cancelled</span>
     @endif
-
     @if($variant === 'both')
         <span class="mx-2 text-gray-400">•</span>
     @endif
 
     @if($variant === 'purchasing' || $variant === 'both')
+        <span class="inline-flex items-center {{ $badgePad }} ">Status purchasing :</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-gray-200 text-gray-800">Belum diproses</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-red-600 text-white">Pemilihan vendor</span>
-        <span class="inline-flex items-center {{ $badgePad }} rounded bg-yellow-400 text-black">Uji coba/PR Sistem</span>
+        <span class="inline-flex items-center {{ $badgePad }} rounded bg-yellow-400 text-black">Proses PR & PO</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-orange-500 text-white">Proses di vendor</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-green-600 text-white">Barang diterima</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-green-700 text-white">Selesai</span>

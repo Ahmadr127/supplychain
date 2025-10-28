@@ -45,7 +45,7 @@
                 $psText = match($ps){
                     'unprocessed' => 'Belum diproses',
                     'benchmarking' => 'Pemilihan vendor',
-                    'selected' => 'Uji coba/Proses PR sistem',
+                    'selected' => 'Proses PR & PO',
                     'po_issued' => 'Proses di vendor',
                     'grn_received' => 'Barang sudah diterima',
                     'done' => 'Selesai',

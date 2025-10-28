@@ -111,7 +111,7 @@ class ReportController extends Controller
             $purchasingStatus = match($purchasingStatusCode) {
                 'unprocessed' => 'Belum diproses',
                 'benchmarking' => 'Pemilihan vendor',
-                'selected' => 'Uji coba/Proses PR sistem',
+                'selected' => 'Proses PR & PO',
                 'po_issued' => 'Proses di vendor',
                 'grn_received' => 'Barang sudah diterima',
                 'done' => 'Selesai',
@@ -493,20 +493,33 @@ class ReportController extends Controller
             return back()->withErrors(['vendors' => 'Minimal 1 baris vendor diisi.'])->withInput();
         }
 
-        // Validate only the filtered rows
-        $validator = \Validator::make(['vendors' => $rows], [
-            'vendors' => 'required|array|min:1',
-            'vendors.*.supplier_id' => 'required|integer|exists:suppliers,id',
-            'vendors.*.unit_price' => 'nullable|numeric|min:0|max:999999999999.99',
-            'vendors.*.total_price' => 'nullable|numeric|min:0|max:999999999999.99',
-            'vendors.*.notes' => 'nullable|string|max:255',
-        ]);
+        // Validate vendors and benchmark_notes
+        $validator = \Validator::make(
+            [
+                'vendors' => $rows,
+                'benchmark_notes' => $request->input('benchmark_notes'),
+            ],
+            [
+                'vendors' => 'required|array|min:1',
+                'vendors.*.supplier_id' => 'required|integer|exists:suppliers,id',
+                'vendors.*.unit_price' => 'nullable|numeric|min:0|max:999999999999.99',
+                'vendors.*.total_price' => 'nullable|numeric|min:0|max:999999999999.99',
+                'vendors.*.notes' => 'nullable|string|max:255',
+                'benchmark_notes' => 'nullable|string|max:2000',
+            ]
+        );
         $validator->validate();
 
+        // Save benchmarking vendors
         $service = app(PurchasingItemService::class);
         $service->saveBenchmarking($purchasingItem, $rows);
         
-        return back()->with('success', 'Benchmarking berhasil disimpan.');
+        // Save benchmark notes
+        $purchasingItem->update([
+            'benchmark_notes' => $request->input('benchmark_notes'),
+        ]);
+        
+        return back()->with('success', 'Benchmarking dan catatan berhasil disimpan.');
     }
 
     public function selectPreferred(Request $request, PurchasingItem $purchasingItem)
@@ -529,20 +542,6 @@ class ReportController extends Controller
         );
         
         return back()->with('success', 'Preferred vendor berhasil disimpan.');
-    }
-
-    public function saveBenchmarkNotes(Request $request, PurchasingItem $purchasingItem)
-    {
-        if (!(auth()->user()?->hasPermission('manage_vendor') || auth()->user()?->hasPermission('manage_purchasing'))) {
-            abort(403, 'Unauthorized action.');
-        }
-        $data = $request->validate([
-            'benchmark_notes' => 'nullable|string|max:2000',
-        ]);
-        $purchasingItem->update([
-            'benchmark_notes' => $data['benchmark_notes'] ?? null,
-        ]);
-        return back()->with('success', 'Catatan benchmarking berhasil disimpan.');
     }
 
     public function issuePO(Request $request, PurchasingItem $purchasingItem)

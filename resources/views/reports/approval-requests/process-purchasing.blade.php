@@ -59,31 +59,7 @@
         </div>
     </div>
 
-    <!-- Benchmarking Notes -->
-    <div class="bg-white border border-gray-200 rounded-lg">
-        <div class="px-3 py-1.5 border-b border-gray-200">
-            <h3 class="text-sm font-semibold text-gray-900">Catatan Benchmarking</h3>
-        </div>
-        <div class="p-2">
-            @if(auth()->user()->hasPermission('manage_purchasing'))
-            <form method="POST" action="{{ route('purchasing.items.benchmark-notes', $item) }}" class="space-y-2">
-                @csrf
-                <textarea name="benchmark_notes" rows="3" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Tulis catatan benchmarking (opsional)...">{{ old('benchmark_notes', $item->benchmark_notes) }}</textarea>
-                <div class="flex items-center gap-2">
-                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan Catatan</button>
-                    @if($item->benchmark_notes)
-                        <span class="text-xs text-gray-500">Terakhir diperbarui: {{ optional($item->updated_at)->format('d/m/Y H:i') }}</span>
-                    @endif
-                </div>
-            </form>
-            @else
-                <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ $item->benchmark_notes ?? '-' }}</div>
-            @endif
-        </div>
-    </div>
-
-    
-    <!-- Benchmarking Vendors -->
+    <!-- Vendor Benchmarking & Notes -->
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-900">Vendor Benchmarking</h3>
@@ -93,28 +69,58 @@
         </div>
         <div class="p-2">
             @if(auth()->user()->hasPermission('manage_purchasing'))
-            <form method="POST" action="{{ route('purchasing.items.benchmarking', $item) }}" class="space-y-2" id="benchmarking-form">
+            <form method="POST" action="{{ route('purchasing.items.benchmarking', $item) }}" class="space-y-3" id="benchmarking-form">
                 @csrf
-                <div class="text-xs text-gray-600">Tambah/Replace Benchmarking (min 1, disarankan 3)</div>
-                <div id="vendors-wrapper" class="space-y-2">
-                    @for($i=0; $i<3; $i++)
-                    @php($v = optional($item->vendors->values()->get($i)))
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-                        <div class="relative">
-                            <input type="hidden" name="vendors[{{ $i }}][supplier_id]" class="supplier-id" value="{{ $v->supplier_id ?? '' }}" />
-                            <input type="text" class="supplier-name h-8 w-full px-2 border border-gray-300 rounded text-sm" placeholder="Cari supplier..." autocomplete="off" value="{{ $v && $v->supplier ? $v->supplier->name : '' }}" />
-                            <div class="supplier-suggest absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-md shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
-                        </div>
-                        <input type="text" name="vendors[{{ $i }}][unit_price]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Unit Price (Rp)" value="{{ isset($v->unit_price) ? ('Rp '.number_format((float)$v->unit_price, 0, ',', '.')) : '' }}" />
-                        <input type="text" name="vendors[{{ $i }}][total_price]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Total Price (Rp)" value="{{ isset($v->total_price) ? ('Rp '.number_format((float)$v->total_price, 0, ',', '.')) : '' }}" />
-                        <input type="text" name="vendors[{{ $i }}][notes]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Notes" value="{{ $v->notes ?? '' }}" />
-                    </div>
-                    @endfor
-                </div>
+                
+
+                <!-- Vendor List -->
                 <div>
-                    <button class="px-2.5 py-1 bg-blue-600 text-white rounded text-xs">Simpan Benchmarking</button>
+                    <div class="text-xs text-gray-600 mb-2 font-medium">Data Vendor (min 1, disarankan 3)</div>
+                    <div id="vendors-wrapper" class="space-y-2">
+                        @for($i=0; $i<3; $i++)
+                        @php($v = optional($item->vendors->values()->get($i)))
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                            <div class="relative">
+                                <input type="hidden" name="vendors[{{ $i }}][supplier_id]" class="supplier-id" value="{{ $v->supplier_id ?? '' }}" />
+                                <input type="text" class="supplier-name h-8 w-full px-2 border border-gray-300 rounded text-sm" placeholder="Cari supplier..." autocomplete="off" value="{{ $v && $v->supplier ? $v->supplier->name : '' }}" />
+                                <div class="supplier-suggest absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-md shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
+                            </div>
+                            <input type="text" name="vendors[{{ $i }}][unit_price]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Unit Price (Rp)" value="{{ isset($v->unit_price) ? ('Rp '.number_format((float)$v->unit_price, 0, ',', '.')) : '' }}" />
+                            <input type="text" name="vendors[{{ $i }}][total_price]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Total Price (Rp)" value="{{ isset($v->total_price) ? ('Rp '.number_format((float)$v->total_price, 0, ',', '.')) : '' }}" />
+                            <input type="text" name="vendors[{{ $i }}][notes]" class="h-8 px-2 border border-gray-300 rounded text-sm" placeholder="Notes" value="{{ $v->notes ?? '' }}" />
+                        </div>
+                        @endfor
+                    </div>
+                </div>
+
+                <!-- Catatan Benchmarking -->
+                <div class="mt-1">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Catatan Benchmarking (opsional)</label>
+                    <textarea name="benchmark_notes" rows="2" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Tulis catatan atau analisis hasil benchmarking...">{{ old('benchmark_notes', $item->benchmark_notes) }}</textarea>
+                    @if($item->benchmark_notes)
+                        <div class="text-xs text-gray-500 mt-1">Terakhir diperbarui: {{ optional($item->updated_at)->format('d/m/Y H:i') }}</div>
+                    @endif
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex items-center gap-2 pt-1">
+                    <button type="submit" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors">
+                        <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Simpan Benchmarking & Catatan
+                    </button>
                 </div>
             </form>
+            @else
+                <!-- Read-only view for non-purchasing users -->
+                @if($item->benchmark_notes)
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
+                    <div class="text-xs font-medium text-gray-700 mb-1">Catatan Benchmarking:</div>
+                    <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ $item->benchmark_notes }}</div>
+                </div>
+                @endif
+                <div class="text-sm text-gray-600">Vendor benchmarking hanya dapat dikelola oleh tim purchasing.</div>
             @endif
         </div>
     </div>

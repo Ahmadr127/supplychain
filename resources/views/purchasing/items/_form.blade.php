@@ -35,6 +35,15 @@
                     </div>
                     @endfor
                 </div>
+
+                <!-- Catatan Benchmarking -->
+                <div class="mt-2">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Catatan Benchmarking (opsional)</label>
+                    <textarea name="benchmark_notes" rows="2" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Tulis catatan atau analisis hasil benchmarking..." @if($disableBenchmarking) disabled @endif>{{ old('benchmark_notes', $item->benchmark_notes) }}</textarea>
+                    @if($item->benchmark_notes)
+                        <div class="text-xs text-gray-500 mt-1">Terakhir diperbarui: {{ optional($item->updated_at)->format('d/m/Y H:i') }}</div>
+                    @endif
+                </div>
                 <div class="flex items-center gap-2">
                     <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" id="btn-save-benchmarking" @if($disableBenchmarking) disabled @endif>
                         <span class="btn-text">Simpan Benchmarking</span>
@@ -48,24 +57,7 @@
         </div>
     </div>
 
-    <!-- Benchmarking Notes -->
-    <div class="bg-white border border-gray-200 rounded-lg mt-3">
-        <div class="px-3 py-2 border-b border-gray-200">
-            <h3 class="text-sm font-semibold text-gray-900">Catatan Benchmarking</h3>
-        </div>
-        <div class="p-3">
-            <form method="POST" action="{{ route('purchasing.items.benchmark-notes', $item) }}" class="space-y-2">
-                @csrf
-                <textarea name="benchmark_notes" rows="3" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Tulis catatan benchmarking (opsional)..." {{ $disableBenchmarking ? 'disabled' : '' }}>{{ old('benchmark_notes', $item->benchmark_notes) }}</textarea>
-                <div class="flex items-center gap-2">
-                    <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" {{ $disableBenchmarking ? 'disabled' : '' }}>Simpan Catatan</button>
-                    @if($item->benchmark_notes)
-                        <span class="text-xs text-gray-500">Terakhir diperbarui: {{ optional($item->updated_at)->format('d/m/Y H:i') }}</span>
-                    @endif
-                </div>
-            </form>
-        </div>
-    </div>
+    <!-- Benchmarking Notes removed: merged into main benchmarking form above -->
 
     <!-- Preferred Vendor -->
     <div class="bg-white border border-gray-200 rounded-lg">

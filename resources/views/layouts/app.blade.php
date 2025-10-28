@@ -334,23 +334,7 @@
 
             <!-- Page Content -->
             <main class="flex-1 p-3 sm:p-4 lg:p-5 bg-gray-50 overflow-x-hidden max-w-full">
-                @if(session('success'))
-                    <div class="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-                        <div class="flex items-center">
-                            <i class="fas fa-check-circle mr-2"></i>
-                            {{ session('success') }}
-                        </div>
-                    </div>
-                @endif
-
-                @if(session('error'))
-                    <div class="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                        <div class="flex items-center">
-                            <i class="fas fa-exclamation-circle mr-2"></i>
-                            {{ session('error') }}
-                        </div>
-                    </div>
-                @endif
+                {{-- Toasts handled globally via JS --}}
 
                 @yield('content')
             </main>
@@ -360,6 +344,22 @@
         <div x-show="sidebarOpen" @click="sidebarOpen = false" 
              class="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden">        </div>
     </div>
+    <script src="{{ asset('js/toast.js') }}"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function(){
+        @if(session('success'))
+          window.Toast && Toast.success(@json(session('success')));
+        @endif
+        @if(session('error'))
+          window.Toast && Toast.error(@json(session('error')));
+        @endif
+        @if($errors->any())
+          @foreach($errors->all() as $err)
+            window.Toast && Toast.error(@json($err), { duration: 6000 });
+          @endforeach
+        @endif
+      });
+    </script>
     @stack('scripts')
 </body>
 </html>

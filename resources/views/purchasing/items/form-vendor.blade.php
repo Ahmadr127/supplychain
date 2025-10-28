@@ -4,9 +4,7 @@
 
 @section('content')
 <div class="space-y-3">
-    @if(session('success'))
-        <div class="px-3 py-2 rounded bg-green-50 text-green-700 border border-green-200 text-sm">{{ session('success') }}</div>
-    @endif
+    {{-- Success handled by global toast --}}
     @if(session('error'))
         <div class="px-3 py-2 rounded bg-red-50 text-red-700 border border-red-200 text-sm">{{ session('error') }}</div>
     @endif

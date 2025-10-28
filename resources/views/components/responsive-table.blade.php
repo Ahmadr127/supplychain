@@ -227,7 +227,7 @@
     z-index: 10;
     background-color: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
-    padding: 0.125rem 0.125rem;
+    padding: 10px;
     font-weight: 600;
     font-size: 0.6875rem;
     text-transform: uppercase;
@@ -235,7 +235,7 @@
 }
 
 .responsive-table tbody td {
-    padding: 0.125rem 0.125rem;
+    padding: 10px;
     vertical-align: top;
     border-bottom: 1px solid #f3f4f6;
     font-size: 0.8125rem;

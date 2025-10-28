@@ -64,7 +64,7 @@
                                     $psText = match($ps){
                                         'unprocessed' => 'Belum diproses',
                                         'benchmarking' => 'Pemilihan vendor',
-                                        'selected' => 'Uji coba/Proses PR sistem',
+                                        'selected' => 'Proses PR & PO',
                                         'po_issued' => 'Proses di vendor',
                                         'grn_received' => 'Barang sudah diterima',
                                         'done' => 'Selesai',
@@ -90,7 +90,25 @@
                                             })->first();
                                         $changedAt = optional($latestPi?->status_changed_at)->format('d/m/Y H:i') ?? optional($latestPi?->updated_at)->format('d/m/Y H:i');
                                     @endphp
-                                    @if($changedAt)
+                                    @php
+                                        // Catatan Benchmarking (tampilkan hanya saat status 'benchmarking')
+                                        $bmNotesLine = '';
+                                        if($ps === 'benchmarking'){
+                                            $bmNotesColl = ($approvalRequest->purchasingItems ?? collect())
+                                                ->filter(fn($pi) => !empty($pi->benchmark_notes));
+                                            if($bmNotesColl->count()){
+                                                $bmNotesLine = $bmNotesColl->map(function($pi){
+                                                    $name = $pi->masterItem->name ?? 'Item';
+                                                    $note = trim(preg_replace('/\s+/', ' ', (string)$pi->benchmark_notes));
+                                                    return $name.': '.$note;
+                                                })->implode(' • ');
+                                            }
+                                        }
+                                    @endphp
+                                    @if(!empty($bmNotesLine))
+                                    <div class="text-[11px] text-gray-700 mt-1">{{ $bmNotesLine }}</div>
+                                    @endif
+                                      @if($changedAt)
                                     <div class="text-[11px] text-gray-500 mt-0.5">Update: {{ $changedAt }}</div>
                                     @endif
                                 </p>
@@ -136,23 +154,7 @@
                                         <span class="font-semibold text-gray-700">Dibuat:</span>
                                         <span>{{ $approvalRequest->created_at->format('d/m/Y H:i') }}</span>
                                     </div>
-                                    @php
-                                        $bmNotes = ($approvalRequest->purchasingItems ?? collect())
-                                            ->filter(fn($pi) => !empty($pi->benchmark_notes));
-                                    @endphp
-                                    @if($bmNotes->count())
-                                    <span class="hidden md:inline text-gray-300">|</span>
-                                    <div class="text-center md:text-left">
-                                        <span class="font-semibold text-gray-700">Catatan Benchmarking:</span>
-                                        <span>
-                                            {{ $bmNotes->map(function($pi){
-                                                $name = $pi->masterItem->name ?? 'Item';
-                                                $note = trim(preg_replace('/\s+/', ' ', (string)$pi->benchmark_notes));
-                                                return $name.': '.$note;
-                                            })->implode(' • ') }}
-                                        </span>
-                                    </div>
-                                    @endif
+                                    
                                     @if($doneWithNotes->count())
                                     <span class="hidden md:inline text-gray-300">|</span>
                                     <div class="text-center md:text-left">
@@ -260,6 +262,16 @@
                                         @endif
                                     </div>
                                 </div>
+                                
+                                @php
+                                    $piForItem = ($approvalRequest->purchasingItems ?? collect())->firstWhere('master_item_id', $item->id);
+                                @endphp
+                                @if($piForItem && $piForItem->benchmark_notes)
+                                <div class="mt-2 border-t border-gray-200 pt-2">
+                                    <div class="text-xs font-semibold text-gray-700 mb-1">Catatan Benchmarking Vendor</div>
+                                    <div class="text-sm text-gray-900 whitespace-pre-wrap">{{ $piForItem->benchmark_notes }}</div>
+                                </div>
+                                @endif
                                 
                                 <!-- FS Document Section for this item -->
                                 @if($item->pivot->fs_document ?? false)

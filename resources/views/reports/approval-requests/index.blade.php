@@ -32,7 +32,7 @@
                             <option value="">Semua Proses</option>
                             <option value="unprocessed" {{ request('purchasing_status') === 'unprocessed' ? 'selected' : '' }}>Belum diproses</option>
                             <option value="benchmarking" {{ request('purchasing_status') === 'benchmarking' ? 'selected' : '' }}>Pemilihan vendor</option>
-                            <option value="selected" {{ request('purchasing_status') === 'selected' ? 'selected' : '' }}>Uji coba/PR Sistem</option>
+                            <option value="selected" {{ request('purchasing_status') === 'selected' ? 'selected' : '' }}>Proses PR & PO</option>
                             <option value="po_issued" {{ request('purchasing_status') === 'po_issued' ? 'selected' : '' }}>Proses di vendor</option>
                             <option value="grn_received" {{ request('purchasing_status') === 'grn_received' ? 'selected' : '' }}>Barang diterima</option>
                             <option value="done" {{ request('purchasing_status') === 'done' ? 'selected' : '' }}>Selesai</option>

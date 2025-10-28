@@ -216,7 +216,7 @@
                             $psText = match($ps){
                                 'unprocessed' => 'Belum diproses',
                                 'benchmarking' => 'Pemilihan vendor',
-                                'selected' => 'Uji coba/Proses PR sistem',
+                                'selected' => 'Proses PR & PO',
                                 'po_issued' => 'Proses di vendor',
                                 'grn_received' => 'Barang sudah diterima',
                                 'done' => 'Selesai',
@@ -232,8 +232,22 @@
                                 'done' => 'bg-green-700 text-white',
                                 default => 'bg-gray-200 text-gray-800',
                             };
+                            // Aggregate benchmarking notes per request for modal usage
+                            $bmNotesLine = '';
+                            if($ps === 'benchmarking'){
+                                $bmNotesColl = collect($step->request->purchasingItems ?? [])->filter(fn($pi) => !empty($pi->benchmark_notes));
+                                if($bmNotesColl->count()){
+                                    $bmNotesLine = $bmNotesColl->map(function($pi){
+                                        $name = $pi->masterItem->name ?? 'Item';
+                                        $note = trim(preg_replace('/\s+/', ' ', (string)$pi->benchmark_notes));
+                                        return $name.': '.$note;
+                                    })->implode(' • ');
+                                }
+                            }
                         @endphp
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $step->request->id }}')">{{ $psText }}</span>
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $psColor }} cursor-pointer" 
+                              data-bmnotes="{{ e($bmNotesLine) }}"
+                              onclick="openPurchasingStatusModal('{{ $ps }}','{{ $psText }}','{{ $step->request->id }}', this)">{{ $psText }}</span>
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
@@ -401,7 +415,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-async function openPurchasingStatusModal(code, label, requestId) {
+async function openPurchasingStatusModal(code, label, requestId, el) {
     const body = document.getElementById('ps-modal-body');
     body.innerHTML = '<div class="p-3 text-sm text-gray-600">Memuat...</div>';
     document.getElementById('ps-modal').classList.remove('hidden');
@@ -413,6 +427,7 @@ async function openPurchasingStatusModal(code, label, requestId) {
         const changedAt = data.changed_at ? new Date(data.changed_at).toLocaleString('id-ID') : '-';
         const changedBy = data.changed_by_name || 'Tidak tersedia';
         const notes = (data.status_code === 'done' && data.done_notes) ? data.done_notes : null;
+        const bmNotes = (data.status_code === 'benchmarking') ? (el?.getAttribute('data-bmnotes') || '') : '';
 
         body.innerHTML = `
             <div class="space-y-2 text-sm">
@@ -420,6 +435,7 @@ async function openPurchasingStatusModal(code, label, requestId) {
                 <div><span class="font-semibold">Status Purchasing:</span> ${data.status_label || label}</div>
                 <div><span class="font-semibold">Waktu aksi:</span> ${changedAt}</div>
                 <div><span class="font-semibold">Diubah oleh:</span> ${changedBy}</div>
+                ${bmNotes ? `<div class=\"text-gray-800\">${bmNotes}</div>` : ''}
                 ${notes ? `<div><span class=\"font-semibold\">Catatan DONE:</span> ${notes}</div>` : ''}
                 <div class="mt-2 text-gray-600">Status ini adalah status gabungan dari item-item pembelian pada request ini.</div>
             </div>`;

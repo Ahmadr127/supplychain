@@ -284,6 +284,16 @@ class ApprovalRequestController extends Controller
             isCtoRequest: false
         );
 
+        // Diagnostics: log approval steps resolution to help debug pending approvals visibility
+        try {
+            $this->logStepDiagnostics($approvalRequest);
+        } catch (\Throwable $e) {
+            Log::warning('ApprovalRequest.store.logStepDiagnostics_failed', [
+                'request_id' => $approvalRequest->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         // Update approval request with item type information
         $approvalRequest->update([
             'item_type_id' => $request->item_type_id,
@@ -418,6 +428,96 @@ class ApprovalRequestController extends Controller
             'itemFiles' => $files,
             'itemExtras' => $itemExtras,
         ]);
+    }
+
+    /**
+     * Write detailed diagnostics about generated approval steps and potential approvers.
+     * This helps analyze why items may not appear in Pending Approvals.
+     */
+    private function logStepDiagnostics(ApprovalRequest $approvalRequest): void
+    {
+        $approvalRequest->load(['requester', 'steps']);
+
+        $requester = $approvalRequest->requester;
+        $primaryDept = $requester
+            ? $requester->departments()->wherePivot('is_primary', true)->first()
+            : null;
+
+        $diag = [
+            'request_id' => $approvalRequest->id,
+            'request_number' => $approvalRequest->request_number,
+            'request_status' => $approvalRequest->status,
+            'requester_id' => $requester?->id,
+            'requester_primary_department_id' => $primaryDept?->id,
+            'requester_primary_department_manager_id' => $primaryDept?->manager_id,
+            'steps' => [],
+        ];
+
+        foreach ($approvalRequest->steps as $step) {
+            $entry = [
+                'step_number' => $step->step_number,
+                'step_name' => $step->step_name,
+                'approver_type' => $step->approver_type,
+                'approver_id' => $step->approver_id,
+                'approver_role_id' => $step->approver_role_id,
+                'approver_department_id' => $step->approver_department_id,
+                'status' => $step->status,
+                'resolution' => [],
+            ];
+
+            try {
+                switch ($step->approver_type) {
+                    case 'user':
+                        $userExists = \App\Models\User::where('id', $step->approver_id)->exists();
+                        $entry['resolution'] = [
+                            'user_exists' => $userExists,
+                        ];
+                        break;
+                    case 'role':
+                        $roleUsersCount = $step->approver_role_id
+                            ? \App\Models\User::where('role_id', $step->approver_role_id)->count()
+                            : 0;
+                        $entry['resolution'] = [
+                            'role_id' => $step->approver_role_id,
+                            'users_with_role_count' => $roleUsersCount,
+                        ];
+                        break;
+                    case 'department_manager':
+                        $dept = $step->approver_department_id
+                            ? \App\Models\Department::find($step->approver_department_id)
+                            : null;
+                        $entry['resolution'] = [
+                            'department_id' => $dept?->id,
+                            'department_manager_id' => $dept?->manager_id,
+                        ];
+                        break;
+                    case 'requester_department_manager':
+                        $entry['resolution'] = [
+                            'requester_primary_department_id' => $primaryDept?->id,
+                            'requester_primary_department_manager_id' => $primaryDept?->manager_id,
+                        ];
+                        break;
+                    case 'any_department_manager':
+                        $managersCount = \App\Models\User::whereHas('departments', function($q){
+                            $q->where('user_departments.is_manager', true);
+                        })->count();
+                        $entry['resolution'] = [
+                            'any_department_managers_count' => $managersCount,
+                        ];
+                        break;
+                    default:
+                        $entry['resolution'] = [
+                            'note' => 'Unknown approver_type. Supported: user, role, department_manager, requester_department_manager, any_department_manager',
+                        ];
+                }
+            } catch (\Throwable $e) {
+                $entry['resolution_error'] = $e->getMessage();
+            }
+
+            $diag['steps'][] = $entry;
+        }
+
+        Log::info('ApprovalRequest.store.step_diagnostics', $diag);
     }
 
     public function edit(ApprovalRequest $approvalRequest)
