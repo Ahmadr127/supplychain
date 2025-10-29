@@ -129,4 +129,23 @@ class User extends Authenticatable
             ->with(['request', 'request.requester'])
             ->get();
     }
+
+    // Method untuk check apakah user adalah level direktur
+    public function isDirectorLevel()
+    {
+        // Check if user has direktur role
+        if ($this->hasRole('direktur')) {
+            return true;
+        }
+        
+        // Check if user is in a director-level department (level >= 2)
+        $userDepartments = $this->departments()->wherePivot('is_primary', true)->get();
+        foreach ($userDepartments as $dept) {
+            if ($dept->level >= 2) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
 }

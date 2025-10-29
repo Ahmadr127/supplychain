@@ -58,6 +58,9 @@
                         Kode & Nama
                     </th>
                     
+                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Level
+                    </th>
                     <th class="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Manager
                     </th>
@@ -92,6 +95,26 @@
                                 </div>
                             @endif
                         </div>
+                    </td>
+                    
+                    <td class="w-1/12 px-6 py-4">
+                        @php
+                            $levelText = match($department->level ?? 1) {
+                                1 => 'Level 1',
+                                2 => 'Level 2', 
+                                3 => 'Level 3',
+                                default => 'Level 1'
+                            };
+                            $levelColor = match($department->level ?? 1) {
+                                1 => 'bg-gray-100 text-gray-800',
+                                2 => 'bg-blue-100 text-blue-800',
+                                3 => 'bg-purple-100 text-purple-800',
+                                default => 'bg-gray-100 text-gray-800'
+                            };
+                        @endphp
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $levelColor }}">
+                            {{ $levelText }}
+                        </span>
                     </td>
                     
                     <td class="w-1/6 px-6 py-4">

@@ -64,6 +64,24 @@
                         @enderror
                     </div>
 
+                    <!-- Level Department -->
+                    <div>
+                        <label for="level" class="block text-sm font-medium text-gray-700 mb-1">
+                            Level Department <span class="text-red-500">*</span>
+                        </label>
+                        <select id="level" name="level" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('level') border-red-500 @enderror">
+                            <option value="">Pilih Level Department</option>
+                            <option value="1" {{ old('level') == '1' ? 'selected' : '' }}>Level 1 - Unit/Departemen Bawahan</option>
+                            <option value="2" {{ old('level') == '2' ? 'selected' : '' }}>Level 2 - Management/Direktur</option>
+                            <option value="3" {{ old('level') == '3' ? 'selected' : '' }}>Level 3 - Direksi/Board</option>
+                        </select>
+                        @error('level')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                        <p class="mt-1 text-xs text-gray-500">Level 2 dan 3 dapat melihat kolom Progress di halaman approval</p>
+                    </div>
+
                     
 
                     <!-- Manager -->

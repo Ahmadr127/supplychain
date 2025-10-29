@@ -192,40 +192,26 @@ class ApprovalRequestController extends Controller
             }
         });
 
-        // Conditional requirement: FS document must be uploaded when FS section is shown
+        // Simplified FS validation: require upload when subtotal >= upload threshold
         $validator->after(function($v) use ($request) {
             $fs = Setting::getGroup('approval_request') ?? [];
             $enabled = (bool)($fs['fs_document_enabled'] ?? true);
             if (!$enabled) return;
-            $thPerItem = (int)($fs['fs_threshold_per_item'] ?? 100000000);
-            $thTotal = (int)($fs['fs_threshold_total'] ?? 500000000);
-            $perItemEnableUpload = (bool)($fs['fs_per_item_enable_upload'] ?? true);
-            $totalEnableUpload = (bool)($fs['fs_total_enable_upload'] ?? false);
+            
+            // Simplified thresholds
+            $thresholdUpload = (int)($fs['fs_threshold_total'] ?? 100000000);
 
             $items = $request->input('items', []);
-            // Compute grand total based on provided quantities and prices
-            $grandTotal = 0;
-            foreach ($items as $row) {
-                $qty = (int)($row['quantity'] ?? 0);
-                $price = (int)($row['unit_price'] ?? 0);
-                $grandTotal += max(0, $qty) * max(0, $price);
-            }
-
             foreach ($items as $idx => $row) {
                 $qty = (int)($row['quantity'] ?? 0);
                 $price = (int)($row['unit_price'] ?? 0);
                 $subtotal = max(0, $qty) * max(0, $price);
-                $meetsPerItem = $subtotal >= $thPerItem;
-                $meetsTotalOnly = !$meetsPerItem && ($grandTotal >= $thTotal);
-
-                $shouldRequireUpload = false;
-                if ($meetsPerItem && $perItemEnableUpload) $shouldRequireUpload = true;
-                elseif ($meetsTotalOnly && $totalEnableUpload) $shouldRequireUpload = true;
-
-                if ($shouldRequireUpload) {
+                
+                // Require upload when subtotal >= upload threshold
+                if ($subtotal >= $thresholdUpload) {
                     $file = $request->file("items.$idx.fs_document");
                     if (!$file) {
-                        $v->errors()->add("items.$idx.fs_document", 'Dokumen FS wajib diunggah untuk item ini.');
+                        $v->errors()->add("items.$idx.fs_document", 'Dokumen FS wajib diunggah untuk item ini (subtotal ≥ ' . number_format($thresholdUpload, 0, ',', '.') . ').');
                     }
                 }
             }

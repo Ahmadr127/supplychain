@@ -178,10 +178,12 @@
         });
     }
 
-    // Position dropdown using fixed positioning
+    // Position dropdown using fixed positioning (viewport-based)
+    // IMPORTANT: For position: fixed, coordinates are relative to viewport.
+    // Do NOT add window scroll offsets, otherwise it will shift incorrectly.
     function positionDropdown(input, dropdown) {
         const rect = input.getBoundingClientRect();
-        dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+        dropdown.style.top = rect.bottom + 'px';
         dropdown.style.left = rect.left + 'px';
         dropdown.style.width = rect.width + 'px';
     }
@@ -221,8 +223,11 @@
         setIfEmpty('.fs-a_nama', row.name || '');
         // a_jumlah from main quantity
         setIfEmpty('.fs-a_jumlah', (row.quantity != null && row.quantity !== '') ? row.quantity : '');
-        // a_harga from main unit_price, formatted
-        const harga = (row.unit_price != null && row.unit_price !== '') ? formatRupiahInputValue(row.unit_price) : '';
+        // a_harga from TOTAL (quantity × unit_price), not unit_price
+        const qty = parseInt(row.quantity || 0) || 0;
+        const price = parseInt(row.unit_price || 0) || 0;
+        const total = qty * price;
+        const harga = total > 0 ? formatRupiahInputValue(total) : '';
         setIfEmpty('.fs-a_harga', harga);
     }
 
@@ -234,18 +239,13 @@
     const allDepartments = {!! json_encode(($departments ?? collect())->map(function($d){return ['id'=>$d->id,'name'=>$d->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
     
     // Dynamic FS settings from database
+    // Simplified: two thresholds with clear purpose
+    // - thresholdShow: when to show form and enable inputs (e.g., 50jt)
+    // - thresholdUpload: when to require document upload (e.g., 100jt)
     const fsSettings = {
         enabled: {!! json_encode($fsSettings['fs_document_enabled'] ?? true) !!},
-        thresholdPerItem: {!! json_encode($fsSettings['fs_threshold_per_item'] ?? 100000000) !!},
-        thresholdTotal: {!! json_encode($fsSettings['fs_threshold_total'] ?? 500000000) !!},
-        // Per-item threshold settings
-        perItemShowForm: {!! json_encode($fsSettings['fs_per_item_show_form'] ?? true) !!},
-        perItemEnableInput: {!! json_encode($fsSettings['fs_per_item_enable_input'] ?? true) !!},
-        perItemEnableUpload: {!! json_encode($fsSettings['fs_per_item_enable_upload'] ?? true) !!},
-        // Total threshold settings
-        totalShowForm: {!! json_encode($fsSettings['fs_total_show_form'] ?? true) !!},
-        totalEnableInput: {!! json_encode($fsSettings['fs_total_enable_input'] ?? false) !!},
-        totalEnableUpload: {!! json_encode($fsSettings['fs_total_enable_upload'] ?? false) !!}
+        thresholdShow: {!! json_encode($fsSettings['fs_threshold_per_item'] ?? 50000000) !!},
+        thresholdUpload: {!! json_encode($fsSettings['fs_threshold_total'] ?? 100000000) !!}
     };
     
     // Track if total threshold is met
@@ -264,7 +264,8 @@
                         'master_item_id' => $item->id,
                         'name' => $item->name,
                         'quantity' => $item->pivot->quantity,
-                        'unit_price' => $item->pivot->unit_price,
+                        // IMPORTANT: cast decimal(18,2) to integer rupiah to avoid appending two zeros in JS
+                        'unit_price' => (int) $item->pivot->unit_price,
                         'item_category_id' => $item->item_category_id,
                         'item_category_name' => optional($item->itemCategory)->name,
                         'specification' => $item->pivot->specification,
@@ -513,6 +514,9 @@
     }
 
     // Toggle tampilkan Form Statis utk baris tertentu berdasarkan subtotal
+    // Simplified logic:
+    // - subtotal >= thresholdShow (50jt): Show form + enable inputs
+    // - subtotal >= thresholdUpload (100jt): Show form + enable inputs + require upload
     function toggleRowStaticSectionForRow(rowIndex) {
         const row = rows.find(r => r.index === rowIndex);
         if (!row) return;
@@ -523,62 +527,25 @@
         // If FS is disabled globally, always hide the form
         if (!fsSettings.enabled) {
             trFs.classList.add('hidden');
-            // Ensure radios are not required when hidden
             setRadiosRequired(trFs, false);
             return;
         }
         
-        // Check total threshold first
-        checkTotalThreshold();
-        
-        const meetsPerItemThreshold = subtotal >= fsSettings.thresholdPerItem;
-        const meetsTotalThreshold = totalThresholdMet;
-        
-        // Determine if form should be shown based on settings
-        let shouldShowForm = false;
-        
-        if (meetsPerItemThreshold && fsSettings.perItemShowForm) {
-            shouldShowForm = true;
-        } else if (meetsTotalThreshold && !meetsPerItemThreshold && fsSettings.totalShowForm) {
-            shouldShowForm = true;
-        }
-        
-        if (shouldShowForm) {
+        const meetsShowThreshold = subtotal >= fsSettings.thresholdShow;
+        const meetsUploadThreshold = subtotal >= fsSettings.thresholdUpload;
+
+        if (meetsShowThreshold) {
             trFs.classList.remove('hidden');
-            // Configure form state based on which threshold is met
-            configureFormState(rowIndex, meetsPerItemThreshold);
+            configureFormState(rowIndex, meetsShowThreshold, meetsUploadThreshold);
         } else {
             trFs.classList.add('hidden');
-            // When hidden, remove required from radios to avoid HTML5 validation errors
             setRadiosRequired(trFs, false);
         }
     }
     
-    // Check if total threshold is met
+    // No longer needed - per-item thresholds only
     function checkTotalThreshold() {
-        let grandTotal = 0;
-        rows.forEach(row => {
-            const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
-            grandTotal += subtotal;
-        });
-        
-        totalThresholdMet = grandTotal >= fsSettings.thresholdTotal;
-        
-        // Re-evaluate all rows when total threshold status changes
-        if (totalThresholdMet) {
-            rows.forEach(row => {
-                const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
-                // Only show forms that don't meet per-item threshold if total is met
-                if (subtotal < fsSettings.thresholdPerItem && fsSettings.totalShowForm) {
-                    const trFs = document.getElementById(`row-${row.index}-static`);
-                    if (trFs) {
-                        trFs.classList.remove('hidden');
-                        // Configure state for items shown only due to total threshold
-                        configureFormState(row.index, false);
-                    }
-                }
-            });
-        }
+        // Kept for backward compatibility
     }
     
     // Configure form state based on threshold conditions and settings
@@ -592,56 +559,26 @@
         });
     }
 
-    function configureFormState(rowIndex, meetsPerItemThreshold) {
+    function configureFormState(rowIndex, meetsShowThreshold, meetsUploadThreshold) {
         const trFs = document.getElementById(`row-${rowIndex}-static`);
         if (!trFs) return;
         
-        let enableInputs = false;
-        let enableUpload = false;
-        let noticeMessage = '';
-        let noticeType = '';
+        // Simplified: if form is shown, inputs are always enabled
+        // Upload is enabled only when upload threshold is met
+        const enableInputs = meetsShowThreshold;
+        const enableUpload = meetsUploadThreshold;
         
-        if (!fsSettings.enabled) {
-            // FS completely disabled
-            enableInputs = false;
-            enableUpload = false;
-            noticeMessage = 'Fitur FS dinonaktifkan di pengaturan sistem.';
-            noticeType = 'error';
-        } else if (meetsPerItemThreshold) {
-            // Item meets per-item threshold
-            enableInputs = fsSettings.perItemEnableInput;
-            enableUpload = fsSettings.perItemEnableUpload;
-            if (!enableInputs) {
-                noticeMessage = 'Item memenuhi threshold per-item. Input dinonaktifkan sesuai pengaturan.';
-                noticeType = 'info';
-            }
-        } else if (totalThresholdMet) {
-            // Only total threshold is met
-            enableInputs = fsSettings.totalEnableInput;
-            enableUpload = fsSettings.totalEnableUpload;
-            if (!enableInputs) {
-                noticeMessage = 'Form ditampilkan karena total pengajuan melebihi threshold. Input dinonaktifkan sesuai pengaturan.';
-                noticeType = 'warning';
-            }
-        }
-        
-        // Configure regular inputs
+        // Configure regular inputs (always enabled when form is shown)
         const inputs = trFs.querySelectorAll('input:not(.fs-document-input), select, textarea');
         inputs.forEach(input => {
-            if (enableInputs) {
-                input.disabled = false;
-                input.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
-            } else {
-                input.disabled = true;
-                input.classList.add('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
-            }
+            input.disabled = false;
+            input.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
         });
 
-        // Required handling: only require radios when visible and inputs are enabled
-        const isHidden = trFs.classList.contains('hidden');
-        setRadiosRequired(trFs, enableInputs && !isHidden);
+        // Configure radios: required when form is visible
+        setRadiosRequired(trFs, true);
         
-        // Configure file upload: hide section when not enabled (instead of disabling input)
+        // Configure upload section
         const uploadSection = trFs.querySelector('.fs-upload-section');
         const fileInput = trFs.querySelector('.fs-document-input');
         if (uploadSection) {
@@ -667,32 +604,9 @@
                 }
             }
         }
-        
-        // Add visual indicator
-        const formContent = trFs.querySelector('.form-extra-content');
-        if (formContent) {
-            const existingNotice = formContent.querySelector('.threshold-notice');
-            if (existingNotice) {
-                existingNotice.remove();
-            }
-            
-            if (noticeMessage) {
-                const notice = document.createElement('div');
-                const bgColor = noticeType === 'error' ? 'red' : (noticeType === 'warning' ? 'yellow' : 'blue');
-                notice.className = `threshold-notice mb-2 p-2 bg-${bgColor}-50 border border-${bgColor}-200 rounded-md`;
-                const iconClass = noticeType === 'error' ? 'exclamation-circle' : 'info-circle';
-                notice.innerHTML = `
-                    <p class="text-xs text-${bgColor}-800">
-                        <i class="fas fa-${iconClass} mr-1"></i>
-                        ${noticeMessage}
-                    </p>
-                `;
-                formContent.insertBefore(notice, formContent.firstChild);
-            }
-        }
 
-        // Prefill visible form statis fields from main inputs when enabling inputs
-        if (enableInputs && !trFs.classList.contains('hidden')) {
+        // Prefill visible form statis fields from main inputs
+        if (!trFs.classList.contains('hidden')) {
             try { syncFormExtraFields(rowIndex); } catch(_) {}
         }
     }

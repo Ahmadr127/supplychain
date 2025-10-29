@@ -51,7 +51,7 @@ class DepartmentController extends Controller
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:departments,id',
             'manager_id' => 'nullable|exists:users,id',
-            // removed level and approval_level validations
+            'level' => 'required|integer|min:1|max:3',
             'is_active' => 'boolean',
             'members' => 'array',
             'members.*.user_id' => 'required|exists:users,id',
@@ -79,6 +79,7 @@ class DepartmentController extends Controller
             'description' => $request->description,
             'parent_id' => $request->parent_id,
             'manager_id' => $request->manager_id,
+            'level' => $request->level,
             'is_active' => $request->has('is_active')
         ]);
 
@@ -143,7 +144,7 @@ class DepartmentController extends Controller
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:departments,id',
             'manager_id' => 'nullable|exists:users,id',
-            // removed level and approval_level validations
+            'level' => 'required|integer|min:1|max:3',
             'is_active' => 'boolean',
             'members' => 'array',
             'members.*.user_id' => 'required|exists:users,id',
@@ -173,6 +174,7 @@ class DepartmentController extends Controller
             'description' => $request->description,
             'parent_id' => $request->parent_id,
             'manager_id' => $request->manager_id,
+            'level' => $request->level,
             'is_active' => $request->has('is_active')
         ]);
 

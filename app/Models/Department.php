@@ -15,6 +15,7 @@ class Department extends Model
         'description',
         'parent_id',
         'manager_id',
+        'level',
         'is_active'
     ];
 

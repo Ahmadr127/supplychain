@@ -91,6 +91,20 @@ class SettingController extends Controller
             ['value' => $request->has('fs_total_enable_upload') ? 'true' : 'false', 'type' => 'boolean', 'group' => 'approval_request']
         );
 
+        // Update independent behaviors for upload-threshold per-item
+        Setting::updateOrCreate(
+            ['key' => 'fs_upload_show_form'],
+            ['value' => $request->has('fs_upload_show_form') ? 'true' : 'false', 'type' => 'boolean', 'group' => 'approval_request']
+        );
+        Setting::updateOrCreate(
+            ['key' => 'fs_upload_enable_input'],
+            ['value' => $request->has('fs_upload_enable_input') ? 'true' : 'false', 'type' => 'boolean', 'group' => 'approval_request']
+        );
+        Setting::updateOrCreate(
+            ['key' => 'fs_upload_enable_upload'],
+            ['value' => $request->has('fs_upload_enable_upload') ? 'true' : 'false', 'type' => 'boolean', 'group' => 'approval_request']
+        );
+
         // Clear cache for settings
         Setting::clearCache();
 
