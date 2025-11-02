@@ -19,38 +19,48 @@ class ApprovalWorkflowSeeder extends Seeder
         $medisType = ItemType::where('name', 'Medis')->first();
         $nonMedisType = ItemType::where('name', 'Non Medis')->first();
         
-        // Get roles for workflow steps (sesuai dengan user yang ada di DepartmentSeeder)
-        // Manager IT: Muhamad Miftahudin (admin role, tapi sebagai Manager IT)
-        // Manager Keuangan: Ria Fajarrohmi (manager_keuangan role)
-        // Direktur: dr. Irma Rismayanti, MM (direktur role)
-        $managerItRole = Role::where('name', 'admin')->first(); // Miftah menggunakan admin role
+        // Get roles for workflow steps
+        // NEW WORKFLOW STRUCTURE:
+        // Step 1: Manager Unit (requester's department manager) - Input harga
+        // Step 2: Keuangan (conditional, if total >= 100jt) - Upload FS
+        // Step 3: Direktur RS - Final approval
+        
         $managerKeuanganRole = Role::where('name', 'manager_keuangan')->first();
         $direkturRole = Role::where('name', 'direktur')->first();
 
-        // 1. Workflow Barang Medis (3 langkah: Manager IT -> Manager Keuangan -> Direktur)
-        if ($medisType && $managerItRole && $managerKeuanganRole && $direkturRole) {
+        // 1. Workflow Barang Medis
+        // Step 1: Manager Unit (input harga)
+        // Step 2: Keuangan (upload FS, conditional)
+        // Step 3: Direktur RS (final approval)
+        if ($medisType && $managerKeuanganRole && $direkturRole) {
             $medicalWorkflow = ApprovalWorkflow::firstOrCreate(
                 [
                     'name' => 'Workflow Barang Medis',
                     'type' => 'medical'
                 ],
                 [
-                    'description' => 'Workflow untuk barang medis dan farmasi (3 langkah approval)',
+                    'description' => 'Workflow untuk barang medis: Manager Unit → Keuangan (conditional) → Direktur RS',
                     'workflow_steps' => [
                         [
-                            'name' => 'Manager IT',
-                            'approver_type' => 'role',
-                            'approver_role_id' => $managerItRole->id,
+                            'name' => 'Manager',
+                            'approver_type' => 'requester_department_manager',
+                            'approver_role_id' => null,
+                            'description' => 'Manager unit input harga dan approve'
                         ],
                         [
-                            'name' => 'Manager Keuangan',
+                            'name' => 'Keuangan',
                             'approver_type' => 'role',
                             'approver_role_id' => $managerKeuanganRole->id,
+                            'description' => 'Keuangan upload FS jika total >= 100jt',
+                            'is_conditional' => true,
+                            'condition_type' => 'total_price',
+                            'condition_value' => 100000000
                         ],
                         [
                             'name' => 'Direktur RS',
                             'approver_type' => 'role',
                             'approver_role_id' => $direkturRole->id,
+                            'description' => 'Direktur RS final approval'
                         ]
                     ],
                     'is_active' => true,
@@ -60,25 +70,39 @@ class ApprovalWorkflowSeeder extends Seeder
             );
         }
 
-        // 2. Workflow Barang Non Medis (2 langkah: Manager IT -> Manager Keuangan)
-        if ($nonMedisType && $managerItRole && $managerKeuanganRole) {
+        // 2. Workflow Barang Non Medis
+        // Step 1: Manager Unit (input harga)
+        // Step 2: Keuangan (upload FS, conditional)
+        // Step 3: Direktur RS (final approval)
+        if ($nonMedisType && $managerKeuanganRole && $direkturRole) {
             $nonMedicalWorkflow = ApprovalWorkflow::firstOrCreate(
                 [
                     'name' => 'Workflow Barang Non Medis',
                     'type' => 'non_medical'
                 ],
                 [
-                    'description' => 'Workflow untuk barang non medis dan umum (2 langkah approval)',
+                    'description' => 'Workflow untuk barang non medis: Manager Unit → Keuangan (conditional) → Direktur RS',
                     'workflow_steps' => [
                         [
-                            'name' => 'Manager IT',
-                            'approver_type' => 'role',
-                            'approver_role_id' => $managerItRole->id,
+                            'name' => 'Manager',
+                            'approver_type' => 'requester_department_manager',
+                            'approver_role_id' => null,
+                            'description' => 'Manager unit input harga dan approve'
                         ],
                         [
-                            'name' => 'Manager Keuangan',
+                            'name' => 'Keuangan',
                             'approver_type' => 'role',
                             'approver_role_id' => $managerKeuanganRole->id,
+                            'description' => 'Keuangan upload FS jika total >= 100jt',
+                            'is_conditional' => true,
+                            'condition_type' => 'total_price',
+                            'condition_value' => 100000000
+                        ],
+                        [
+                            'name' => 'Direktur RS',
+                            'approver_type' => 'role',
+                            'approver_role_id' => $direkturRole->id,
+                            'description' => 'Direktur RS final approval'
                         ]
                     ],
                     'is_active' => true,
@@ -88,24 +112,38 @@ class ApprovalWorkflowSeeder extends Seeder
             );
         }
         
-        // 3. Default/Fallback Workflow (jika ada submission type lain atau item type yang tidak terdefinisi)
+        // 3. Default/Fallback Workflow
+        // Step 1: Manager Unit (input harga)
+        // Step 2: Keuangan (upload FS, conditional)
+        // Step 3: Direktur RS (final approval)
         $defaultWorkflow = ApprovalWorkflow::firstOrCreate(
             [
                 'name' => 'Standard Approval Workflow',
                 'type' => 'standard'
             ],
             [
-                'description' => 'Workflow standar untuk permintaan approval umum',
+                'description' => 'Workflow standar: Manager Unit → Keuangan (conditional) → Direktur RS',
                 'workflow_steps' => [
                     [
-                        'name' => 'Manager IT',
-                        'approver_type' => 'role',
-                        'approver_role_id' => $managerItRole ? $managerItRole->id : null,
+                        'name' => 'Manager',
+                        'approver_type' => 'requester_department_manager',
+                        'approver_role_id' => null,
+                        'description' => 'Manager unit input harga dan approve'
                     ],
                     [
-                        'name' => 'Manager Keuangan',
+                        'name' => 'Keuangan',
                         'approver_type' => 'role',
                         'approver_role_id' => $managerKeuanganRole ? $managerKeuanganRole->id : null,
+                        'description' => 'Keuangan upload FS jika total >= 100jt',
+                        'is_conditional' => true,
+                        'condition_type' => 'total_price',
+                        'condition_value' => 100000000
+                    ],
+                    [
+                        'name' => 'Direktur RS',
+                        'approver_type' => 'role',
+                        'approver_role_id' => $direkturRole ? $direkturRole->id : null,
+                        'description' => 'Direktur RS final approval'
                     ]
                 ],
                 'is_active' => true,
@@ -115,5 +153,9 @@ class ApprovalWorkflowSeeder extends Seeder
         );
 
         $this->command->info('Approval workflows seeded successfully!');
+        $this->command->info('New workflow structure:');
+        $this->command->info('  Step 1: Manager Unit (input harga)');
+        $this->command->info('  Step 2: Keuangan (upload FS, conditional if total >= 100jt)');
+        $this->command->info('  Step 3: Direktur RS (final approval)');
     }
 }

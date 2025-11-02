@@ -221,7 +221,9 @@ Route::middleware('auth')->group(function () {
     Route::get('api/purchasing/status/{approvalRequest}', [PurchasingItemController::class, 'statusDetailsByRequest'])
         ->name('api.purchasing.status');
     
-    // (Removed) API routes for request-level step details and status updates
+    // Approval step status details (JSON)
+    Route::get('api/approval-requests/{approvalRequest}/step-status/{stepNumber}', [ApprovalRequestController::class, 'getStepStatus'])
+        ->name('api.approval-requests.step-status');
     
     // File download routes
     Route::get('approval-requests/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');

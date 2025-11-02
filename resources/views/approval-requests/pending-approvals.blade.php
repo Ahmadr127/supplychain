@@ -58,6 +58,8 @@
                 </div>
             </div>
             
+            <!-- Info Status -->
+            <x-info-status class="py-1" variant="status" size="sm" />
         </div>
     </x-slot>
     <div class="overflow-x-auto">
@@ -112,11 +114,11 @@
                     </td>
                     @if($isDirectorLevel)
                         <td class="w-1/2">
-                            <x-approval-progress-steps :request="null" :step-data="$row->step" />
+                            <x-approval-progress-steps :request="$row->request" :show-metadata="true" />
                         </td>
                     @endif
                     <td class="w-20">
-                        <x-approval-status-badge :status="$row->step->status" :requestStatus="$row->request->status" />
+                        <x-approval-status-badge :status="$row->request->status" />
                     </td>
                     <td class="w-40">
                         @php

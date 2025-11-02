@@ -149,7 +149,7 @@
                         </div>
                     </td>
                     <td class="w-1/3">
-                        <x-approval-progress-steps :request="$row->request" />
+                        <x-approval-progress-steps :request="$row->request" :show-metadata="true" />
                     </td>
                     <td class="w-20">
                         <x-approval-status-badge :status="$row->request->status" />

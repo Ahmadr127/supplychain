@@ -1,4 +1,4 @@
-@props(['request', 'stepData' => null])
+@props(['request', 'stepData' => null, 'showMetadata' => false])
 
 @php
     // Use stepData if provided (for pending-approvals), otherwise use request directly
@@ -8,6 +8,18 @@
     // Use step_number from stepData if available, otherwise default to 1
     $currentStep = $stepData ? ($stepData->step_number ?? 1) : 1;
     $requestId = $stepData ? $stepData->request->id : $request->id;
+    
+    // Get actual step statuses from database (for pending-approvals accuracy)
+    $actualStepStatuses = [];
+    if ($stepData) {
+        $itemSteps = $stepData->request->itemSteps()
+            ->where('master_item_id', $stepData->master_item_id)
+            ->get()
+            ->keyBy('step_number');
+        foreach ($itemSteps as $itemStep) {
+            $actualStepStatuses[$itemStep->step_number] = $itemStep->status;
+        }
+    }
 @endphp
 
 <div class="min-w-0">
@@ -18,34 +30,52 @@
                 $stepColor = 'bg-gray-100 text-gray-600';
                 $stepStatusText = 'Pending';
                 
-                if ($requestStatus == 'approved') {
-                    // If request is fully approved, all steps should be green
-                    $stepStatus = 'completed';
-                    $stepColor = 'bg-green-600 text-white';
-                    $stepStatusText = 'Approved';
-                } elseif ($requestStatus == 'rejected') {
-                    // If request is rejected, steps at or after current step should be red
-                    if ($step->step_number >= $currentStep) {
-                        $stepColor = 'bg-red-600 text-white';
-                        $stepStatusText = 'Rejected';
-                    } else {
+                // Use actual step status if available (for pending-approvals)
+                if (isset($actualStepStatuses[$step->step_number])) {
+                    $actualStatus = $actualStepStatuses[$step->step_number];
+                    if ($actualStatus === 'approved') {
                         $stepColor = 'bg-green-600 text-white';
                         $stepStatusText = 'Approved';
+                    } elseif ($actualStatus === 'rejected') {
+                        $stepColor = 'bg-red-600 text-white';
+                        $stepStatusText = 'Rejected';
+                    } elseif ($actualStatus === 'pending') {
+                        // Check if this is the current step
+                        if ($step->step_number == $currentStep) {
+                            $stepColor = 'bg-blue-500 text-white';
+                            $stepStatusText = 'On Progress';
+                        } else {
+                            $stepColor = 'bg-yellow-500 text-white';
+                            $stepStatusText = 'Pending';
+                        }
                     }
                 } else {
-                    // For on progress and pending requests
-                    if ($step->step_number < $currentStep) {
+                    // Fallback to old logic if no actual status
+                    if ($requestStatus == 'approved') {
                         $stepStatus = 'completed';
                         $stepColor = 'bg-green-600 text-white';
                         $stepStatusText = 'Approved';
-                    } elseif ($step->step_number == $currentStep) {
-                        $stepStatus = 'current';
-                        $stepColor = 'bg-blue-500 text-white';
-                        $stepStatusText = 'On Progress';
+                    } elseif ($requestStatus == 'rejected') {
+                        if ($step->step_number >= $currentStep) {
+                            $stepColor = 'bg-red-600 text-white';
+                            $stepStatusText = 'Rejected';
+                        } else {
+                            $stepColor = 'bg-green-600 text-white';
+                            $stepStatusText = 'Approved';
+                        }
                     } else {
-                        // Future steps are pending/waiting
-                        $stepColor = 'bg-yellow-500 text-white';
-                        $stepStatusText = 'Pending';
+                        if ($step->step_number < $currentStep) {
+                            $stepStatus = 'completed';
+                            $stepColor = 'bg-green-600 text-white';
+                            $stepStatusText = 'Approved';
+                        } elseif ($step->step_number == $currentStep) {
+                            $stepStatus = 'current';
+                            $stepColor = 'bg-blue-500 text-white';
+                            $stepStatusText = 'On Progress';
+                        } else {
+                            $stepColor = 'bg-yellow-500 text-white';
+                            $stepStatusText = 'Pending';
+                        }
                     }
                 }
             @endphp
@@ -59,7 +89,7 @@
                       title="Klik untuk melihat detail status">
                     {{ $step->step_name }}
                 </span>
-                @if($stepData)
+                @if($stepData || $showMetadata)
                     <div class="mt-0.5 text-[11px] text-gray-600 step-meta" data-request-id="{{ $requestId }}" data-step-number="{{ $step->step_number }}">
                         <!-- info disisipkan via JS: status, oleh, pada -->
                     </div>

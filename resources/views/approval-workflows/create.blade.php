@@ -263,19 +263,56 @@
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                        placeholder="Unit Manager Approval">
             </div>
-                        <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipe approver</label>
-                        <select name="workflow_steps[${stepNumber}][approver_type]" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                onchange="toggleApproverFields(this, ${stepNumber})">
-                            <option value="">Pilih Tipe Approver</option>
-                            <option value="user">User Spesifik</option>
-                            <option value="role">Role</option>
-                            <option value="department_manager">Manager Department</option>
-                            <option value="requester_department_manager">Manager Departemen Requester</option>
-                            <option value="any_department_manager">Semua Manager</option>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Tipe approver</label>
+                <select name="workflow_steps[${stepNumber}][approver_type]" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onchange="toggleApproverFields(this, ${stepNumber})">
+                    <option value="">Pilih Tipe Approver</option>
+                    <option value="user">User Spesifik</option>
+                    <option value="role">Role</option>
+                    <option value="department_manager">Manager Department</option>
+                    <option value="requester_department_manager">Manager Departemen Requester</option>
+                    <option value="any_department_manager">Semua Manager</option>
+                </select>
+            </div>
+            
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Deskripsi Step (opsional)</label>
+                <textarea name="workflow_steps[${stepNumber}][description]" rows="2"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="Contoh: Manager unit input harga dan approve"></textarea>
+            </div>
+            
+            <!-- Conditional Step Settings -->
+            <div class="md:col-span-2 border-t pt-3 mt-2">
+                <label class="flex items-center mb-3">
+                    <input type="checkbox" name="workflow_steps[${stepNumber}][is_conditional]" value="1"
+                           class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                           onchange="toggleConditionalFields(this, ${stepNumber})">
+                    <span class="ml-2 text-sm font-medium text-gray-700">Step Conditional (skip jika kondisi tidak terpenuhi)</span>
+                </label>
+                
+                <div id="conditional_fields_${stepNumber}" class="grid grid-cols-2 gap-4 hidden">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipe Kondisi</label>
+                        <select name="workflow_steps[${stepNumber}][condition_type]"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Pilih Kondisi</option>
+                            <option value="total_price">Total Harga</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Nilai Threshold (Rp)</label>
+                        <input type="text" name="workflow_steps[${stepNumber}][condition_value]"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="100000000"
+                               oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                        <p class="text-xs text-gray-500 mt-1">Step ini akan dijalankan jika total harga >= nilai ini</p>
+                    </div>
+                </div>
+            </div>
             <div id="approver_user_${stepNumber}" class="approver-field" style="display: none;">
                 <label class="block text-sm font-medium text-gray-700 mb-2">User</label>
                 <select name="workflow_steps[${stepNumber}][approver_id]"
@@ -332,6 +369,15 @@
                 // No additional fields needed for requester_department_manager
             } else if (approverType === 'any_department_manager') {
                 // No additional fields needed for any_department_manager
+            }
+        }
+        
+        function toggleConditionalFields(checkbox, stepNumber) {
+            const conditionalFields = document.getElementById(`conditional_fields_${stepNumber}`);
+            if (checkbox.checked) {
+                conditionalFields.classList.remove('hidden');
+            } else {
+                conditionalFields.classList.add('hidden');
             }
         }
 

@@ -194,7 +194,7 @@ class ApprovalRequestController extends Controller
             'items.*.master_item_id' => 'nullable|exists:master_items,id',
             'items.*.name' => 'required_without:items.*.master_item_id|string|max:255',
             'items.*.quantity' => 'required_with:items|integer|min:1',
-            // Make unit_price optional; fallback to master item price when missing or <= 0
+            // unit_price is NULL on create, will be filled by manager during approval
             'items.*.unit_price' => 'nullable|numeric|min:0',
             'items.*.item_category_id' => 'nullable|integer|exists:item_categories,id',
             'items.*.item_category_name' => 'nullable|string|max:255',
@@ -225,30 +225,8 @@ class ApprovalRequestController extends Controller
             }
         });
 
-        // Simplified FS validation: require upload when subtotal >= upload threshold
-        $validator->after(function($v) use ($request) {
-            $fs = Setting::getGroup('approval_request') ?? [];
-            $enabled = (bool)($fs['fs_document_enabled'] ?? true);
-            if (!$enabled) return;
-            
-            // Simplified thresholds
-            $thresholdUpload = (int)($fs['fs_threshold_total'] ?? 100000000);
-
-            $items = $request->input('items', []);
-            foreach ($items as $idx => $row) {
-                $qty = (int)($row['quantity'] ?? 0);
-                $price = (int)($row['unit_price'] ?? 0);
-                $subtotal = max(0, $qty) * max(0, $price);
-                
-                // Require upload when subtotal >= upload threshold
-                if ($subtotal >= $thresholdUpload) {
-                    $file = $request->file("items.$idx.fs_document");
-                    if (!$file) {
-                        $v->errors()->add("items.$idx.fs_document", 'Dokumen FS wajib diunggah untuk item ini (subtotal ≥ ' . number_format($thresholdUpload, 0, ',', '.') . ').');
-                    }
-                }
-            }
-        });
+        // FS validation removed for create mode
+        // FS document will be uploaded by Keuangan during approval if total >= 100jt
 
         if ($validator->fails()) {
             Log::warning('ApprovalRequest.update.validation_failed', [
@@ -1312,6 +1290,35 @@ class ApprovalRequestController extends Controller
                 'is_specific_type' => $workflow->is_specific_type,
                 'item_type_id' => $workflow->item_type_id
             ]
+        ]);
+    }
+
+    /**
+     * Get step status details for a specific approval request and step number
+     */
+    public function getStepStatus(ApprovalRequest $approvalRequest, $stepNumber)
+    {
+        // Find the most recent approval action for this step (per-item approval system)
+        $itemStep = $approvalRequest->itemSteps()
+            ->where('step_number', $stepNumber)
+            ->where('status', '!=', 'pending')
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        if (!$itemStep) {
+            return response()->json([
+                'action_time' => null,
+                'action_by' => null,
+                'notes' => null,
+                'status' => 'pending'
+            ]);
+        }
+
+        return response()->json([
+            'action_time' => $itemStep->updated_at,
+            'action_by' => $itemStep->approver->name ?? 'Unknown',
+            'notes' => $itemStep->comments,
+            'status' => $itemStep->status
         ]);
     }
 

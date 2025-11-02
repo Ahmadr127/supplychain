@@ -9,7 +9,6 @@
 
 <div class="w-full flex items-center {{ $containerGap }} {{ $textSize }} {{ $class }} overflow-x-auto whitespace-nowrap">
     @if($variant === 'status' || $variant === 'both')
-        <span class="inline-flex items-center {{ $badgePad }} ">Informasi progress :</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-blue-500 text-white">On Progress</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-yellow-500 text-white">Pending/Waiting</span>
         <span class="inline-flex items-center {{ $badgePad }} rounded bg-green-600 text-white">Approved</span>

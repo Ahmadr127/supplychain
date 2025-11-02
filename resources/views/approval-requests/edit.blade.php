@@ -25,4 +25,8 @@
 </div>
 @include('components.modals.form-master-items')
 @include('approval-requests._form-extra')
+
+<!-- Include Helper Scripts -->
+<script src="{{ asset('js/form-helpers.js') }}"></script>
+<script src="{{ asset('js/autocomplete-suggestions.js') }}"></script>
 @endsection

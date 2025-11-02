@@ -1,11 +1,9 @@
 @props(['status', 'requestStatus' => null])
 
 @php
-    // Transform logic: pending step in active request = on progress
-    $actualStatus = $status;
-    if ($status === 'pending' && $requestStatus && in_array($requestStatus, ['pending', 'on progress'])) {
-        $actualStatus = 'on progress';
-    }
+    // Use requestStatus if provided, otherwise use status
+    // This ensures we show the overall request status, not individual step status
+    $actualStatus = $requestStatus ?? $status;
     
     $displayStatus = $actualStatus;
     $statusColor = 'bg-gray-500 text-white';

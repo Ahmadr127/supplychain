@@ -223,4 +223,360 @@
             }
         }
     }
+    
+    // Sync main form fields to Form Extra (auto-fill)
+    // This function is called when main form values change
+    function syncFormExtraFields(rowIndex, opts = { force: false }) {
+        if (typeof rows === 'undefined') return;
+        const row = rows.find(r => r.index === rowIndex);
+        if (!row) return;
+        
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs) return;
+        
+        // Helper to set value only if empty (or force)
+        const setIfEmpty = (selector, val) => {
+            const el = trFs.querySelector(selector);
+            if (!el) return;
+            const current = (el.value ?? '').toString().trim();
+            if (opts.force || current === '') {
+                el.value = val != null ? String(val) : '';
+            }
+        };
+        
+        // Sync: a_nama from main item name
+        setIfEmpty('.fs-a_nama', row.name || '');
+        
+        // Sync: a_jumlah from main quantity
+        setIfEmpty('.fs-a_jumlah', (row.quantity != null && row.quantity !== '') ? row.quantity : '');
+        
+        // Sync: a_harga from TOTAL (quantity × unit_price)
+        const qty = parseInt(row.quantity || 0) || 0;
+        const price = parseInt(row.unit_price || 0) || 0;
+        const total = qty * price;
+        const harga = total > 0 ? (typeof formatRupiahInputValue === 'function' ? formatRupiahInputValue(total) : total) : '';
+        setIfEmpty('.fs-a_harga', harga);
+    }
+    
+    // Initialize form extra for a row (attach to DOM and bind events)
+    function initFormExtra(rowIndex) {
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs) return;
+        
+        // Add event listener for toggle button
+        const toggleBtn = trFs.querySelector('.form-extra-toggle');
+        if (toggleBtn && !toggleBtn.hasAttribute('data-listener-attached')) {
+            toggleBtn.addEventListener('click', function() {
+                toggleFormExtra(this);
+            });
+            toggleBtn.setAttribute('data-listener-attached', 'true');
+        }
+    }
+    
+    // Collect form extra data from visible form statis sections
+    function collectFormExtraData() {
+        if (typeof rows === 'undefined') return;
+        
+        rows.forEach((row) => {
+            const trFs = document.getElementById(`row-${row.index}-static`);
+            if (!trFs || trFs.classList.contains('hidden')) return;
+            
+            const formExtraData = {};
+            
+            // Helper to get value from selector
+            const gv = (sel) => {
+                const el = trFs.querySelector(sel);
+                return el ? (el.value || '').trim() : '';
+            };
+            
+            // Helper to get radio value
+            const gvr = (name) => {
+                const el = trFs.querySelector(`input[name="${name}"]:checked`);
+                return el ? el.value : '';
+            };
+            
+            // Helper to get checkbox value
+            const gvc = (sel) => {
+                const el = trFs.querySelector(sel);
+                return el ? el.checked : false;
+            };
+            
+            // Section A
+            formExtraData.a_nama = gv('.fs-a_nama');
+            formExtraData.a_fungsi = gv('.fs-a_fungsi');
+            formExtraData.a_ukuran = gv('.fs-a_ukuran');
+            formExtraData.a_jumlah = gv('.fs-a_jumlah');
+            formExtraData.a_satuan = gv('.fs-a_satuan');
+            formExtraData.a_waktu = gv('.fs-a_waktu');
+            formExtraData.a_waktu_satuan = gv('.fs-a_waktu_satuan');
+            formExtraData.a_pengguna = gv('.fs-a_pengguna');
+            formExtraData.a_leadtime = gv('.fs-a_leadtime');
+            formExtraData.a_ekatalog = gvr(`fs-a_ekatalog-${row.index}`);
+            formExtraData.a_ekatalog_ket = gv('.fs-a_ekatalog_ket');
+            formExtraData.a_harga = gv('.fs-a_harga');
+            formExtraData.a_kategori_perm = gvr(`fs-a_kategori_perm-${row.index}`);
+            formExtraData.a_lampiran = gvr(`fs-a_lampiran-${row.index}`);
+            
+            // Section B
+            formExtraData.b_jml_pegawai = gv('.fs-b_jml_pegawai');
+            formExtraData.b_jml_dokter = gv('.fs-b_jml_dokter');
+            formExtraData.b_beban = gvr(`fs-b_beban-${row.index}`);
+            formExtraData.b_barang_ada = gvr(`fs-b_barang_ada-${row.index}`);
+            
+            // Section C
+            formExtraData.c_jumlah = gv('.fs-c_jumlah');
+            formExtraData.c_satuan = gv('.fs-c_satuan');
+            formExtraData.c_kondisi = gvr(`fs-c_kondisi-${row.index}`);
+            formExtraData.c_kondisi_lain = gv('.fs-c_kondisi_lain');
+            formExtraData.c_lokasi = gv('.fs-c_lokasi');
+            formExtraData.c_sumber = gvr(`fs-c_sumber-${row.index}`);
+            formExtraData.c_kemudahan = gvr(`fs-c_kemudahan-${row.index}`);
+            formExtraData.c_produsen = gvr(`fs-c_produsen-${row.index}`);
+            formExtraData.c_kriteria_dn = gvc('.fs-c_kriteria_dn');
+            formExtraData.c_kriteria_impor = gvc('.fs-c_kriteria_impor');
+            formExtraData.c_kriteria_kerajinan = gvc('.fs-c_kriteria_kerajinan');
+            formExtraData.c_kriteria_jasa = gvc('.fs-c_kriteria_jasa');
+            formExtraData.c_tkdn = gvr(`fs-c_tkdn-${row.index}`);
+            formExtraData.c_tkdn_min = gv('.fs-c_tkdn_min');
+            
+            // Section D/E
+            formExtraData.e_kirim = gv('.fs-e_kirim');
+            formExtraData.e_angkut = gv('.fs-e_angkut');
+            formExtraData.e_instalasi = gv('.fs-e_instalasi');
+            formExtraData.e_penyimpanan = gv('.fs-e_penyimpanan');
+            formExtraData.e_operasi = gvr(`fs-e_operasi-${row.index}`);
+            formExtraData.e_catatan = gv('.fs-e_catatan');
+            formExtraData.e_pelatihan = gvr(`fs-e_pelatihan-${row.index}`);
+            formExtraData.e_aspek = gvr(`fs-e_aspek-${row.index}`);
+            
+            row.formExtraData = formExtraData;
+        });
+    }
+    
+    // Helper: toggle required attribute for all radios inside a form-static container
+    function setRadiosRequired(container, shouldRequire) {
+        if (!container) return;
+        const radios = container.querySelectorAll('input[type="radio"]');
+        radios.forEach(r => {
+            if (shouldRequire) r.setAttribute('required', '');
+            else r.removeAttribute('required');
+        });
+    }
+    
+    // Configure form state based on threshold conditions and settings
+    function configureFormState(rowIndex, meetsShowThreshold, meetsUploadThreshold) {
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs) return;
+        
+        // Simplified: if form is shown, inputs are always enabled
+        // Upload is enabled only when upload threshold is met
+        const enableInputs = meetsShowThreshold;
+        const enableUpload = meetsUploadThreshold;
+        
+        // Configure regular inputs (always enabled when form is shown)
+        const inputs = trFs.querySelectorAll('input:not(.fs-document-input), select, textarea');
+        inputs.forEach(input => {
+            input.disabled = false;
+            input.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
+        });
+
+        // Configure radios: required when form is visible
+        setRadiosRequired(trFs, true);
+        
+        // Configure upload section
+        const uploadSection = trFs.querySelector('.fs-upload-section');
+        const fileInput = trFs.querySelector('.fs-document-input');
+        if (uploadSection) {
+            if (enableUpload) {
+                uploadSection.classList.remove('hidden');
+                if (fileInput) {
+                    fileInput.disabled = false;
+                    fileInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
+                    // Make FS file input required when visible and no existing FS document
+                    try {
+                        const row = (typeof rows !== 'undefined' ? rows : []).find(r => r.index === rowIndex);
+                        const hasExisting = !!(row && row.fs_document);
+                        fileInput.required = !hasExisting;
+                    } catch (_) { fileInput.required = true; }
+                }
+            } else {
+                // Hide and clear value for safety so hidden files are not submitted
+                uploadSection.classList.add('hidden');
+                if (fileInput) {
+                    try { fileInput.value = ''; } catch (_) {}
+                    fileInput.required = false;
+                }
+            }
+        }
+
+        // Prefill visible form statis fields from main inputs
+        if (!trFs.classList.contains('hidden')) {
+            try { syncFormExtraFields(rowIndex); } catch(_) {}
+        }
+    }
+    
+    // Toggle form extra visibility based on subtotal threshold
+    // Requires: rows array and fsSettings object from parent scope
+    function toggleRowStaticSectionForRow(rowIndex) {
+        if (typeof rows === 'undefined' || typeof fsSettings === 'undefined') return;
+        
+        const row = rows.find(r => r.index === rowIndex);
+        if (!row) return;
+        
+        const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs) return;
+        
+        // If FS is disabled globally, always hide the form
+        if (!fsSettings.enabled) {
+            trFs.classList.add('hidden');
+            setRadiosRequired(trFs, false);
+            const fileInput = trFs.querySelector('.fs-document-input');
+            if (fileInput) fileInput.required = false;
+            return;
+        }
+        
+        const meetsShowThreshold = subtotal >= fsSettings.thresholdShow;
+        const meetsUploadThreshold = subtotal >= fsSettings.thresholdUpload;
+
+        if (meetsShowThreshold) {
+            trFs.classList.remove('hidden');
+            configureFormState(rowIndex, meetsShowThreshold, meetsUploadThreshold);
+        } else {
+            trFs.classList.add('hidden');
+            setRadiosRequired(trFs, false);
+            const fileInput = trFs.querySelector('.fs-document-input');
+            if (fileInput) fileInput.required = false;
+        }
+    }
+    
+    // Build hidden inputs for form extra data and FS document
+    function buildFormExtraHiddenInputs(form, row) {
+        if (!form || !row) return;
+        
+        // Add form extra data if exists
+        if (row.formExtraData) {
+            Object.keys(row.formExtraData).forEach(key => {
+                const value = row.formExtraData[key];
+                if (value !== null && value !== undefined && value !== '') {
+                    form.insertAdjacentHTML('beforeend',
+                        `<input class="item-hidden" type="hidden" name="items[${row.index}][form_extra][${key}]" value="${typeof escapeHtml === 'function' ? escapeHtml(String(value)) : String(value)}">`
+                    );
+                }
+            });
+        }
+
+        // Preserve existing per-item FS document on edit if no new file selected
+        try {
+            const trFs = document.getElementById(`row-${row.index}-static`);
+            const fileInput = trFs ? trFs.querySelector('.fs-document-input') : null;
+            const hasNewFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
+            if (row.fs_document && !hasNewFile) {
+                form.insertAdjacentHTML('beforeend',
+                    `<input class="item-hidden" type="hidden" name="items[${row.index}][existing_fs_document]" value="${typeof escapeHtml === 'function' ? escapeHtml(row.fs_document) : row.fs_document}">`
+                );
+            }
+        } catch (_) { /* no-op */ }
+    }
+    
+    // Serialize form extra data to hidden inputs for submission
+    function serializeFormExtraToHiddenInputs(form, row) {
+        // Add form extra data if exists
+        if (row.formExtraData) {
+            Object.keys(row.formExtraData).forEach(key => {
+                const value = row.formExtraData[key];
+                if (value !== null && value !== undefined && value !== '') {
+                    form.insertAdjacentHTML('beforeend',
+                        `<input class="item-hidden" type="hidden" name="items[${row.index}][form_extra][${key}]" value="${typeof escapeHtml === 'function' ? escapeHtml(String(value)) : String(value).replace(/"/g, '&quot;')}">`
+                    );
+                }
+            });
+        }
+
+        // Preserve existing per-item FS document on edit if no new file selected
+        try {
+            const trFs = document.getElementById(`row-${row.index}-static`);
+            const fileInput = trFs ? trFs.querySelector('.fs-document-input') : null;
+            const hasNewFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
+            if (row.fs_document && !hasNewFile) {
+                form.insertAdjacentHTML('beforeend',
+                    `<input class="item-hidden" type="hidden" name="items[${row.index}][existing_fs_document]" value="${typeof escapeHtml === 'function' ? escapeHtml(row.fs_document) : row.fs_document.replace(/"/g, '&quot;')}">`
+                );
+            }
+        } catch (_) { /* no-op */ }
+    }
+    
+    // Load item extra data into form statis (for edit mode)
+    function loadItemExtraData(rowIndex, itemExtraData) {
+        const trFs = document.getElementById(`row-${rowIndex}-static`);
+        if (!trFs || !itemExtraData) return;
+        
+        // Helper to set value
+        const sv = (selector, value) => {
+            const el = trFs.querySelector(selector);
+            if (el && value !== null && value !== undefined) {
+                el.value = value;
+            }
+        };
+        
+        // Helper to set radio
+        const sr = (name, value) => {
+            const el = trFs.querySelector(`input[name="${name}"][value="${value}"]`);
+            if (el) el.checked = true;
+        };
+        
+        // Helper to set checkbox
+        const sc = (selector, value) => {
+            const el = trFs.querySelector(selector);
+            if (el) el.checked = value === true || value === 1 || value === '1';
+        };
+        
+        // Load Section A data
+        sv('.fs-a_nama', itemExtraData.a_nama);
+        sv('.fs-a_fungsi', itemExtraData.a_fungsi);
+        sv('.fs-a_ukuran', itemExtraData.a_ukuran);
+        sv('.fs-a_jumlah', itemExtraData.a_jumlah);
+        sv('.fs-a_satuan', itemExtraData.a_satuan);
+        sv('.fs-a_waktu', itemExtraData.a_waktu);
+        sv('.fs-a_waktu_satuan', itemExtraData.a_waktu_satuan);
+        sv('.fs-a_pengguna', itemExtraData.a_pengguna);
+        sv('.fs-a_leadtime', itemExtraData.a_leadtime);
+        sr(`fs-a_ekatalog-${rowIndex}`, itemExtraData.a_ekatalog);
+        sv('.fs-a_ekatalog_ket', itemExtraData.a_ekatalog_ket);
+        sv('.fs-a_harga', itemExtraData.a_harga);
+        sr(`fs-a_kategori_perm-${rowIndex}`, itemExtraData.a_kategori_perm);
+        sr(`fs-a_lampiran-${rowIndex}`, itemExtraData.a_lampiran);
+        
+        // Load Section B data
+        sv('.fs-b_jml_pegawai', itemExtraData.b_jml_pegawai);
+        sv('.fs-b_jml_dokter', itemExtraData.b_jml_dokter);
+        sr(`fs-b_beban-${rowIndex}`, itemExtraData.b_beban);
+        sr(`fs-b_barang_ada-${rowIndex}`, itemExtraData.b_barang_ada);
+        
+        // Load Section C data
+        sv('.fs-c_jumlah', itemExtraData.c_jumlah);
+        sv('.fs-c_satuan', itemExtraData.c_satuan);
+        sr(`fs-c_kondisi-${rowIndex}`, itemExtraData.c_kondisi);
+        sv('.fs-c_kondisi_lain', itemExtraData.c_kondisi_lain);
+        sv('.fs-c_lokasi', itemExtraData.c_lokasi);
+        sr(`fs-c_sumber-${rowIndex}`, itemExtraData.c_sumber);
+        sr(`fs-c_kemudahan-${rowIndex}`, itemExtraData.c_kemudahan);
+        sr(`fs-c_produsen-${rowIndex}`, itemExtraData.c_produsen);
+        sc('.fs-c_kriteria_dn', itemExtraData.c_kriteria_dn);
+        sc('.fs-c_kriteria_impor', itemExtraData.c_kriteria_impor);
+        sc('.fs-c_kriteria_kerajinan', itemExtraData.c_kriteria_kerajinan);
+        sc('.fs-c_kriteria_jasa', itemExtraData.c_kriteria_jasa);
+        sr(`fs-c_tkdn-${rowIndex}`, itemExtraData.c_tkdn);
+        sv('.fs-c_tkdn_min', itemExtraData.c_tkdn_min);
+        
+        // Load Section D/E data
+        sv('.fs-e_kirim', itemExtraData.e_kirim);
+        sv('.fs-e_angkut', itemExtraData.e_angkut);
+        sv('.fs-e_instalasi', itemExtraData.e_instalasi);
+        sv('.fs-e_penyimpanan', itemExtraData.e_penyimpanan);
+        sr(`fs-e_operasi-${rowIndex}`, itemExtraData.e_operasi);
+        sv('.fs-e_catatan', itemExtraData.e_catatan);
+        sr(`fs-e_pelatihan-${rowIndex}`, itemExtraData.e_pelatihan);
+        sr(`fs-e_aspek-${rowIndex}`, itemExtraData.e_aspek);
+    }
 </script>

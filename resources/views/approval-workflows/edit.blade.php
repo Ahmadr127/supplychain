@@ -135,6 +135,44 @@
                                     </select>
                                 </div>
                                 
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Deskripsi Step (opsional)</label>
+                                    <textarea name="workflow_steps[{{ $index + 1 }}][description]" rows="2"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                           placeholder="Contoh: Manager unit input harga dan approve">{{ $step['description'] ?? '' }}</textarea>
+                                </div>
+                                
+                                <!-- Conditional Step Settings -->
+                                <div class="md:col-span-2 border-t pt-3 mt-2">
+                                    <label class="flex items-center mb-3">
+                                        <input type="checkbox" name="workflow_steps[{{ $index + 1 }}][is_conditional]" value="1"
+                                               {{ isset($step['is_conditional']) && $step['is_conditional'] ? 'checked' : '' }}
+                                               class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                                               onchange="toggleConditionalFields(this, {{ $index + 1 }})">
+                                        <span class="ml-2 text-sm font-medium text-gray-700">Step Conditional (skip jika kondisi tidak terpenuhi)</span>
+                                    </label>
+                                    
+                                    <div id="conditional_fields_{{ $index + 1 }}" class="grid grid-cols-2 gap-4 {{ isset($step['is_conditional']) && $step['is_conditional'] ? '' : 'hidden' }}">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipe Kondisi</label>
+                                            <select name="workflow_steps[{{ $index + 1 }}][condition_type]"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                <option value="">Pilih Kondisi</option>
+                                                <option value="total_price" {{ isset($step['condition_type']) && $step['condition_type'] == 'total_price' ? 'selected' : '' }}>Total Harga</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Nilai Threshold (Rp)</label>
+                                            <input type="text" name="workflow_steps[{{ $index + 1 }}][condition_value]"
+                                                   value="{{ isset($step['condition_value']) ? number_format($step['condition_value'], 0, ',', '.') : '' }}"
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                   placeholder="100000000"
+                                                   oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                                            <p class="text-xs text-gray-500 mt-1">Step ini akan dijalankan jika total harga >= nilai ini</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div id="approver_user_{{ $index + 1 }}" class="approver-field" style="display: {{ $step['approver_type'] == 'user' ? 'block' : 'none' }};">
                                     <label class="block text-sm font-medium text-gray-700 mb-2">User</label>
                                     <select name="workflow_steps[{{ $index + 1 }}][approver_id]"
@@ -390,6 +428,15 @@ function toggleApproverFields(select, stepNumber) {
         // No extra fields required for requester_department_manager
     } else if (approverType === 'any_department_manager') {
         // No extra fields required for any_department_manager
+    }
+}
+
+function toggleConditionalFields(checkbox, stepNumber) {
+    const conditionalFields = document.getElementById(`conditional_fields_${stepNumber}`);
+    if (checkbox.checked) {
+        conditionalFields.classList.remove('hidden');
+    } else {
+        conditionalFields.classList.add('hidden');
     }
 }
 

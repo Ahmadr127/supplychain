@@ -122,9 +122,14 @@
                                     
                                     <div class="ml-4 flex-1">
                                         <div class="flex items-center justify-between">
-                                            <div>
+                                            <div class="flex-1">
                                                 <p class="text-sm font-medium text-gray-900">{{ $step['name'] }}</p>
-                                                <p class="text-xs text-gray-500">
+                                                
+                                                @if(isset($step['description']) && $step['description'])
+                                                <p class="text-xs text-gray-600 mt-1">{{ $step['description'] }}</p>
+                                                @endif
+                                                
+                                                <p class="text-xs text-gray-500 mt-1">
                                                     @if($step['approver_type'] == 'user' && isset($step['approver_id']))
                                                         @php
                                                             $user = \App\Models\User::find($step['approver_id']);
@@ -148,6 +153,15 @@
                                                         Approver: Not configured
                                                     @endif
                                                 </p>
+                                                
+                                                @if(isset($step['is_conditional']) && $step['is_conditional'])
+                                                <div class="mt-2">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                        <i class="fas fa-code-branch mr-1"></i>
+                                                        Conditional: {{ $step['condition_type'] == 'total_price' ? 'Total >= Rp ' . number_format($step['condition_value'], 0, ',', '.') : 'Unknown' }}
+                                                    </span>
+                                                </div>
+                                                @endif
                                             </div>
                                             <div class="text-right">
                                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">

@@ -103,7 +103,7 @@
                         <span class="text-sm text-gray-900">{{ $deptNames->count() ? $deptNames->implode(', ') : '-' }}</span>
                     </td>
                     <td class="w-3/5">
-                        <x-approval-progress-steps :request="$row->request" />
+                        <x-approval-progress-steps :request="$row->request" :show-metadata="true" />
                     </td>
                     <td class="w-20">
                         <x-approval-status-badge :status="$row->request->status" />

@@ -86,9 +86,9 @@
         class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-1 px-6 rounded-lg transition-colors duration-200">
         Batal
     </a>
-    <button type="submit"
+    <button type="submit" id="submitButton"
         class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-6 rounded-lg transition-colors duration-200">
-        <i class="fas fa-save mr-1"></i> {{ $isEdit ? 'Update Request' : 'Buat Request' }}
+        <i class="fas fa-save mr-1"></i> <span id="submitButtonText">{{ $isEdit ? 'Update Request' : 'Buat Request' }}</span>
     </button>
 </div>
 
@@ -163,73 +163,10 @@
 </style>
 
 <script>
-    // Shared helpers
-    function escapeHtml(text) {
-        if (text == null) return '';
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return text.toString().replace(/[&<>"']/g, function(m) {
-            return map[m];
-        });
-    }
-
-    // Position dropdown using fixed positioning (viewport-based)
-    // IMPORTANT: For position: fixed, coordinates are relative to viewport.
-    // Do NOT add window scroll offsets, otherwise it will shift incorrectly.
-    function positionDropdown(input, dropdown) {
-        const rect = input.getBoundingClientRect();
-        dropdown.style.top = rect.bottom + 'px';
-        dropdown.style.left = rect.left + 'px';
-        dropdown.style.width = rect.width + 'px';
-    }
+    // Note: Helper functions (escapeHtml, positionDropdown, formatRupiahInputValue, parseRupiahToNumber)
+    // are now loaded from form-helpers.js
     
-    // Rupiah helpers
-    function formatRupiahInputValue(val) {
-        // Integer-only Rupiah formatting: group with dot, no decimals
-        if (val === '' || val === null || typeof val === 'undefined') return '';
-        let digits = String(val).replace(/\D/g, '');
-        if (!digits) return '';
-        // remove leading zeros but keep single 0
-        digits = digits.replace(/^0+(\d)/, '$1');
-        return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    }
-    function parseRupiahToNumber(str) {
-        // Return integer-only numeric string (no separators). '' if empty
-        if (str == null) return '';
-        let digits = String(str).replace(/\D/g, '');
-        return digits;
-    }
-
-    // Sync main inputs -> Form Statis (Section A) for the same row
-    function syncFormExtraFields(rowIndex, opts = { force: false }) {
-        const row = (rows || []).find(r => r.index === rowIndex);
-        if (!row) return;
-        const trFs = document.getElementById(`row-${rowIndex}-static`);
-        if (!trFs) return;
-        const setIfEmpty = (selector, val) => {
-            const el = trFs.querySelector(selector);
-            if (!el) return;
-            const current = (el.value ?? '').toString().trim();
-            if (opts.force || current === '') {
-                el.value = val != null ? String(val) : '';
-            }
-        };
-        // a_nama from main item name
-        setIfEmpty('.fs-a_nama', row.name || '');
-        // a_jumlah from main quantity
-        setIfEmpty('.fs-a_jumlah', (row.quantity != null && row.quantity !== '') ? row.quantity : '');
-        // a_harga from TOTAL (quantity × unit_price), not unit_price
-        const qty = parseInt(row.quantity || 0) || 0;
-        const price = parseInt(row.unit_price || 0) || 0;
-        const total = qty * price;
-        const harga = total > 0 ? formatRupiahInputValue(total) : '';
-        setIfEmpty('.fs-a_harga', harga);
-    }
+    // Note: syncFormExtraFields is now defined in _form-extra.blade.php
 
     let rows = [];
     let staticSectionShown = false;
@@ -291,8 +228,6 @@
             ) !!};
             if (existing.length) {
                 existing.forEach(e => addRow(e));
-                // Check total threshold after loading all items
-                checkTotalThreshold();
             } else {
                 addRow();
             }
@@ -305,7 +240,17 @@
 
         // Serialize rows on submit
         const form = document.getElementById('approval-form');
+        const submitButton = document.getElementById('submitButton');
+        const submitButtonText = document.getElementById('submitButtonText');
+        let isSubmitting = false;
+
         form.addEventListener('submit', async function(e) {
+            // Prevent double submission
+            if (isSubmitting) {
+                e.preventDefault();
+                return;
+            }
+
             // Hide any open suggestion dropdowns before submit
             hideAllSuggestions();
             // Sync latest input values from DOM (especially category) before validation
@@ -362,6 +307,13 @@
                 alert(message);
                 return;
             }
+
+            // Disable submit button and show loading state
+            isSubmitting = true;
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+            submitButton.classList.remove('hover:bg-blue-700');
+            submitButtonText.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...';
 
             // Resolve new items by name
             e.preventDefault();
@@ -457,29 +409,8 @@
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][notes]" value="${escapeHtml(row.notes || '')}">`
                     );
                 
-                // Add form extra data if exists
-                if (row.formExtraData) {
-                    Object.keys(row.formExtraData).forEach(key => {
-                        const value = row.formExtraData[key];
-                        if (value !== null && value !== undefined && value !== '') {
-                            form.insertAdjacentHTML('beforeend',
-                                `<input class="item-hidden" type="hidden" name="items[${row.index}][form_extra][${key}]" value="${escapeHtml(String(value))}">`
-                            );
-                        }
-                    });
-                }
-
-                // Preserve existing per-item FS document on edit if no new file selected
-                try {
-                    const trFs = document.getElementById(`row-${row.index}-static`);
-                    const fileInput = trFs ? trFs.querySelector('.fs-document-input') : null;
-                    const hasNewFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
-                    if (row.fs_document && !hasNewFile) {
-                        form.insertAdjacentHTML('beforeend',
-                            `<input class="item-hidden" type="hidden" name="items[${row.index}][existing_fs_document]" value="${escapeHtml(row.fs_document)}">`
-                        );
-                    }
-                } catch (_) { /* no-op */ }
+                // Serialize form extra data (from _form-extra.blade.php)
+                serializeFormExtraToHiddenInputs(form, row);
             });
 
             form.submit();
@@ -497,327 +428,17 @@
         return total;
     }
 
-    function maybeToggleStaticSection() {
-        // This function is kept for backward compatibility but not used anymore
-        // We now use toggleRowStaticSectionForRow for per-item threshold
-    }
-    
-    // Fungsi ini tidak lagi diperlukan karena kita hanya menggunakan FS per-item
-    function checkFSDocumentThreshold() {
-        // Fungsi dikosongkan, hanya untuk backward compatibility
-        // FS document sekarang hanya per-item, tidak ada global FS document
-    }
-
+    // Initialize form extra thresholds for all rows
     function installTotalWatcher() {
-        // Untuk kompatibilitas lama (global), tidak dipakai lagi.
-        // Kita cukup memastikan setiap baris mengevaluasi dirinya saat dibuat.
         rows.forEach(r => toggleRowStaticSectionForRow(r.index));
     }
 
-    // Toggle tampilkan Form Statis utk baris tertentu berdasarkan subtotal
-    // Simplified logic:
-    // - subtotal >= thresholdShow (50jt): Show form + enable inputs
-    // - subtotal >= thresholdUpload (100jt): Show form + enable inputs + require upload
-    function toggleRowStaticSectionForRow(rowIndex) {
-        const row = rows.find(r => r.index === rowIndex);
-        if (!row) return;
-        const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
-        const trFs = document.getElementById(`row-${rowIndex}-static`);
-        if (!trFs) return;
-        
-        // If FS is disabled globally, always hide the form
-        if (!fsSettings.enabled) {
-            trFs.classList.add('hidden');
-            setRadiosRequired(trFs, false);
-            // CRITICAL: Remove required from file input when FS is disabled
-            const fileInput = trFs.querySelector('.fs-document-input');
-            if (fileInput) {
-                fileInput.required = false;
-            }
-            return;
-        }
-        
-        const meetsShowThreshold = subtotal >= fsSettings.thresholdShow;
-        const meetsUploadThreshold = subtotal >= fsSettings.thresholdUpload;
-
-        if (meetsShowThreshold) {
-            trFs.classList.remove('hidden');
-            configureFormState(rowIndex, meetsShowThreshold, meetsUploadThreshold);
-        } else {
-            trFs.classList.add('hidden');
-            setRadiosRequired(trFs, false);
-            // CRITICAL: Remove required from file input when form is hidden
-            const fileInput = trFs.querySelector('.fs-document-input');
-            if (fileInput) {
-                fileInput.required = false;
-            }
-        }
-    }
+    // Note: toggleRowStaticSectionForRow, configureFormState, and setRadiosRequired 
+    // are now defined in _form-extra.blade.php
     
-    // No longer needed - per-item thresholds only
-    function checkTotalThreshold() {
-        // Kept for backward compatibility
-    }
-    
-    // Configure form state based on threshold conditions and settings
-    // Helper: toggle required attribute for all radios inside a form-static container
-    function setRadiosRequired(container, shouldRequire) {
-        if (!container) return;
-        const radios = container.querySelectorAll('input[type="radio"]');
-        radios.forEach(r => {
-            if (shouldRequire) r.setAttribute('required', '');
-            else r.removeAttribute('required');
-        });
-    }
 
-    function configureFormState(rowIndex, meetsShowThreshold, meetsUploadThreshold) {
-        const trFs = document.getElementById(`row-${rowIndex}-static`);
-        if (!trFs) return;
-        
-        // Simplified: if form is shown, inputs are always enabled
-        // Upload is enabled only when upload threshold is met
-        const enableInputs = meetsShowThreshold;
-        const enableUpload = meetsUploadThreshold;
-        
-        // Configure regular inputs (always enabled when form is shown)
-        const inputs = trFs.querySelectorAll('input:not(.fs-document-input), select, textarea');
-        inputs.forEach(input => {
-            input.disabled = false;
-            input.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
-        });
-
-        // Configure radios: required when form is visible
-        setRadiosRequired(trFs, true);
-        
-        // Configure upload section
-        const uploadSection = trFs.querySelector('.fs-upload-section');
-        const fileInput = trFs.querySelector('.fs-document-input');
-        if (uploadSection) {
-            if (enableUpload) {
-                uploadSection.classList.remove('hidden');
-                if (fileInput) {
-                    fileInput.disabled = false; // keep enabled when visible
-                    fileInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
-                    // Make FS file input required when visible and no existing FS document
-                    try {
-                        const row = (rows || []).find(r => r.index === rowIndex);
-                        const hasExisting = !!(row && row.fs_document);
-                        fileInput.required = !hasExisting;
-                    } catch (_) { fileInput.required = true; }
-                }
-            } else {
-                // Hide and clear value for safety so hidden files are not submitted
-                uploadSection.classList.add('hidden');
-                if (fileInput) {
-                    try { fileInput.value = ''; } catch (_) {}
-                    // Ensure not required when hidden
-                    fileInput.required = false;
-                }
-            }
-        }
-
-        // Prefill visible form statis fields from main inputs
-        if (!trFs.classList.contains('hidden')) {
-            try { syncFormExtraFields(rowIndex); } catch(_) {}
-        }
-    }
-    
-    // Backward compatibility - keep old function name
-    function setFormStatisInputsState(rowIndex, meetsPerItemThreshold) {
-        configureFormState(rowIndex, meetsPerItemThreshold);
-    }
-
-    // Kumpulkan field dari setiap Form Statis per-baris yang aktif dan append item terkunci
-    function appendStaticRowsFromActiveRows() {
-        // Append one global B summary row if section visible and not yet appended
-        try {
-            const secB = document.getElementById('staticFormSection');
-            if (secB && !secB.classList.contains('hidden') && !staticRowsAppended) {
-                const b_jml_pegawai = (document.getElementById('fsb_jml_pegawai')?.value || '').trim();
-                const b_jml_dokter = (document.getElementById('fsb_jml_dokter')?.value || '').trim();
-                const b_beban = (document.querySelector('input[name="fs-b_beban_tugas"]:checked')?.value || '').trim();
-                const b_barang_ada = (document.querySelector('input[name="fs-b_barang_ada"]:checked')?.value || '').trim();
-
-                // Tentukan kategori default untuk baris ringkasan
-                let catIdB = '';
-                let catNameB = '';
-                if ((allCategories || []).length > 0) {
-                    catIdB = allCategories[0].id;
-                    catNameB = allCategories[0].name;
-                }
-
-                const specB = [
-                    `Jumlah pegawai pengguna barang: ${b_jml_pegawai}`,
-                    `Jumlah dokter: ${b_jml_dokter}`,
-                    `Tingkat beban tugas: ${b_beban}`,
-                    `Barang sejenis sudah tersedia/dimiliki/dikuasai: ${b_barang_ada}`
-                ].join('\n');
-
-                addRow({
-                    name: 'Dukungan Unit (Form Statis) - Global',
-                    quantity: 1,
-                    unit_price: '',
-                    item_category_id: catIdB,
-                    item_category_name: catNameB,
-                    specification: specB,
-                    notes: '',
-                    locked: true
-                });
-                staticRowsAppended = true;
-            }
-        } catch (e) {}
-
-        rows.forEach((r) => {
-            const trFs = document.getElementById(`row-${r.index}-static`);
-            if (!trFs || trFs.classList.contains('hidden') || r.staticAppended) return;
-
-            // Ambil nilai dari elemen di dalam trFs
-            const gv = (sel) => {
-                const el = trFs.querySelector(sel);
-                return el ? (el.value || '').trim() : '';
-            };
-            const gvr = (name) => {
-                const el = trFs.querySelector(`input[name="${name}"]:checked`);
-                return el ? el.value : '';
-            };
-
-            const a_nama = gv('.fs-a_nama');
-            const a_fungsi = gv('.fs-a_fungsi');
-            const a_ukuran = gv('.fs-a_ukuran');
-            const a_jumlah = gv('.fs-a_jumlah');
-            const a_satuan = gv('.fs-a_satuan');
-            const a_waktu = gv('.fs-a_waktu');
-            const a_waktu_satuan = (function(){ const el = trFs.querySelector('.fs-a_waktu_satuan'); return el ? (el.value||'') : ''; })();
-            const a_pengguna = gv('.fs-a_pengguna');
-            const a_leadtime = gv('.fs-a_leadtime');
-            const a_ekatalog = gvr(`fs-a_ekatalog-${r.index}`);
-            const a_ekatalog_ket = gv('.fs-a_ekatalog_ket');
-            const a_harga = gv('.fs-a_harga');
-            const a_kategori_perm = gvr(`fs-a_kategori_perm-${r.index}`);
-            const a_lampiran = gvr(`fs-a_lampiran-${r.index}`);
-
-            const e_kirim = gv('.fs-e_kirim');
-            const e_angkut = gv('.fs-e_angkut');
-            const e_instalasi = gv('.fs-e_instalasi');
-            const e_penyimpanan = gv('.fs-e_penyimpanan');
-            const e_operasi = gvr(`fs-e_operasi-${r.index}`);
-            const e_catatan = gv('.fs-e_catatan');
-            const e_pelatihan = gvr(`fs-e_pelatihan-${r.index}`);
-            const e_aspek = gvr(`fs-e_aspek-${r.index}`);
-
-            // Section C fields
-            const c_jumlah = gv('.fs-c_jumlah');
-            const c_satuan = (function(){ const el = trFs.querySelector('.fs-c_satuan'); return el ? (el.value||'') : ''; })();
-            const c_kondisi = gvr(`fs-c_kondisi-${r.index}`);
-            const c_kondisi_lain = gv('.fs-c_kondisi_lain');
-            const c_lokasi = gv('.fs-c_lokasi');
-            const c_sumber = gvr(`fs-c_sumber-${r.index}`);
-            const c_kemudahan = gvr(`fs-c_kemudahan-${r.index}`);
-            const c_produsen = gvr(`fs-c_produsen-${r.index}`);
-            const c_kriteria_dn = !!trFs.querySelector('.fs-c_kriteria_dn')?.checked;
-            const c_kriteria_impor = !!trFs.querySelector('.fs-c_kriteria_impor')?.checked;
-            const c_kriteria_kerajinan = !!trFs.querySelector('.fs-c_kriteria_kerajinan')?.checked;
-            const c_kriteria_jasa = !!trFs.querySelector('.fs-c_kriteria_jasa')?.checked;
-            const c_tkdn = gvr(`fs-c_tkdn-${r.index}`);
-            const c_tkdn_min = gv('.fs-c_tkdn_min');
-
-            // Kategori: gunakan milik baris r bila ada, jika tidak fallback kategori pertama
-            let catId = r.item_category_id || '';
-            let catName = r.item_category_name || '';
-            if ((!catId && !catName) && (allCategories || []).length > 0) {
-                catId = allCategories[0].id;
-                catName = allCategories[0].name;
-            }
-
-            const specA = [
-                `Nama/Jenis: ${a_nama}`,
-                `Fungsikegunaan: ${a_fungsi}`,
-                `Ukuran/Kapasitas: ${a_ukuran}`,
-                `Jumlah: ${a_jumlah} ${a_satuan}`,
-                `Waktu Pemanfaatan: ${a_waktu} ${a_waktu_satuan}`,
-                `Pengguna/Pengelola: ${a_pengguna}`,
-                `Perkiraan Waktu Pengadaan: ${a_leadtime}`,
-                `e-Katalog LKPP: ${a_ekatalog}${a_ekatalog_ket ? ' ('+a_ekatalog_ket+')' : ''}`,
-                `Kategori Permintaan: ${a_kategori_perm}`,
-                `Lampiran Analisa: ${a_lampiran}`,
-                `Harga Perkiraan (Form Statis): ${a_harga}`
-            ].join('\n');
-
-            addRow({
-                name: `Identifikasi Kebutuhan (Form Statis) - Item #${r.index + 1}`,
-                quantity: 1,
-                unit_price: '',
-                item_category_id: catId,
-                item_category_name: catName,
-                specification: specA,
-                notes: '',
-                locked: true
-            });
-
-            const specDE = [
-                `Cara Pengiriman: ${e_kirim}`,
-                `Cara Pengangkutan: ${e_angkut}`,
-                `Instalasi/Pemasangan: ${e_instalasi}`,
-                `Penyimpanan/Penimbunan: ${e_penyimpanan}`,
-                `Pengoperasian: ${e_operasi}`,
-                `Catatan Pengoperasian: ${e_catatan}`,
-                `Perlu Pelatihan: ${e_pelatihan}`,
-                `Aspek Bekalan/Layanan: ${e_aspek}`
-            ].join('\n');
-
-            addRow({
-                name: `Persyaratan & Operasional (Form Statis) - Item #${r.index + 1}`,
-                quantity: 1,
-                unit_price: '',
-                item_category_id: catId,
-                item_category_name: catName,
-                specification: specDE,
-                notes: '',
-                locked: true
-            });
-
-            const kriteriaList = [
-                c_kriteria_dn ? 'Produk dalam negeri' : null,
-                c_kriteria_impor ? 'Barang impor' : null,
-                c_kriteria_kerajinan ? 'Produk kerajinan tangan' : null,
-                c_kriteria_jasa ? 'Jasa' : null
-            ].filter(Boolean).join(', ');
-
-            const specC = [
-                `Jumlah barang sejenis telah tersedia: ${c_jumlah} ${c_satuan}`,
-                `Kondisi/Kelayakan: ${c_kondisi}${c_kondisi==='lainnya' && c_kondisi_lain ? ' ('+c_kondisi_lain+')' : ''}`,
-                `Lokasi/Keberadaan: ${c_lokasi}`,
-                `Sumber/Asal barang: ${c_sumber}`,
-                `Kemudahan diperoleh di pasar: ${c_kemudahan}`,
-                `Produsen/Pelaku usaha yang mampu: ${c_produsen}`,
-                `Kriteria Barang: ${kriteriaList || '-'}`,
-                `Persyaratan TKDN: ${c_tkdn}${c_tkdn==='ya' && c_tkdn_min ? ' (≥ '+c_tkdn_min+'%)' : ''}`
-            ].join('\n');
-
-            addRow({
-                name: `Identifikasi Barang Eksisting (Form Statis) - Item #${r.index + 1}`,
-                quantity: 1,
-                unit_price: '',
-                item_category_id: catId,
-                item_category_name: catName,
-                specification: specC,
-                notes: '',
-                locked: true
-            });
-
-            // Tandai sudah diappend untuk baris sumber ini
-            r.staticAppended = true;
-        });
-    }
-
-    function hideAllSuggestions() {
-        document.querySelectorAll('.suggestions, .supplier-suggestions, .category-suggestions, .dept-suggestions')
-            .forEach(el => el.classList.add('hidden'));
-    }
-
-    // Reposition/hide dropdowns on scroll/resize to avoid misalignment and lingering
-    window.addEventListener('scroll', hideAllSuggestions, true);
-    window.addEventListener('resize', hideAllSuggestions);
+    // Note: appendStaticRowsFromActiveRows was removed - dead code (never called)
+    // Note: hideAllSuggestions and scroll/resize listeners are now in autocomplete-suggestions.js
 
     function addRow(defaults = {}) {
         const idx = rows.length;
@@ -882,8 +503,6 @@
         document.getElementById(`row-${index}-static`)?.remove();
         // Update numbering for remaining items
         updateItemNumbers();
-        // Re-check total threshold after removing item
-        checkTotalThreshold();
     }
     
     function updateItemNumbers() {
@@ -910,6 +529,9 @@
             if (dept) row.allocation_department_name = dept.name;
         }
         
+        // Check if this is create mode (no price input)
+        const isCreateMode = {{ $isEdit ? 'false' : 'true' }};
+        
         itemDiv.innerHTML = `
         <!-- Item header with delete button -->
         <div class="flex justify-between items-center mb-1">
@@ -919,8 +541,8 @@
             </button>
         </div>
         
-        <!-- First row of inputs (6 fields) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-1">
+        <!-- First row of inputs -->
+        <div class="grid grid-cols-1 md:grid-cols-3 ${isCreateMode ? 'lg:grid-cols-4' : 'lg:grid-cols-6'} gap-1">
             <div>
                 <label class="block text-xs text-gray-600">Nama Item <span class="text-red-500">*</span></label>
                 <div class="relative">
@@ -929,9 +551,10 @@
                 </div>
             </div>
             <div>
-                <label class="block text-xs text-gray-600">Jumlah</label>
-                <input type="number" min="1" class="item-qty w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value="${row.quantity}">
+                <label class="block text-xs text-gray-600">Jumlah <span class="text-red-500">*</span></label>
+                <input type="number" min="1" class="item-qty w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value="${row.quantity}" required>
             </div>
+            ${!isCreateMode ? `
             <div>
                 <label class="block text-xs text-gray-600">Harga Satuan</label>
                 <input type="text" inputmode="numeric" class="item-price w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="0" value="${formatRupiahInputValue(row.unit_price)}">
@@ -940,7 +563,7 @@
                 <label class="block text-xs text-gray-600">Total (Qty x Harga)</label>
                 <input type="text" class="item-total w-full h-6 px-1 border border-gray-200 rounded text-xs bg-gray-50 text-gray-700" readonly value="${formatRupiahInputValue(((parseInt(row.quantity||0)||0) * (parseInt(row.unit_price||0)||0)))}">
             </div>
-            <!-- Kategori dipindah ke baris kedua -->
+            ` : ''}
             <div>
                 <label class="block text-xs text-gray-600">Merk</label>
                 <input type="text" class="item-brand w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Merk barang" value="${escapeHtml(row.brand)}">
@@ -1004,21 +627,16 @@
         </div>`;
         
         container.appendChild(itemDiv);
-        // Tambahkan div kedua untuk Form Statis per-item (tersembunyi default)
+        
+        // Create Form Extra section (hidden by default)
         const trFs = document.createElement('div');
         trFs.id = `row-${row.index}-static`;
         trFs.className = 'hidden bg-gray-50 border border-gray-200 rounded-lg p-2 mt-1';
-        // Use the template function from _form-extra.blade.php
         trFs.innerHTML = getFormStatisHTML(row.index);
         container.appendChild(trFs);
         
-        // Add event listener for toggle button
-        const toggleBtn = trFs.querySelector('.form-extra-toggle');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function() {
-                toggleFormExtra(this);
-            });
-        }
+        // Initialize form extra (from _form-extra.blade.php)
+        initFormExtra(row.index);
 
         bindRowEvents(itemDiv, row);
         // Kunci elemen jika baris locked (statis)
@@ -1090,34 +708,36 @@
         qtyInput.addEventListener('change', function() {
             row.quantity = parseInt(this.value) || 1;
             toggleRowStaticSectionForRow(row.index);
-            // Check total threshold for all items
-            checkTotalThreshold();
-            // update total display
-            const q = parseInt(row.quantity || 0) || 0;
-            const p = parseInt(row.unit_price || 0) || 0;
-            if (totalInput) totalInput.value = formatRupiahInputValue(q * p);
+            // update total display (only if price input exists - edit mode)
+            if (priceInput && totalInput) {
+                const q = parseInt(row.quantity || 0) || 0;
+                const p = parseInt(row.unit_price || 0) || 0;
+                totalInput.value = formatRupiahInputValue(q * p);
+            }
             // Realtime sync quantity to form statis
             syncFormExtraFields(row.index, { force: true });
         });
-        const handlePriceInput = function() {
-            const v = (priceInput.value || '').trim();
-            const normalized = parseRupiahToNumber(v);
-            row.unit_price = normalized; // numeric string, can be long, integer only
-            priceInput.value = formatRupiahInputValue(row.unit_price);
-            toggleRowStaticSectionForRow(row.index);
-            // Check total threshold for all items
-            checkTotalThreshold();
-            // update total display
-            const q = parseInt(row.quantity || 0) || 0;
-            const p = parseInt(row.unit_price || 0) || 0;
-            if (totalInput) totalInput.value = formatRupiahInputValue(q * p);
-            // Realtime sync price to form statis
-            syncFormExtraFields(row.index, { force: true });
-        };
-        priceInput.addEventListener('input', handlePriceInput);
-        priceInput.addEventListener('blur', handlePriceInput);
-        // initialize total display once
-        (function(){ const q = parseInt(row.quantity || 0) || 0; const p = parseInt(row.unit_price || 0) || 0; if (totalInput) totalInput.value = formatRupiahInputValue(q * p); })();
+        
+        // Price input only exists in edit mode
+        if (priceInput) {
+            const handlePriceInput = function() {
+                const v = (priceInput.value || '').trim();
+                const normalized = parseRupiahToNumber(v);
+                row.unit_price = normalized; // numeric string, can be long, integer only
+                priceInput.value = formatRupiahInputValue(row.unit_price);
+                toggleRowStaticSectionForRow(row.index);
+                // update total display
+                const q = parseInt(row.quantity || 0) || 0;
+                const p = parseInt(row.unit_price || 0) || 0;
+                if (totalInput) totalInput.value = formatRupiahInputValue(q * p);
+                // Realtime sync price to form statis
+                syncFormExtraFields(row.index, { force: true });
+            };
+            priceInput.addEventListener('input', handlePriceInput);
+            priceInput.addEventListener('blur', handlePriceInput);
+            // initialize total display once
+            (function(){ const q = parseInt(row.quantity || 0) || 0; const p = parseInt(row.unit_price || 0) || 0; if (totalInput) totalInput.value = formatRupiahInputValue(q * p); })();
+        }
         if (fileBtn && fileInput) {
             fileBtn.addEventListener('click', function() {
                 fileInput.click();
@@ -1238,140 +858,9 @@
         });
     }
 
-    function renderSuggestions(container, items, row, nameInput, priceInput, categoryInput) {
-        if (!items.length) {
-            // Auto hide if no results
-            container.classList.add('hidden');
-            container.innerHTML = '';
-            return;
-        }
-        container.innerHTML = items.map(it => `
-        <div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" onclick='selectSuggestion(${JSON.stringify(it).replace(/'/g, "&#39;")}, ${row.index})'>
-            <div class="flex justify-between">
-                <span>${escapeHtml(it.name)} <span class="text-xs text-gray-500">(${escapeHtml(it.code)})</span></span>
-                <span class="text-xs text-green-600">Rp ${parseFloat(it.total_price||0).toLocaleString('id-ID')}${it.unit? ' / '+escapeHtml(it.unit.name):''}</span>
-            </div>
-            <div class="text-xs text-gray-500">${it.category? 'Kategori: '+escapeHtml(it.category.name):''}</div>
-        </div>
-    `).join('');
-        positionDropdown(nameInput, container);
-        container.classList.remove('hidden');
-    }
-
-    function renderCategorySuggestions(container, categories, rowIndex) {
-        const tr = document.getElementById('row-' + rowIndex);
-        const input = tr.querySelector('.item-category');
-        if (!categories.length) {
-            container.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">Tidak ada hasil. Ketik untuk membuat kategori baru.</div>';
-            positionDropdown(input, container);
-            container.classList.remove('hidden');
-            return;
-        }
-        container.innerHTML = categories.map(c => `
-            <div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" onclick='selectCategorySuggestion(${JSON.stringify(c).replace(/'/g, "&#39;")}, ${rowIndex})'>
-                <div class="flex justify-between">
-                    <span>${escapeHtml(c.name)}</span>
-                </div>
-            </div>
-        `).join('');
-        positionDropdown(input, container);
-        container.classList.remove('hidden');
-    }
-
-    function renderSupplierSuggestions(container, suppliers, rowIndex) {
-        const tr = document.getElementById('row-' + rowIndex);
-        const input = tr.querySelector('.alt-vendor');
-        if (!suppliers.length) {
-            // Auto hide if no results
-            container.classList.add('hidden');
-            container.innerHTML = '';
-            return;
-        }
-        container.innerHTML = suppliers.map(s => `
-        <div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" onclick='selectSupplierSuggestion(${JSON.stringify(s).replace(/'/g, "&#39;")}, ${rowIndex})'>
-            <div class="flex justify-between">
-                <span>${escapeHtml(s.name)} <span class="text-xs text-gray-500">${s.code? '('+escapeHtml(s.code)+')':''}</span></span>
-                <span class="text-xs text-gray-500">${escapeHtml(s.email||'')}${s.phone? ' • '+escapeHtml(s.phone):''}</span>
-            </div>
-        </div>
-    `).join('');
-        positionDropdown(input, container);
-        container.classList.remove('hidden');
-    }
-    
-    function renderDepartmentSuggestions(container, departments, rowIndex) {
-        const tr = document.getElementById('row-' + rowIndex);
-        const input = tr.querySelector('.allocation-dept');
-        if (!departments.length) {
-            container.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">Tidak ada hasil.</div>';
-            positionDropdown(input, container);
-            container.classList.remove('hidden');
-            return;
-        }
-        container.innerHTML = departments.map(d => `
-            <div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" onclick='selectDepartmentSuggestion(${JSON.stringify(d).replace(/'/g, "&#39;")}, ${rowIndex})'>
-                <div class="flex justify-between">
-                    <span>${escapeHtml(d.name)}</span>
-                </div>
-            </div>
-        `).join('');
-        positionDropdown(input, container);
-        container.classList.remove('hidden');
-    }
-
-    function selectSupplierSuggestion(s, rowIndex) {
-        const tr = document.getElementById('row-' + rowIndex);
-        const input = tr.querySelector('.alt-vendor');
-        const sug = tr.querySelector('.supplier-suggestions');
-        const row = rows.find(r => r.index === rowIndex);
-        row.supplier_id = s.id;
-        row.alternative_vendor = s.name;
-        input.value = s.name;
-        sug.classList.add('hidden');
-    }
-
-    function selectSuggestion(it, rowIndex) {
-        const tr = document.getElementById('row-' + rowIndex);
-        const nameInput = tr.querySelector('.item-name');
-        const priceInput = tr.querySelector('.item-price');
-        const categoryInput = tr.querySelector('.item-category');
-        const sugBox = tr.querySelector('.suggestions');
-        const row = rows.find(r => r.index === rowIndex);
-        row.master_item_id = it.id;
-        row.name = it.name;
-        // Do not auto-fetch price from DB; keep price as user input (empty by default)
-        row.unit_price = row.unit_price;
-        if (it.category) {
-            row.item_category_id = it.category.id;
-            row.item_category_name = it.category.name;
-            if (categoryInput) categoryInput.value = it.category.name;
-        }
-        nameInput.value = it.name;
-        // Leave price input unchanged (empty unless user provided)
-        sugBox.classList.add('hidden');
-    }
-
-    function selectCategorySuggestion(c, rowIndex) {
-        const tr = document.getElementById('row-' + rowIndex);
-        const input = tr.querySelector('.item-category');
-        const sug = tr.querySelector('.category-suggestions');
-        const row = rows.find(r => r.index === rowIndex);
-        row.item_category_id = c.id;
-        row.item_category_name = c.name;
-        input.value = c.name;
-        sug.classList.add('hidden');
-    }
-    
-    function selectDepartmentSuggestion(d, rowIndex) {
-        const tr = document.getElementById('row-' + rowIndex);
-        const input = tr.querySelector('.allocation-dept');
-        const sug = tr.querySelector('.dept-suggestions');
-        const row = rows.find(r => r.index === rowIndex);
-        row.allocation_department_id = d.id;
-        row.allocation_department_name = d.name;
-        input.value = d.name;
-        sug.classList.add('hidden');
-    }
+    // Note: Autocomplete functions (renderSuggestions, renderCategorySuggestions, renderSupplierSuggestions,
+    // renderDepartmentSuggestions, selectSuggestion, selectCategorySuggestion, selectSupplierSuggestion,
+    // selectDepartmentSuggestion) are now loaded from autocomplete-suggestions.js
 
     async function resolveTyped(nameInput, row, priceInput) {
         const payload = {
@@ -1439,165 +928,7 @@
         label.appendChild(span);
     }
 
-    // Collect form extra data from visible form statis sections
-    function collectFormExtraData() {
-        rows.forEach((row) => {
-            const trFs = document.getElementById(`row-${row.index}-static`);
-            if (!trFs || trFs.classList.contains('hidden')) return;
-            
-            const formExtraData = {};
-            
-            // Helper to get value from selector
-            const gv = (sel) => {
-                const el = trFs.querySelector(sel);
-                return el ? (el.value || '').trim() : '';
-            };
-            
-            // Helper to get radio value
-            const gvr = (name) => {
-                const el = trFs.querySelector(`input[name="${name}"]:checked`);
-                return el ? el.value : '';
-            };
-            
-            // Helper to get checkbox value
-            const gvc = (sel) => {
-                const el = trFs.querySelector(sel);
-                return el ? el.checked : false;
-            };
-            
-            // Section A
-            formExtraData.a_nama = gv('.fs-a_nama');
-            formExtraData.a_fungsi = gv('.fs-a_fungsi');
-            formExtraData.a_ukuran = gv('.fs-a_ukuran');
-            formExtraData.a_jumlah = gv('.fs-a_jumlah');
-            formExtraData.a_satuan = gv('.fs-a_satuan');
-            formExtraData.a_waktu = gv('.fs-a_waktu');
-            formExtraData.a_waktu_satuan = gv('.fs-a_waktu_satuan');
-            formExtraData.a_pengguna = gv('.fs-a_pengguna');
-            formExtraData.a_leadtime = gv('.fs-a_leadtime');
-            formExtraData.a_ekatalog = gvr(`fs-a_ekatalog-${row.index}`);
-            formExtraData.a_ekatalog_ket = gv('.fs-a_ekatalog_ket');
-            formExtraData.a_harga = gv('.fs-a_harga');
-            formExtraData.a_kategori_perm = gvr(`fs-a_kategori_perm-${row.index}`);
-            formExtraData.a_lampiran = gvr(`fs-a_lampiran-${row.index}`);
-            
-            // Section B
-            formExtraData.b_jml_pegawai = gv('.fs-b_jml_pegawai');
-            formExtraData.b_jml_dokter = gv('.fs-b_jml_dokter');
-            formExtraData.b_beban = gvr(`fs-b_beban-${row.index}`);
-            formExtraData.b_barang_ada = gvr(`fs-b_barang_ada-${row.index}`);
-            
-            // Section C
-            formExtraData.c_jumlah = gv('.fs-c_jumlah');
-            formExtraData.c_satuan = gv('.fs-c_satuan');
-            formExtraData.c_kondisi = gvr(`fs-c_kondisi-${row.index}`);
-            formExtraData.c_kondisi_lain = gv('.fs-c_kondisi_lain');
-            formExtraData.c_lokasi = gv('.fs-c_lokasi');
-            formExtraData.c_sumber = gvr(`fs-c_sumber-${row.index}`);
-            formExtraData.c_kemudahan = gvr(`fs-c_kemudahan-${row.index}`);
-            formExtraData.c_produsen = gvr(`fs-c_produsen-${row.index}`);
-            formExtraData.c_kriteria_dn = gvc('.fs-c_kriteria_dn');
-            formExtraData.c_kriteria_impor = gvc('.fs-c_kriteria_impor');
-            formExtraData.c_kriteria_kerajinan = gvc('.fs-c_kriteria_kerajinan');
-            formExtraData.c_kriteria_jasa = gvc('.fs-c_kriteria_jasa');
-            formExtraData.c_tkdn = gvr(`fs-c_tkdn-${row.index}`);
-            formExtraData.c_tkdn_min = gv('.fs-c_tkdn_min');
-            
-            // Section D/E
-            formExtraData.e_kirim = gv('.fs-e_kirim');
-            formExtraData.e_angkut = gv('.fs-e_angkut');
-            formExtraData.e_instalasi = gv('.fs-e_instalasi');
-            formExtraData.e_penyimpanan = gv('.fs-e_penyimpanan');
-            formExtraData.e_operasi = gvr(`fs-e_operasi-${row.index}`);
-            formExtraData.e_catatan = gv('.fs-e_catatan');
-            formExtraData.e_pelatihan = gvr(`fs-e_pelatihan-${row.index}`);
-            formExtraData.e_aspek = gvr(`fs-e_aspek-${row.index}`);
-            
-            // Note: FS document file upload is handled separately via FormData
-            
-            row.formExtraData = formExtraData;
-        });
-    }
-    
-    // Disable auto-fill of form extra to avoid default values
-    function autoFillFormExtra(rowIndex) {
-        // Intentionally left blank: no default auto-filling
-        return;
-    }
-    
-    // Load item extra data into form statis (for edit mode)
-    function loadItemExtraData(rowIndex, itemExtraData) {
-        const trFs = document.getElementById(`row-${rowIndex}-static`);
-        if (!trFs || !itemExtraData) return;
-        
-        // Helper to set value
-        const sv = (selector, value) => {
-            const el = trFs.querySelector(selector);
-            if (el && value !== null && value !== undefined) {
-                el.value = value;
-            }
-        };
-        
-        // Helper to set radio
-        const sr = (name, value) => {
-            const el = trFs.querySelector(`input[name="${name}"][value="${value}"]`);
-            if (el) el.checked = true;
-        };
-        
-        // Helper to set checkbox
-        const sc = (selector, value) => {
-            const el = trFs.querySelector(selector);
-            if (el) el.checked = value === true || value === 1 || value === '1';
-        };
-        
-        // Load Section A data
-        sv('.fs-a_nama', itemExtraData.a_nama);
-        sv('.fs-a_fungsi', itemExtraData.a_fungsi);
-        sv('.fs-a_ukuran', itemExtraData.a_ukuran);
-        sv('.fs-a_jumlah', itemExtraData.a_jumlah);
-        sv('.fs-a_satuan', itemExtraData.a_satuan);
-        sv('.fs-a_waktu', itemExtraData.a_waktu);
-        sv('.fs-a_waktu_satuan', itemExtraData.a_waktu_satuan);
-        sv('.fs-a_pengguna', itemExtraData.a_pengguna);
-        sv('.fs-a_leadtime', itemExtraData.a_leadtime);
-        sr(`fs-a_ekatalog-${rowIndex}`, itemExtraData.a_ekatalog);
-        sv('.fs-a_ekatalog_ket', itemExtraData.a_ekatalog_ket);
-        sv('.fs-a_harga', itemExtraData.a_harga);
-        sr(`fs-a_kategori_perm-${rowIndex}`, itemExtraData.a_kategori_perm);
-        sr(`fs-a_lampiran-${rowIndex}`, itemExtraData.a_lampiran);
-        
-        // Load Section B data
-        sv('.fs-b_jml_pegawai', itemExtraData.b_jml_pegawai);
-        sv('.fs-b_jml_dokter', itemExtraData.b_jml_dokter);
-        sr(`fs-b_beban-${rowIndex}`, itemExtraData.b_beban);
-        sr(`fs-b_barang_ada-${rowIndex}`, itemExtraData.b_barang_ada);
-        
-        // Load Section C data
-        sv('.fs-c_jumlah', itemExtraData.c_jumlah);
-        sv('.fs-c_satuan', itemExtraData.c_satuan);
-        sr(`fs-c_kondisi-${rowIndex}`, itemExtraData.c_kondisi);
-        sv('.fs-c_kondisi_lain', itemExtraData.c_kondisi_lain);
-        sv('.fs-c_lokasi', itemExtraData.c_lokasi);
-        sr(`fs-c_sumber-${rowIndex}`, itemExtraData.c_sumber);
-        sr(`fs-c_kemudahan-${rowIndex}`, itemExtraData.c_kemudahan);
-        sr(`fs-c_produsen-${rowIndex}`, itemExtraData.c_produsen);
-        sc('.fs-c_kriteria_dn', itemExtraData.c_kriteria_dn);
-        sc('.fs-c_kriteria_impor', itemExtraData.c_kriteria_impor);
-        sc('.fs-c_kriteria_kerajinan', itemExtraData.c_kriteria_kerajinan);
-        sc('.fs-c_kriteria_jasa', itemExtraData.c_kriteria_jasa);
-        sr(`fs-c_tkdn-${rowIndex}`, itemExtraData.c_tkdn);
-        sv('.fs-c_tkdn_min', itemExtraData.c_tkdn_min);
-        
-        // Load Section D/E data
-        sv('.fs-e_kirim', itemExtraData.e_kirim);
-        sv('.fs-e_angkut', itemExtraData.e_angkut);
-        sv('.fs-e_instalasi', itemExtraData.e_instalasi);
-        sv('.fs-e_penyimpanan', itemExtraData.e_penyimpanan);
-        sr(`fs-e_operasi-${rowIndex}`, itemExtraData.e_operasi);
-        sv('.fs-e_catatan', itemExtraData.e_catatan);
-        sr(`fs-e_pelatihan-${rowIndex}`, itemExtraData.e_pelatihan);
-        sr(`fs-e_aspek-${rowIndex}`, itemExtraData.e_aspek);
-    }
+    // Note: collectFormExtraData and loadItemExtraData are now defined in _form-extra.blade.php
     
     // expose functions to window
     window.addRow = addRow;
