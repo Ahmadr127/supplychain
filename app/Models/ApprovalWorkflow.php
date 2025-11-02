@@ -94,18 +94,21 @@ class ApprovalWorkflow extends Model
             'submission_type_id' => $submissionTypeId,
             'priority' => $priority,
             'is_cto_request' => $isCtoRequest,
-            'total_steps' => count($this->workflow_steps),
-            'current_step' => 1,
+            // 'total_steps' and 'current_step' removed - per-item approval system
             'status' => 'on progress'
         ]);
 
-        // Buat approval steps
-        $this->createApprovalSteps($request);
-
+        // DEPRECATED: createApprovalSteps() removed
+        // In per-item approval system, steps are created per-item in the controller
+        // See ApprovalRequestController::initializeItemSteps()
+        
         return $request;
     }
 
-    // Method untuk membuat approval steps
+    // DEPRECATED: Method untuk membuat approval steps (request-level)
+    // Replaced by per-item approval steps (ApprovalItemStep)
+    // Steps are now created per-item in ApprovalRequestController::initializeItemSteps()
+    /*
     private function createApprovalSteps($request)
     {
         foreach ($this->workflow_steps as $index => $step) {
@@ -120,6 +123,7 @@ class ApprovalWorkflow extends Model
             ]);
         }
     }
+    */
 
     // Method untuk generate nomor request
     private function generateRequestNumber()

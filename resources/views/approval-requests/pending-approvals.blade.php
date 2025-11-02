@@ -11,8 +11,8 @@
 
 <x-responsive-table 
     title="All My Approvals"
-    :pagination="$pendingApprovals"
-    :emptyState="$pendingApprovals->isEmpty()"
+    :pagination="$pendingItems"
+    :emptyState="$pendingItems->isEmpty()"
     emptyMessage="Tidak ada approvals yang tersedia"
     emptyIcon="fas fa-check-circle"
     :emptyActionRoute="route('approval-requests.index')"
@@ -66,7 +66,7 @@
                 <tr>
                     <th class="w-16 text-left">No</th>
                     <th class="w-24 text-left">Tanggal</th>
-                    <th class="w-1/5 text-left">Request</th>
+                    <th class="w-1/5 text-left">Request & Item</th>
                     <th class="w-48 text-left">Unit Peruntukan</th>
                     <th class="w-32 text-left">Pengaju</th>
                     @if($isDirectorLevel)
@@ -78,36 +78,22 @@
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                @foreach($pendingApprovals as $index => $step)
+                @foreach($pendingItems as $index => $row)
                 <tr class="hover:bg-gray-50 transition-colors duration-150">
-                    <td class="w-16">{{ $pendingApprovals->firstItem() + $index }}</td>
+                    <td class="w-16">{{ $pendingItems->firstItem() + $index }}</td>
                     <td class="w-24">
-                        <div>{{ $step->request->created_at->format('d/m/Y') }}</div>
-                        <div class="text-xs">{{ $step->request->created_at->format('H:i') }}</div>
+                        <div>{{ $row->request->created_at->format('d/m/Y') }}</div>
+                        <div class="text-xs">{{ $row->request->created_at->format('H:i') }}</div>
                     </td>
                     <td class="w-1/5">
                         <div class="min-w-0">
                             <div class="text-sm font-medium text-gray-900 truncate">
                                 <span class="inline-block bg-gray-100 text-gray-800 text-xs px-1 py-0.5 rounded mr-1">
-                                    {{ $step->request->request_number }}
+                                    {{ $row->request->request_number }}
                                 </span>
                             </div>
-                            @php
-                                $itemNames = collect($step->request->masterItems ?? [])->pluck('name')->filter()->values();
-                            @endphp
                             <div class="text-xs text-gray-900 min-w-0">
-                                @if($itemNames->isEmpty())
-                                    <span class="text-gray-500">-</span>
-                                @else
-                                    <div class="flex flex-wrap gap-1">
-                                        @foreach($itemNames->take(3) as $nm)
-                                            <span class="inline-block bg-gray-100 border border-gray-200 text-gray-800 px-1 py-0.5 rounded">{{ $nm }}</span>
-                                        @endforeach
-                                        @if($itemNames->count() > 3)
-                                            <span class="text-gray-500">+{{ $itemNames->count() - 3 }} lainnya</span>
-                                        @endif
-                                    </div>
-                                @endif
+                                <span class="inline-block bg-gray-100 border border-gray-200 text-gray-800 px-1 py-0.5 rounded">{{ $row->item->name }}</span>
                             </div>
                         </div>
                     </td>
@@ -115,38 +101,30 @@
                         @php
                             // Ensure departments map available locally
                             $__deptMap = $departmentsMap ?? \App\Models\Department::pluck('name','id');
-                            $deptIds = collect($step->request->masterItems ?? [])->pluck('pivot.allocation_department_id')->filter()->unique()->values();
-                            $deptNames = $deptIds->map(fn($id) => $__deptMap[$id] ?? null)->filter()->values();
+                            // Use itemData from new per-item system (no longer pivot)
+                            $deptId = $row->itemData->allocation_department_id ?? null;
+                            $deptNames = collect([$deptId])->filter()->map(fn($id) => $__deptMap[$id] ?? null)->filter()->values();
                         @endphp
                         <span class="text-sm text-gray-900">{{ $deptNames->count() ? $deptNames->implode(', ') : '-' }}</span>
                     </td>
                     <td class="w-32">
-                        <div class="text-sm font-medium text-gray-900">{{ $step->request->requester->name }}</div>
+                        <div class="text-sm font-medium text-gray-900">{{ $row->request->requester->name }}</div>
                     </td>
                     @if($isDirectorLevel)
                         <td class="w-1/2">
-                            <x-approval-progress-steps :request="null" :step-data="$step" />
+                            <x-approval-progress-steps :request="null" :step-data="$row->step" />
                         </td>
                     @endif
                     <td class="w-20">
-                        @php
-                            $stepStatus = $step->status;
-                            $displayStatus = $stepStatus;
-                            
-                            // For pending steps, check if it's the current step
-                            if ($stepStatus === 'pending' && $step->step_number == $step->request->current_step) {
-                                $displayStatus = 'on progress';
-                            }
-                        @endphp
-                        <x-approval-status-badge :status="$displayStatus" />
+                        <x-approval-status-badge :status="$row->step->status" :requestStatus="$row->request->status" />
                     </td>
                     <td class="w-40">
                         @php
                             // Aggregate benchmarking notes per request for modal usage
-                            $ps = $step->request->purchasing_status ?? 'unprocessed';
+                            $ps = $row->request->purchasing_status ?? 'unprocessed';
                             $bmNotesLine = '';
                             if($ps === 'benchmarking'){
-                                $bmNotesColl = collect($step->request->purchasingItems ?? [])->filter(fn($pi) => !empty($pi->benchmark_notes));
+                                $bmNotesColl = collect($row->request->purchasingItems ?? [])->filter(fn($pi) => !empty($pi->benchmark_notes));
                                 if($bmNotesColl->count()){
                                     $bmNotesLine = $bmNotesColl->map(function($pi){
                                         $name = $pi->masterItem->name ?? 'Item';
@@ -156,11 +134,11 @@
                                 }
                             }
                         @endphp
-                        <x-purchasing-status-badge :status="$step->request->purchasing_status" :request-id="$step->request->id" :benchmark-notes="$bmNotesLine" />
+                        <x-purchasing-status-badge :status="$row->request->purchasing_status" :request-id="$row->request->id" :benchmark-notes="$bmNotesLine" />
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
-                            <a href="{{ route('approval-requests.show', $step->request) }}" 
+                            <a href="{{ route('approval-requests.show', $row->request) }}" 
                                class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Review">👁</a>
                         </div>
                     </td>

@@ -4,7 +4,9 @@
     // Use stepData if provided (for pending-approvals), otherwise use request directly
     $workflowSteps = $stepData ? $stepData->request->workflow->steps : $request->workflow->steps;
     $requestStatus = $stepData ? $stepData->request->status : $request->status;
-    $currentStep = $stepData ? $stepData->request->current_step : $request->current_step;
+    // DEPRECATED: current_step removed in per-item approval system
+    // Use step_number from stepData if available, otherwise default to 1
+    $currentStep = $stepData ? ($stepData->step_number ?? 1) : 1;
     $requestId = $stepData ? $stepData->request->id : $request->id;
 @endphp
 

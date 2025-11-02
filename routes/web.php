@@ -21,6 +21,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierLookupController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\PurchasingItemController;
+use App\Http\Controllers\ApprovalRequestItemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -102,16 +103,23 @@ Route::middleware('auth')->group(function () {
         Route::delete('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'destroy'])->name('approval-requests.destroy');
     });
     
-    // General approval actions (approve, reject, cancel) - accessible to users with manage_approvals permission
+    // Per-item approval actions (NEW)
+    Route::middleware('permission:approval')->group(function () {
+        Route::post('approval-requests/{approvalRequest}/items/{item}/approve', [\App\Http\Controllers\ApprovalItemApprovalController::class, 'approve'])->name('approval.items.approve');
+        Route::post('approval-requests/{approvalRequest}/items/{item}/reject', [\App\Http\Controllers\ApprovalItemApprovalController::class, 'reject'])->name('approval.items.reject');
+        Route::post('approval-requests/{approvalRequest}/items/{item}/set-pending', [\App\Http\Controllers\ApprovalItemApprovalController::class, 'setPending'])->name('approval.items.setPending');
+        
+        // Simplified approval action (single endpoint for approve/reject)
+        Route::post('approval-requests/approve-item', [ApprovalRequestController::class, 'approveItem'])->name('approval-requests.approve-item');
+    });
+    
+    // Cancel request (keep at request level)
     Route::middleware('permission:manage_approvals')->group(function () {
-        Route::post('approval-requests/{approvalRequest}/approve', [ApprovalRequestController::class, 'approve'])->name('approval-requests.approve');
-        Route::post('approval-requests/{approvalRequest}/reject', [ApprovalRequestController::class, 'reject'])->name('approval-requests.reject');
         Route::post('approval-requests/{approvalRequest}/cancel', [ApprovalRequestController::class, 'cancel'])->name('approval-requests.cancel');
     });
     
-    // Show approval request - accessible to users who can view any approval or are the requester
+    // Show approval request
     Route::get('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'show'])->name('approval-requests.show');
-
 
     // User-specific approval routes
     Route::middleware('permission:view_my_approvals')->group(function () {
@@ -188,11 +196,12 @@ Route::middleware('auth')->group(function () {
             ->name('reports.approval-requests.export');
     });
 
+    // (Removed) item-centric routes to avoid introducing new indexes/views per request
+
     // API routes for AJAX requests
     Route::get('api/workflows/{workflow}/steps', [ApprovalWorkflowController::class, 'getSteps'])->name('api.workflows.steps');
     Route::get('api/master-items/by-type/{typeId}', [MasterItemController::class, 'getByType'])->name('api.master-items.by-type');
     Route::get('api/master-items/by-category/{categoryId}', [MasterItemController::class, 'getByCategory'])->name('api.master-items.by-category');
-    Route::get('api/master-items/search', [MasterItemController::class, 'search'])->name('api.master-items.search');
     Route::get('api/approval-requests/master-items', [ApprovalRequestController::class, 'getMasterItems'])->name('api.approval-requests.master-items');
     Route::get('api/approval-requests/workflow-for-item-type/{itemTypeId}', [ApprovalRequestController::class, 'getWorkflowForItemType'])->name('api.approval-requests.workflow-for-item-type');
     // Generic item lookup endpoints (suggest and resolve/create)
@@ -212,12 +221,9 @@ Route::middleware('auth')->group(function () {
     Route::get('api/purchasing/status/{approvalRequest}', [PurchasingItemController::class, 'statusDetailsByRequest'])
         ->name('api.purchasing.status');
     
-    // API routes for step details and status updates
-    Route::get('api/approval-steps/{requestId}/{stepNumber}', [ApprovalRequestController::class, 'getStepDetails'])->name('api.approval-steps.details');
-    Route::post('api/approval-steps/{requestId}/{stepNumber}/update-status', [ApprovalRequestController::class, 'updateStepStatus'])->name('api.approval-steps.update-status');
+    // (Removed) API routes for request-level step details and status updates
     
     // File download routes
     Route::get('approval-requests/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');
     Route::get('approval-requests/attachments/{attachment}/view', [ApprovalRequestController::class, 'viewAttachment'])->name('approval-requests.view-attachment');
-
 });

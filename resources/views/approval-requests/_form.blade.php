@@ -257,25 +257,26 @@
 
         @if ($isEdit)
             const existing = {!! json_encode(
-                $approvalRequest->masterItems->map(function ($item) use ($itemExtras, $itemFiles) {
-                    $itemExtra = isset($itemExtras) ? $itemExtras->get($item->id) : null;
-                    $filesForItem = isset($itemFiles) ? ($itemFiles->get($item->id) ?? collect()) : collect();
+                $approvalRequest->items->map(function ($item) use ($itemExtras, $itemFiles) {
+                    $masterItem = $item->masterItem;
+                    $itemExtra = isset($itemExtras) ? $itemExtras->get($masterItem->id) : null;
+                    $filesForItem = isset($itemFiles) ? ($itemFiles->get($masterItem->id) ?? collect()) : collect();
                     return [
-                        'master_item_id' => $item->id,
-                        'name' => $item->name,
-                        'quantity' => $item->pivot->quantity,
+                        'master_item_id' => $masterItem->id,
+                        'name' => $masterItem->name,
+                        'quantity' => $item->quantity,
                         // IMPORTANT: cast decimal(18,2) to integer rupiah to avoid appending two zeros in JS
-                        'unit_price' => (int) $item->pivot->unit_price,
-                        'item_category_id' => $item->item_category_id,
-                        'item_category_name' => optional($item->itemCategory)->name,
-                        'specification' => $item->pivot->specification,
-                        'brand' => $item->pivot->brand,
-                        'alternative_vendor' => $item->pivot->alternative_vendor,
-                        'allocation_department_id' => $item->pivot->allocation_department_id,
-                        'allocation_department_name' => optional($item->pivot->allocationDepartment)->name,
-                        'letter_number' => $item->pivot->letter_number,
-                        'notes' => $item->pivot->notes,
-                        'fs_document' => $item->pivot->fs_document,
+                        'unit_price' => (int) $item->unit_price,
+                        'item_category_id' => $masterItem->item_category_id,
+                        'item_category_name' => optional($masterItem->itemCategory)->name,
+                        'specification' => $item->specification,
+                        'brand' => $item->brand,
+                        'alternative_vendor' => $item->alternative_vendor,
+                        'allocation_department_id' => $item->allocation_department_id,
+                        'allocation_department_name' => optional($item->allocationDepartment)->name,
+                        'letter_number' => $item->letter_number,
+                        'notes' => $item->notes,
+                        'fs_document' => $item->fs_document,
                         'existing_files' => $filesForItem->map(function($file) {
                             return [
                                 'id' => $file->id,
@@ -528,6 +529,11 @@
         if (!fsSettings.enabled) {
             trFs.classList.add('hidden');
             setRadiosRequired(trFs, false);
+            // CRITICAL: Remove required from file input when FS is disabled
+            const fileInput = trFs.querySelector('.fs-document-input');
+            if (fileInput) {
+                fileInput.required = false;
+            }
             return;
         }
         
@@ -540,6 +546,11 @@
         } else {
             trFs.classList.add('hidden');
             setRadiosRequired(trFs, false);
+            // CRITICAL: Remove required from file input when form is hidden
+            const fileInput = trFs.querySelector('.fs-document-input');
+            if (fileInput) {
+                fileInput.required = false;
+            }
         }
     }
     

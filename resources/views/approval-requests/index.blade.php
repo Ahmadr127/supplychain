@@ -5,8 +5,8 @@
 @section('content')
 <x-responsive-table 
     title="Kelola Approval Requests"
-    :pagination="$requests"
-    :emptyState="$requests->count() === 0"
+    :pagination="$items"
+    :emptyState="$items->count() === 0"
     emptyMessage="Belum ada approval request"
     emptyIcon="fas fa-clipboard-check"
     :emptyActionRoute="route('approval-requests.create')"
@@ -98,7 +98,7 @@
                 <tr>
                     <th class="w-16 text-left">No</th>
                     <th class="w-24 text-left">Tanggal</th>
-                    <th class="w-1/4 text-left">Request</th>
+                    <th class="w-1/4 text-left">Request & Item</th>
                     <th class="w-48 text-left">Unit Peruntukan</th>
                     <th class="w-32 text-left">Pengaju</th>
                     <th class="w-1/3 text-left">Progress</th>
@@ -108,43 +108,29 @@
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                @foreach($requests as $index => $request)
+                @foreach($items as $index => $row)
                 <tr class="hover:bg-gray-50 transition-colors duration-150">
-                    <td class="w-16">{{ $requests->firstItem() + $index }}</td>
+                    <td class="w-16">{{ $items->firstItem() + $index }}</td>
                     <td class="w-24">
-                        <div>{{ $request->created_at->format('d/m/Y') }}</div>
-                        <div class="text-xs">{{ $request->created_at->format('H:i') }}</div>
+                        <div>{{ $row->request->created_at->format('d/m/Y') }}</div>
+                        <div class="text-xs">{{ $row->request->created_at->format('H:i') }}</div>
                     </td>
                     <td class="w-1/4">
                         <div class="min-w-0">
                             <div class="text-sm font-medium text-gray-900 truncate">
                                 <span class="inline-block bg-gray-100 text-gray-800 text-xs px-1 py-0.5 rounded mr-1">
-                                    {{ $request->request_number }}
+                                    {{ $row->request->request_number }}
                                 </span>
                             </div>
-                            @php
-                                $itemNames = collect($request->masterItems ?? [])->pluck('name')->filter()->values();
-                            @endphp
                             <div class="text-xs text-gray-900 min-w-0">
-                                @if($itemNames->isEmpty())
-                                    <span class="text-gray-500">-</span>
-                                @else
-                                    <div class="flex flex-wrap gap-1">
-                                        @foreach($itemNames->take(3) as $nm)
-                                            <span class="inline-block bg-gray-100 border border-gray-200 text-gray-800 px-1 py-0.5 rounded">{{ $nm }}</span>
-                                        @endforeach
-                                        @if($itemNames->count() > 3)
-                                            <span class="text-gray-500">+{{ $itemNames->count() - 3 }} lainnya</span>
-                                        @endif
-                                    </div>
-                                @endif
+                                <span class="inline-block bg-gray-100 border border-gray-200 text-gray-800 px-1 py-0.5 rounded">{{ $row->item->name }}</span>
                             </div>
                         </div>
                     </td>
                     <td class="w-48 align-top">
                         @php
-                            $deptIds = collect($request->masterItems)->pluck('pivot.allocation_department_id')->filter()->unique()->values();
-                            $deptNames = $deptIds->map(fn($id) => $departmentsMap[$id] ?? null)->filter()->values();
+                            $deptId = $row->itemData->allocation_department_id ?? null;
+                            $deptNames = collect([$deptId])->filter()->map(fn($id) => $departmentsMap[$id] ?? null)->filter()->values();
                         @endphp
                         <span class="text-sm text-gray-900">{{ $deptNames->count() ? $deptNames->implode(', ') : '-' }}</span>
                     </td>
@@ -153,34 +139,34 @@
                             <div class="flex-shrink-0 h-5 w-5">
                                 <div class="h-5 w-5 rounded-full bg-gray-300 flex items-center justify-center">
                                     <span class="text-gray-600 text-xs font-medium">
-                                        {{ substr($request->requester->name, 0, 2) }}
+                                        {{ substr($row->request->requester->name, 0, 2) }}
                                     </span>
                                 </div>
                             </div>
                             <div class="ml-1 min-w-0 flex-1">
-                                <div class="text-sm font-medium text-gray-900 truncate">{{ $request->requester->name }}</div>
+                                <div class="text-sm font-medium text-gray-900 truncate">{{ $row->request->requester->name }}</div>
                             </div>
                         </div>
                     </td>
                     <td class="w-1/3">
-                        <x-approval-progress-steps :request="$request" />
+                        <x-approval-progress-steps :request="$row->request" />
                     </td>
                     <td class="w-20">
-                        <x-approval-status-badge :status="$request->status" />
+                        <x-approval-status-badge :status="$row->request->status" />
                     </td>
                     <td class="w-40">
-                        <x-purchasing-status-badge :status="$request->purchasing_status" :request-id="$request->id" />
+                        <x-purchasing-status-badge :status="$row->request->purchasing_status" :request-id="$row->request->id" />
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
-                            <a href="{{ route('approval-requests.show', $request) }}" 
+                            <a href="{{ route('approval-requests.show', $row->request) }}" 
                                class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Lihat">👁</a>
-                            @if($request->status == 'pending' && $request->requester_id == auth()->id())
-                                <a href="{{ route('approval-requests.edit', $request) }}" 
+                            @if($row->request->status == 'pending' && $row->request->requester_id == auth()->id())
+                                <a href="{{ route('approval-requests.edit', $row->request) }}" 
                                    class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150" title="Edit">✏️</a>
                             @endif
-                            @if($request->requester_id == auth()->id())
-                                <button onclick="deleteRequest({{ $request->id }})" 
+                            @if($row->request->requester_id == auth()->id())
+                                <button onclick="deleteRequest({{ $row->request->id }})" 
                                         class="text-red-600 hover:text-red-900 transition-colors duration-150" title="Hapus">🗑️</button>
                             @endif
                         </div>

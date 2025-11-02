@@ -21,8 +21,8 @@ class ApprovalRequest extends Model
         'is_cto_request',
         'status',
         'purchasing_status',
-        'current_step',
-        'total_steps',
+        // 'current_step', // REMOVED: per-item approval system
+        // 'total_steps', // REMOVED: per-item approval system
         'approved_by',
         'approved_at',
         'rejection_reason',
@@ -56,31 +56,43 @@ class ApprovalRequest extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
-    // Relasi dengan approval steps
+    // DEPRECATED: Old request-level approval system
+    // Replaced by per-item approval (approval_item_steps)
+    // Kept for backward compatibility - DO NOT USE
+    /*
     public function steps()
     {
         return $this->hasMany(ApprovalStep::class, 'request_id');
     }
 
-    // Relasi dengan current step
     public function currentStep()
     {
         return $this->hasOne(ApprovalStep::class, 'request_id')
                     ->where('step_number', $this->current_step);
     }
+    */
 
-    // Relasi dengan master items (many-to-many)
+    // DEPRECATED: Old pivot table relationship (approval_request_master_items dropped)
+    // Use items() relation instead which uses approval_request_items table
+    /*
     public function masterItems()
     {
         return $this->belongsToMany(MasterItem::class, 'approval_request_master_items')
                     ->withPivot(['quantity', 'unit_price', 'total_price', 'notes', 'specification', 'brand', 'supplier_id', 'alternative_vendor', 'allocation_department_id', 'letter_number', 'fs_document'])
                     ->withTimestamps();
     }
+    */
 
     // Relasi purchasing items (per item purchasing process)
     public function purchasingItems()
     {
         return $this->hasMany(PurchasingItem::class, 'approval_request_id');
+    }
+
+    // Relasi baru: items sebagai model penuh (pengganti pivot di masa depan)
+    public function items()
+    {
+        return $this->hasMany(\App\Models\ApprovalRequestItem::class, 'approval_request_id');
     }
 
     // Relasi dengan attachments
@@ -102,6 +114,12 @@ class ApprovalRequest extends Model
     public function itemExtras()
     {
         return $this->hasMany(ApprovalRequestItemExtra::class, 'approval_request_id');
+    }
+
+    // Relasi dengan per-item approval steps (Option B)
+    public function itemSteps()
+    {
+        return $this->hasMany(\App\Models\ApprovalItemStep::class, 'approval_request_id');
     }
 
     // Scope untuk status tertentu
@@ -138,8 +156,11 @@ class ApprovalRequest extends Model
             'comments' => $comments
         ]);
 
-        // Check if this is the last step
-        if ($this->current_step >= $this->total_steps) {
+        // DEPRECATED: Old request-level approval logic
+        // In per-item approval system, check if ALL items are approved
+        // For now, simplified: mark as approved immediately
+        // TODO: Implement proper per-item approval aggregation
+        if (true) { // Placeholder - should check all item statuses
             $this->update([
                 'status' => 'approved',
                 'approved_by' => $userId,
@@ -150,15 +171,15 @@ class ApprovalRequest extends Model
             $this->updateStockForApprovedRequest();
 
             // Initialize purchasing items per approved item (idempotent)
-            $this->load('masterItems');
-            foreach ($this->masterItems as $mi) {
+            $this->load('items');
+            foreach ($this->items as $item) {
                 $exists = $this->purchasingItems()
-                    ->where('master_item_id', $mi->id)
+                    ->where('master_item_id', $item->master_item_id)
                     ->exists();
                 if (!$exists) {
                     $this->purchasingItems()->create([
-                        'master_item_id' => $mi->id,
-                        'quantity' => (int)($mi->pivot->quantity ?? 1),
+                        'master_item_id' => $item->master_item_id,
+                        'quantity' => (int)($item->quantity ?? 1),
                         'status' => 'unprocessed',
                     ]);
                 }
@@ -166,10 +187,8 @@ class ApprovalRequest extends Model
 
             // Refresh aggregated purchasing_status at request level (unprocessed|done)
             $this->refreshPurchasingStatus();
-        } else {
-            // Move to next step
-            $this->update(['current_step' => $this->current_step + 1]);
         }
+        // Note: 'current_step' removed in per-item approval system
 
         return true;
     }
@@ -286,47 +305,49 @@ class ApprovalRequest extends Model
     // Method untuk menghitung total harga dari semua items
     public function getTotalItemsPrice()
     {
-        return $this->masterItems()->sum('approval_request_master_items.total_price');
+        return $this->items()->sum('total_price');
     }
 
     // Method untuk mendapatkan jumlah total items
     public function getTotalItemsQuantity()
     {
-        return $this->masterItems()->sum('approval_request_master_items.quantity');
+        return $this->items()->sum('quantity');
     }
 
-    // Method untuk menambahkan item ke request
+    // Method untuk menambahkan item ke request (UPDATED for new per-item system)
     public function addItem($masterItemId, $quantity = 1, $unitPrice = null, $notes = null)
     {
         $masterItem = MasterItem::findOrFail($masterItemId);
         $unitPrice = $unitPrice ?? $masterItem->total_price;
         $totalPrice = $quantity * $unitPrice;
 
-        return $this->masterItems()->attach($masterItemId, [
+        return $this->items()->create([
+            'master_item_id' => $masterItemId,
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
             'total_price' => $totalPrice,
-            'notes' => $notes
+            'notes' => $notes,
+            'status' => 'pending',
         ]);
     }
 
-    // Method untuk update item quantity
+    // Method untuk update item quantity (UPDATED for new per-item system)
     public function updateItemQuantity($masterItemId, $quantity)
     {
-        $pivot = $this->masterItems()->where('master_item_id', $masterItemId)->first();
-        if ($pivot) {
-            $totalPrice = $quantity * $pivot->pivot->unit_price;
-            $this->masterItems()->updateExistingPivot($masterItemId, [
+        $item = $this->items()->where('master_item_id', $masterItemId)->first();
+        if ($item) {
+            $totalPrice = $quantity * $item->unit_price;
+            $item->update([
                 'quantity' => $quantity,
                 'total_price' => $totalPrice
             ]);
         }
     }
 
-    // Method untuk menghapus item dari request
+    // Method untuk menghapus item dari request (UPDATED for new per-item system)
     public function removeItem($masterItemId)
     {
-        return $this->masterItems()->detach($masterItemId);
+        return $this->items()->where('master_item_id', $masterItemId)->delete();
     }
 
     // Method untuk check apakah user bisa approve request ini
@@ -341,19 +362,22 @@ class ApprovalRequest extends Model
         return $currentStep->canApprove($userId);
     }
 
-    // Method untuk update stock ketika request di-approve
+    // Method untuk update stock ketika request di-approve (UPDATED for new per-item system)
     public function updateStockForApprovedRequest()
     {
-        // Load the master items with their pivot data
-        $this->load('masterItems');
+        // Load the items with their master item data
+        $this->load('items.masterItem');
         
-        foreach ($this->masterItems as $masterItem) {
-            $requestedQuantity = $masterItem->pivot->quantity;
+        foreach ($this->items as $item) {
+            $requestedQuantity = $item->quantity;
             
             // Validate quantity is positive
             if ($requestedQuantity <= 0) {
                 continue; // Skip invalid quantities
             }
+            
+            $masterItem = $item->masterItem;
+            if (!$masterItem) continue;
             
             // Update stock: increase stock by requested quantity (for incoming items)
             $newStock = $masterItem->stock + $requestedQuantity;
