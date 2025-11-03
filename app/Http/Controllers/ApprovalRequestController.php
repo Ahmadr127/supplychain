@@ -413,6 +413,7 @@ class ApprovalRequestController extends Controller
             'submissionType',
             'purchasingItems.vendors',
             'purchasingItems.preferredVendor',
+            'purchasingItems.statusChanger', // Load user who changed status
             'itemExtras' // Load form extra data
         ]);
 
@@ -1060,6 +1061,7 @@ class ApprovalRequestController extends Controller
         
         // Find item steps user can approve (using new per-item approval system)
         // Show ALL steps (pending, approved, rejected) that match the user's approval authority
+        // This gives user a complete history of their approvals
         $query = \App\Models\ApprovalItemStep::where(function($q) use ($userDepartments, $userRoles, $user) {
                                 $q->where('approver_id', $user->id)
                                   ->orWhereIn('approver_role_id', $userRoles)
@@ -1141,12 +1143,31 @@ class ApprovalRequestController extends Controller
             ->latest()
             ->get();
 
-        // Build rows (already per-item with new system)
-        $rows = [];
+        // Build rows with grouping to avoid duplicates
+        // Group by request_id + master_item_id
+        $grouped = [];
         foreach ($itemSteps as $itemStep) {
             $req = $itemStep->request;
             if (!$req) continue;
             
+            $key = $req->id . '_' . $itemStep->master_item_id;
+            
+            // If this item already exists, keep the one with higher step_number (latest in workflow)
+            if (isset($grouped[$key])) {
+                $existing = $grouped[$key];
+                // Keep the step with higher step_number (more recent in workflow)
+                if ($itemStep->step_number > $existing->step_number) {
+                    $grouped[$key] = $itemStep;
+                }
+            } else {
+                $grouped[$key] = $itemStep;
+            }
+        }
+        
+        // Build final rows from grouped data
+        $rows = [];
+        foreach ($grouped as $itemStep) {
+            $req = $itemStep->request;
             $piByItem = ($req->purchasingItems ?? collect())->keyBy('master_item_id');
             
             // Find the corresponding ApprovalRequestItem for this step
@@ -1154,7 +1175,7 @@ class ApprovalRequestController extends Controller
             
             $row = new \stdClass();
             $row->request = $req;
-            $row->step = $itemStep; // This is now an ApprovalItemStep
+            $row->step = $itemStep; // Current user's step - shows their actual status
             $row->item = $itemStep->item; // Direct relation to the MasterItem
             $row->itemData = $itemData; // ApprovalRequestItem with quantity, price, allocation_department_id, etc.
             $row->purchasingItem = $piByItem->get($itemStep->master_item_id);
@@ -1298,16 +1319,23 @@ class ApprovalRequestController extends Controller
     }
 
     /**
-     * Get step status details for a specific approval request and step number
+     * Get step status details for a specific approval request, step number, and item
      */
     public function getStepStatus(ApprovalRequest $approvalRequest, $stepNumber)
     {
-        // Find the most recent approval action for this step (per-item approval system)
-        $itemStep = $approvalRequest->itemSteps()
-            ->where('step_number', $stepNumber)
-            ->where('status', '!=', 'pending')
-            ->orderBy('updated_at', 'desc')
-            ->first();
+        // Get master_item_id from request query parameter
+        $masterItemId = request()->query('master_item_id');
+        
+        // Find the approval action for this specific step and item
+        $query = $approvalRequest->itemSteps()
+            ->where('step_number', $stepNumber);
+        
+        // Filter by master_item_id if provided
+        if ($masterItemId) {
+            $query->where('master_item_id', $masterItemId);
+        }
+        
+        $itemStep = $query->first();
 
         if (!$itemStep) {
             return response()->json([
@@ -1318,8 +1346,18 @@ class ApprovalRequestController extends Controller
             ]);
         }
 
+        // Only return action data if step has been approved or rejected
+        if ($itemStep->status === 'pending') {
+            return response()->json([
+                'action_time' => null,
+                'action_by' => null,
+                'notes' => null,
+                'status' => 'pending'
+            ]);
+        }
+
         return response()->json([
-            'action_time' => $itemStep->updated_at,
+            'action_time' => $itemStep->approved_at ?? $itemStep->updated_at,
             'action_by' => $itemStep->approver->name ?? 'Unknown',
             'notes' => $itemStep->comments,
             'status' => $itemStep->status

@@ -12,6 +12,9 @@
     $userId = auth()->id();
     $masterItem = $item->masterItem;
     
+    // Check if any step is rejected - if yes, don't show approval form
+    $hasRejectedStep = $itemSteps->contains('status', 'rejected');
+    
     // Check if current step is Manager (step 1) and needs price input
     $isManagerStep = $currentPendingStep && $currentPendingStep->step_number == 1;
     $needsPriceInput = $isManagerStep && ($item->unit_price === null || $item->unit_price <= 0);
@@ -22,31 +25,23 @@
     $needsFsUpload = $isKeuanganStep && $totalPrice >= 100000000;
 @endphp
 
-@if($itemSteps->count() > 0 && $currentPendingStep && $currentPendingStep->canApprove($userId))
-<!-- Approval Action Card -->
-<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">
-    <!-- Workflow Progress -->
-    <div class="mb-4">
-        <div class="flex items-center gap-1 flex-wrap">
-            @foreach($itemSteps as $step)
-                <span class="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium
-                    {{ $step->status == 'approved' ? 'bg-green-100 text-green-800' : 
-                       ($step->status == 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700') }}">
-                    @if($step->status == 'approved')
-                        <i class="fas fa-check mr-0.5"></i>
-                    @elseif($step->status == 'rejected')
-                        <i class="fas fa-times mr-0.5"></i>
-                    @else
-                        <i class="fas fa-circle mr-0.5 text-[6px]"></i>
-                    @endif
-                    {{ $step->step_name }}
-                </span>
-                @if(!$loop->last)
-                    <i class="fas fa-chevron-right text-gray-400 text-[8px]"></i>
-                @endif
-            @endforeach
+@if($hasRejectedStep)
+<!-- Rejected Notice -->
+<div class="bg-red-50 border border-red-200 rounded-lg p-3">
+    <div class="flex items-start gap-2">
+        <i class="fas fa-exclamation-circle text-red-600 text-sm mt-0.5"></i>
+        <div>
+            <p class="text-xs font-semibold text-red-800">Item Ditolak</p>
+            <p class="text-[10px] text-red-700 mt-1">
+                Salah satu step approval telah menolak item ini. Approval tidak dapat dilanjutkan.
+            </p>
         </div>
     </div>
+</div>
+@elseif($itemSteps->count() > 0 && $currentPendingStep && $currentPendingStep->canApprove($userId))
+<!-- Approval Action Card -->
+<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">
+    <h3 class="text-xs font-semibold text-gray-900 mb-2">Approval Form</h3>
     
     <!-- Hybrid Action Form -->
     <div x-data="{ 
@@ -150,43 +145,46 @@
             </div>
             @endif
             
-            <div x-show="action === 'reject'" x-transition>
-                <label class="block text-xs font-medium text-gray-700 mb-1">
-                    Alasan Reject <span class="text-red-500">*</span>
-                </label>
-                <textarea name="rejected_reason" 
-                          rows="2" 
-                          placeholder="Jelaskan alasan penolakan..."
-                          :required="action === 'reject'"
-                          class="w-full text-xs border-2 border-gray-300 rounded-md px-2.5 py-1.5 focus:border-red-500 focus:ring-1 focus:ring-red-200 transition-colors resize-none"></textarea>
-            </div>
+            <!-- Rejected Reason (only for reject) -->
+            <template x-if="action === 'reject'">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Alasan Reject <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="rejected_reason" 
+                              rows="2" 
+                              placeholder="Jelaskan alasan penolakan..."
+                              required
+                              class="w-full text-xs border-2 border-gray-300 rounded-md px-2.5 py-1.5 focus:border-red-500 focus:ring-1 focus:ring-red-200 transition-colors resize-none"></textarea>
+                </div>
+            </template>
             
-            <div x-show="action === 'approve'" x-transition>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Komentar (opsional)</label>
-                <textarea name="comments" 
-                          rows="2" 
-                          placeholder="Tambahkan komentar jika diperlukan..."
-                          class="w-full text-xs border-2 border-gray-300 rounded-md px-2.5 py-1.5 focus:border-green-500 focus:ring-1 focus:ring-green-200 transition-colors resize-none"></textarea>
-            </div>
+            <!-- Comments (for approve or reject) -->
+            <template x-if="action === 'approve' || action === 'reject'">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Komentar <span x-show="action === 'reject'" class="text-gray-500">(opsional)</span>
+                    </label>
+                    <textarea name="comments" 
+                              rows="2" 
+                              :placeholder="action === 'approve' ? 'Tambahkan komentar jika diperlukan...' : 'Komentar tambahan...'"
+                              class="w-full text-xs border-2 border-gray-300 rounded-md px-2.5 py-1.5 focus:border-green-500 focus:ring-1 focus:ring-green-200 transition-colors resize-none"></textarea>
+                </div>
+            </template>
             
-            <div x-show="action === 'reject'" x-transition>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Komentar Tambahan (opsional)</label>
-                <textarea name="comments" 
-                          rows="2" 
-                          placeholder="Komentar tambahan..."
-                          class="w-full text-xs border-2 border-gray-300 rounded-md px-2.5 py-1.5 focus:border-red-500 focus:ring-1 focus:ring-red-200 transition-colors resize-none"></textarea>
-            </div>
-            
-            <div x-show="action === 'pending'" x-transition>
-                <label class="block text-xs font-medium text-gray-700 mb-1">
-                    Alasan Reset <span class="text-red-500">*</span>
-                </label>
-                <textarea name="reason" 
-                          rows="2" 
-                          placeholder="Jelaskan alasan reset ke pending..."
-                          :required="action === 'pending'"
-                          class="w-full text-xs border-2 border-gray-300 rounded-md px-2.5 py-1.5 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 transition-colors resize-none"></textarea>
-            </div>
+            <!-- Reset Reason (only for pending) -->
+            <template x-if="action === 'pending'">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Alasan Reset <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="reason" 
+                              rows="2" 
+                              placeholder="Jelaskan alasan reset ke pending..."
+                              required
+                              class="w-full text-xs border-2 border-gray-300 rounded-md px-2.5 py-1.5 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 transition-colors resize-none"></textarea>
+                </div>
+            </template>
             
             <!-- Submit Button -->
             <button type="submit" 

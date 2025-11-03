@@ -131,6 +131,8 @@ class ApprovalItemApprovalController extends Controller
             Log::info('🟦 Updating step status to approved...');
             Log::info('🟦 Step ID: ' . $currentStep->id);
             Log::info('🟦 Step Status BEFORE update: ' . $currentStep->status);
+            Log::info('🟦 Comments from request: ' . ($request->comments ?? 'NULL'));
+            Log::info('🟦 All request data: ', $request->all());
             
             $currentStep->update([
                 'status' => 'approved',
@@ -248,6 +250,7 @@ class ApprovalItemApprovalController extends Controller
                 'status' => 'rejected',
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
+                'rejected_reason' => $request->rejected_reason,
                 'comments' => $request->comments,
             ]);
 

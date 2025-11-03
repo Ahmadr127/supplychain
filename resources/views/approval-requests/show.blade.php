@@ -263,10 +263,124 @@
                                 @php
                                     $piForItem = ($approvalRequest->purchasingItems ?? collect())->firstWhere('master_item_id', $masterItem->id);
                                 @endphp
-                                @if($piForItem && $piForItem->benchmark_notes)
-                                <div class="mt-2 border-t border-gray-200 pt-2">
-                                    <div class="text-xs font-semibold text-gray-700 mb-1">Catatan Benchmarking Vendor</div>
-                                    <div class="text-sm text-gray-900 whitespace-pre-wrap">{{ $piForItem->benchmark_notes }}</div>
+                                @if($piForItem)
+                                <div class="mt-3 pt-3 border-t border-gray-200">
+                                    <div class="text-xs font-semibold text-gray-700 mb-2">
+                                        <i class="fas fa-shopping-cart mr-1"></i>Informasi Purchasing
+                                    </div>
+                                    
+                                    <div class="space-y-2 bg-gray-50 rounded-md p-2">
+                                        <!-- Status Purchasing -->
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Status:</span>
+                                            <span class="text-xs font-medium text-gray-900">
+                                                @php
+                                                    $statusText = match($piForItem->status) {
+                                                        'unprocessed' => 'Belum diproses',
+                                                        'benchmarking' => 'Pemilihan vendor',
+                                                        'selected' => 'Proses PR & PO',
+                                                        'po_issued' => 'Proses di vendor',
+                                                        'grn_received' => 'Barang diterima',
+                                                        'done' => 'Selesai',
+                                                        default => ucfirst($piForItem->status),
+                                                    };
+                                                @endphp
+                                                {{ $statusText }}
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Tanggal Dibuat -->
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Tanggal Dibuat:</span>
+                                            <span class="text-xs text-gray-900">
+                                                {{ $piForItem->created_at ? $piForItem->created_at->format('d/m/Y H:i') : '-' }}
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Tanggal Update Status -->
+                                        @if($piForItem->status_changed_at)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Update Status:</span>
+                                            <span class="text-xs text-gray-900">
+                                                {{ $piForItem->status_changed_at->format('d/m/Y H:i') }}
+                                                @if($piForItem->statusChanger)
+                                                    <span class="text-gray-500">• {{ $piForItem->statusChanger->name }}</span>
+                                                @endif
+                                            </span>
+                                        </div>
+                                        @endif
+                                        
+                                        <!-- Catatan Benchmarking -->
+                                        @if($piForItem->benchmark_notes)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Catatan Benchmarking:</span>
+                                            <span class="text-xs text-gray-900 flex-1 whitespace-pre-wrap">{{ $piForItem->benchmark_notes }}</span>
+                                        </div>
+                                        @endif
+                                        
+                                        <!-- Vendor Terpilih -->
+                                        @if($piForItem->preferredVendor)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Vendor Terpilih:</span>
+                                            <span class="text-xs text-gray-900">{{ $piForItem->preferredVendor->name }}</span>
+                                        </div>
+                                        @endif
+                                        
+                                        <!-- Harga Vendor -->
+                                        @if($piForItem->preferred_unit_price)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Harga Satuan:</span>
+                                            <span class="text-xs text-gray-900">Rp {{ number_format($piForItem->preferred_unit_price, 0, ',', '.') }}</span>
+                                        </div>
+                                        @endif
+                                        
+                                        @if($piForItem->preferred_total_price)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Total Harga:</span>
+                                            <span class="text-xs font-semibold text-gray-900">Rp {{ number_format($piForItem->preferred_total_price, 0, ',', '.') }}</span>
+                                        </div>
+                                        @endif
+                                        
+                                        <!-- PO Number -->
+                                        @if($piForItem->po_number)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">No. PO:</span>
+                                            <span class="text-xs text-gray-900">{{ $piForItem->po_number }}</span>
+                                        </div>
+                                        @endif
+                                        
+                                        <!-- Invoice Number -->
+                                        @if($piForItem->invoice_number)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">No. Invoice:</span>
+                                            <span class="text-xs text-gray-900">{{ $piForItem->invoice_number }}</span>
+                                        </div>
+                                        @endif
+                                        
+                                        <!-- GRN Date -->
+                                        @if($piForItem->grn_date)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Tanggal GRN:</span>
+                                            <span class="text-xs text-gray-900">{{ $piForItem->grn_date->format('d/m/Y') }}</span>
+                                        </div>
+                                        @endif
+                                        
+                                        <!-- Procurement Cycle Days -->
+                                        @if($piForItem->proc_cycle_days)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Siklus Procurement:</span>
+                                            <span class="text-xs text-gray-900">{{ $piForItem->proc_cycle_days }} hari</span>
+                                        </div>
+                                        @endif
+                                        
+                                        <!-- Done Notes -->
+                                        @if($piForItem->done_notes)
+                                        <div class="flex items-start gap-2">
+                                            <span class="text-xs text-gray-600 w-32 flex-shrink-0">Catatan Selesai:</span>
+                                            <span class="text-xs text-gray-900 flex-1 whitespace-pre-wrap">{{ $piForItem->done_notes }}</span>
+                                        </div>
+                                        @endif
+                                    </div>
                                 </div>
                                 @endif
                                 
@@ -290,6 +404,67 @@
                                                 <i class="fas fa-download mr-1"></i>Download
                                             </a>
                                         </div>
+                                    </div>
+                                </div>
+                                @endif
+                                
+                                <!-- Approval Steps History -->
+                                @php
+                                    $itemSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                                        ->where('master_item_id', $masterItem->id)
+                                        ->orderBy('step_number')
+                                        ->with('approver')
+                                        ->get();
+                                    
+                                    // Show all steps that have been actioned (approved or rejected)
+                                    $actionedSteps = $itemSteps->filter(function($step) {
+                                        return $step->status !== 'pending';
+                                    });
+                                @endphp
+                                @if($actionedSteps->count() > 0)
+                                <div class="mt-3 pt-3 border-t border-gray-200">
+                                    <div class="text-xs font-semibold text-gray-700 mb-2">
+                                        <i class="fas fa-comments mr-1"></i>Catatan Approval
+                                    </div>
+                                    <div class="space-y-2">
+                                        @foreach($actionedSteps as $step)
+                                            <div class="bg-{{ $step->status == 'rejected' ? 'red' : 'gray' }}-50 border border-{{ $step->status == 'rejected' ? 'red' : 'gray' }}-200 rounded-md p-2">
+                                                <div class="flex items-center gap-2 mb-1">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium
+                                                        {{ $step->status == 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                                        @if($step->status == 'approved')
+                                                            <i class="fas fa-check mr-0.5"></i>
+                                                        @else
+                                                            <i class="fas fa-times mr-0.5"></i>
+                                                        @endif
+                                                        {{ $step->step_name }}
+                                                    </span>
+                                                    <span class="text-[10px] text-gray-600">
+                                                        {{ $step->approver->name ?? 'Unknown' }}
+                                                        @if($step->approved_at)
+                                                            • {{ \Carbon\Carbon::parse($step->approved_at)->format('d/m/Y H:i') }}
+                                                        @endif
+                                                    </span>
+                                                </div>
+                                                @if($step->rejected_reason)
+                                                    <div class="text-xs text-red-800 font-medium mb-1">
+                                                        <i class="fas fa-exclamation-circle mr-1"></i>Alasan Reject:
+                                                    </div>
+                                                    <div class="text-xs text-red-700 pl-4">{{ $step->rejected_reason }}</div>
+                                                @endif
+                                                @if($step->comments)
+                                                    <div class="text-xs {{ $step->status == 'rejected' ? 'text-gray-700' : 'text-gray-600' }} {{ $step->rejected_reason ? 'mt-1' : '' }}">
+                                                        <strong>Komentar:</strong> {{ $step->comments }}
+                                                    </div>
+                                                @else
+                                                    @if(!$step->rejected_reason)
+                                                        <div class="text-[10px] text-gray-400 italic">
+                                                            Tidak ada komentar
+                                                        </div>
+                                                    @endif
+                                                @endif
+                                            </div>
+                                        @endforeach
                                     </div>
                                 </div>
                                 @endif

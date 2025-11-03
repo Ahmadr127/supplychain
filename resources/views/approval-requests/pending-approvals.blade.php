@@ -114,11 +114,30 @@
                     </td>
                     @if($isDirectorLevel)
                         <td class="w-1/2">
-                            <x-approval-progress-steps :request="$row->request" :show-metadata="true" />
+                            <x-approval-progress-steps :request="$row->request" :step-data="$row->itemData" :show-metadata="true" />
                         </td>
                     @endif
                     <td class="w-20">
-                        <x-approval-status-badge :status="$row->request->status" />
+                        @php
+                            // Match the logic from approval-progress-steps component
+                            // If step is pending but it's the current step, show as "on progress"
+                            $displayStatus = $row->step->status;
+                            
+                            if ($displayStatus === 'pending') {
+                                // Check if this is the current pending step (first pending step for this item)
+                                $currentPendingStep = \App\Models\ApprovalItemStep::where('approval_request_id', $row->request->id)
+                                    ->where('master_item_id', $row->step->master_item_id)
+                                    ->where('status', 'pending')
+                                    ->orderBy('step_number')
+                                    ->first();
+                                
+                                // If this is the current pending step, show as "on progress"
+                                if ($currentPendingStep && $currentPendingStep->id === $row->step->id) {
+                                    $displayStatus = 'on progress';
+                                }
+                            }
+                        @endphp
+                        <x-approval-status-badge :status="$displayStatus" />
                     </td>
                     <td class="w-40">
                         @php

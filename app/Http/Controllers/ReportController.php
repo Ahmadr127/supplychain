@@ -19,8 +19,8 @@ class ReportController extends Controller
             ->with([
                 'submissionType:id,name',
                 'requester.departments' => function($q){ $q->wherePivot('is_primary', true); },
-                'masterItems' => function($q){
-                    $q->select('master_items.id','master_items.name','master_items.item_category_id')
+                'items.masterItem' => function($q){
+                    $q->select('id','name','item_category_id')
                       ->with(['itemCategory:id,name']);
                 },
                 // load purchasing items with vendors and preferred info
@@ -58,7 +58,7 @@ class ReportController extends Controller
             $q->whereYear('created_at', (int)$request->year);
         }
         if ($request->filled('category_id')) {
-            $q->whereHas('masterItems.itemCategory', function($w) use ($request){
+            $q->whereHas('items.masterItem.itemCategory', function($w) use ($request){
                 $w->where('item_categories.id', $request->category_id);
             });
         }
@@ -67,8 +67,8 @@ class ReportController extends Controller
                 $w->where('request_number', 'like', "%$s%")
                   ->orWhere('description', 'like', "%$s%")
                   ->orWhere('status', 'like', "%$s%")
-                  ->orWhereHas('masterItems', function($mi) use($s){
-                      $mi->where('master_items.name', 'like', "%$s%");
+                  ->orWhereHas('items.masterItem', function($mi) use($s){
+                      $mi->where('name', 'like', "%$s%");
                   });
             });
         }
@@ -118,10 +118,11 @@ class ReportController extends Controller
                 default => strtoupper($purchasingStatusCode),
             };
 
-            foreach ($req->masterItems as $m) {
-                $qty = (int) ($m->pivot->quantity ?? 0);
-                $spec = $m->pivot->specification ?? null;
-                $notes = $m->pivot->notes ?? null;
+            foreach ($req->items as $item) {
+                $m = $item->masterItem;
+                $qty = (int) ($item->quantity ?? 0);
+                $spec = $item->specification ?? null;
+                $notes = $item->notes ?? null;
 
                 // Try map to purchasing item
                 $pi = $req->purchasingItems?->firstWhere('master_item_id', $m->id);
@@ -190,14 +191,14 @@ class ReportController extends Controller
                     'tanggal_pengajuan' => $createdAt?->format('Y-m-d') ?? '-',
                     'tanggal_terima_dokumen' => $req->received_at ? \Carbon\Carbon::parse($req->received_at)->format('Y-m-d') : '-',
                     'umur_pengajuan' => $ageText,
-                    // Per-item No Surat from pivot
-                    'no_surat' => ($m->pivot->letter_number ?? '-') ?: '-',
+                    // Per-item No Surat from item
+                    'no_surat' => ($item->letter_number ?? '-') ?: '-',
                     'tahun_pengadaan' => $procurementYear ?? '-',
                     // Detail diisi spesifikasi item
                     'detail' => $spec ?: '-',
-                    // Per-item Unit Peruntukan from pivot allocation_department_id
-                    'unit_peruntukan' => ($m->pivot->allocation_department_id && isset($deptMap[$m->pivot->allocation_department_id]))
-                        ? $deptMap[$m->pivot->allocation_department_id]
+                    // Per-item Unit Peruntukan from item allocation_department_id
+                    'unit_peruntukan' => ($item->allocation_department_id && isset($deptMap[$item->allocation_department_id]))
+                        ? $deptMap[$item->allocation_department_id]
                         : '-',
                     // Kategori per item
                     'kategori' => $m->itemCategory?->name ?? '-',
@@ -240,7 +241,7 @@ class ReportController extends Controller
                             $actions[] = [
                                 'type' => 'link',
                                 'label' => 'Proses',
-                                'color' => 'emerald',
+                                'color' => 'green',
                                 'url' => route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId])
                             ];
                         } else {
@@ -248,7 +249,7 @@ class ReportController extends Controller
                             $actions[] = [
                                 'type' => 'button',
                                 'label' => 'Proses',
-                                'color' => 'emerald',
+                                'color' => 'green',
                                 'onclick' => "(async function(){try{const res=await fetch('" . route('api.purchasing.items.resolve') . "',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]')?.getAttribute('content')||''},body:JSON.stringify({approval_request_id:'{$req->id}',master_item_id:'{$m->id}'})});if(!res.ok){const err=await res.json();alert(err.error||'Request belum approved atau ada kesalahan.');return;}const data=await res.json();if(data&&data.id){window.location.href='" . route('reports.approval-requests.process-purchasing') . "?purchasing_item_id='+data.id;}}catch(e){alert('Gagal membuka halaman purchasing.');}})()"
                             ];
                         }
@@ -632,8 +633,8 @@ class ReportController extends Controller
             ->with([
                 'submissionType:id,name',
                 'requester.departments' => function($q){ $q->wherePivot('is_primary', true); },
-                'masterItems' => function($q){
-                    $q->select('master_items.id','master_items.name','master_items.item_category_id')
+                'items.masterItem' => function($q){
+                    $q->select('id','name','item_category_id')
                       ->with(['itemCategory:id,name']);
                 },
                 'purchasingItems' => function($pi){
@@ -665,7 +666,7 @@ class ReportController extends Controller
             $q->whereYear('created_at', (int)$request->year);
         }
         if ($request->filled('category_id')) {
-            $q->whereHas('masterItems.itemCategory', function($w) use ($request){
+            $q->whereHas('items.masterItem.itemCategory', function($w) use ($request){
                 $w->where('item_categories.id', $request->category_id);
             });
         }
@@ -674,8 +675,8 @@ class ReportController extends Controller
                 $w->where('request_number', 'like', "%$s%")
                   ->orWhere('description', 'like', "%$s%")
                   ->orWhere('status', 'like', "%$s%")
-                  ->orWhereHas('masterItems', function($mi) use($s){
-                      $mi->where('master_items.name', 'like', "%$s%");
+                  ->orWhereHas('items.masterItem', function($mi) use($s){
+                      $mi->where('name', 'like', "%$s%");
                   });
             });
         }
@@ -719,10 +720,11 @@ class ReportController extends Controller
                 default => strtoupper($purchasingStatusCode),
             };
 
-            foreach ($req->masterItems as $m) {
-                $qty = (int) ($m->pivot->quantity ?? 0);
-                $spec = $m->pivot->specification ?? null;
-                $notes = $m->pivot->notes ?? null;
+            foreach ($req->items as $item) {
+                $m = $item->masterItem;
+                $qty = (int) ($item->quantity ?? 0);
+                $spec = $item->specification ?? null;
+                $notes = $item->notes ?? null;
                 $pi = $req->purchasingItems?->firstWhere('master_item_id', $m->id);
                 
                 // Benchmarking vendors
@@ -766,11 +768,11 @@ class ReportController extends Controller
                     $createdAt?->format('Y-m-d') ?? '-',
                     $req->received_at ? \Carbon\Carbon::parse($req->received_at)->format('Y-m-d') : '-',
                     $ageText,
-                    $m->pivot->letter_number ?? '-',
+                    $item->letter_number ?? '-',
                     $procurementYear ?? '-',
                     $spec ?: '-',
-                    ($m->pivot->allocation_department_id && isset($deptMap[$m->pivot->allocation_department_id]))
-                        ? $deptMap[$m->pivot->allocation_department_id] : '-',
+                    ($item->allocation_department_id && isset($deptMap[$item->allocation_department_id]))
+                        ? $deptMap[$item->allocation_department_id] : '-',
                     $m->itemCategory?->name ?? '-',
                     $notes ?: '-',
                     $qty,

@@ -22,6 +22,7 @@ class ApprovalItemStep extends Model
         'approved_by',
         'approved_at',
         'comments',
+        'rejected_reason',
     ];
 
     protected $casts = [

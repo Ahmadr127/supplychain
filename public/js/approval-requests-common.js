@@ -147,12 +147,19 @@ async function loadStepMetadata() {
     for (const meta of stepMetas) {
         const requestId = meta.getAttribute('data-request-id');
         const stepNumber = meta.getAttribute('data-step-number');
+        const masterItemId = meta.getAttribute('data-master-item-id');
         
         if (!requestId || !stepNumber) continue;
         
         try {
             const baseUrl = window.location.origin;
-            const url = `${baseUrl}/api/approval-requests/${requestId}/step-status/${stepNumber}`;
+            let url = `${baseUrl}/api/approval-requests/${requestId}/step-status/${stepNumber}`;
+            
+            // Add master_item_id as query parameter if available
+            if (masterItemId) {
+                url += `?master_item_id=${masterItemId}`;
+            }
+            
             const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             const data = await res.json();
             

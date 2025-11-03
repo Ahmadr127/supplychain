@@ -94,7 +94,10 @@
                     {{ $step->step_name }}
                 </span>
                 @if($stepData || $showMetadata)
-                    <div class="mt-0.5 text-[11px] text-gray-600 step-meta" data-request-id="{{ $requestId }}" data-step-number="{{ $step->step_number }}">
+                    <div class="mt-0.5 text-[11px] text-gray-600 step-meta" 
+                         data-request-id="{{ $requestId }}" 
+                         data-step-number="{{ $step->step_number }}"
+                         data-master-item-id="{{ $stepData ? $stepData->master_item_id : '' }}">
                         <!-- info disisipkan via JS: status, oleh, pada -->
                     </div>
                 @endif
