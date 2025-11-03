@@ -46,10 +46,10 @@ class RolePermissionSeeder extends Seeder
             'description' => 'Ahli teknis di departemen IT'
         ]);
 
-        $managerPemintaRole = Role::firstOrCreate(['name' => 'manager_peminta'], [
-            'name' => 'manager_peminta',
-            'display_name' => 'Manager Peminta',
-            'description' => 'Manager yang dapat meminta approval'
+        $managerRole = Role::firstOrCreate(['name' => 'manager'], [
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'description' => 'Manager departemen'
         ]);
 
         $managerItRole = Role::firstOrCreate(['name' => 'manager_it'], [
@@ -93,7 +93,7 @@ class RolePermissionSeeder extends Seeder
             ])->get()
         );
         
-        $managerPemintaRole->permissions()->sync(
+        $managerRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
@@ -113,7 +113,9 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals'
+                'manage_approvals',
+                'manage_vendor',
+                'view_reports'
             ])->get()
         );
         
@@ -135,9 +137,10 @@ class RolePermissionSeeder extends Seeder
         // Purchasing role permissions (aligned to purchasing features)
         $purchasingRole->permissions()->sync(
             Permission::whereIn('name', [
+                'view_my_approvals',
+                'approval',
                 'view_reports',
-                'manage_purchasing',
-                'manage_suppliers',
+                'manage_purchasing'
             ])->get()
         );
     }

@@ -35,6 +35,12 @@ class DepartmentSeeder extends Seeder
                 'description' => 'Departemen Keuangan dan Akuntansi',
                 'level' => 1,
             ],
+            [
+                'name' => 'Departemen Keperawatan',
+                'code' => 'KEP',
+                'description' => 'Departemen Keperawatan',
+                'level' => 1,
+            ],
             
             // Level 2 - Direktur
             [
@@ -55,8 +61,9 @@ class DepartmentSeeder extends Seeder
         $createdDepartments['IT']->update(['parent_id' => $createdDepartments['DIR']->id]);
         $createdDepartments['PGD']->update(['parent_id' => $createdDepartments['DIR']->id]);
         $createdDepartments['KEU']->update(['parent_id' => $createdDepartments['DIR']->id]);
+        $createdDepartments['KEP']->update(['parent_id' => $createdDepartments['DIR']->id]);
 
-        // Buat users sesuai data pada gambar (4 pengguna)
+        // Buat users
         $users = [
             // Administrator (Muhamad Miftahudin) - IT (Manager IT)
             [
@@ -94,26 +101,53 @@ class DepartmentSeeder extends Seeder
                 'is_primary' => true,
                 'is_manager' => true,
             ],
-            // Manager Pengadaan - PGD (Manager)
-            [
-                'name' => 'Manager Pengadaan',
-                'username' => 'manager.pengadaan',
-                'email' => 'pengadaan@azra.com',
-                'password' => bcrypt('password'),
-                'role_id' => Role::where('name', 'purchasing')->first()->id,
-                'department' => 'PGD',
-                'position' => 'Manager Pengadaan',
-                'is_primary' => true,
-                'is_manager' => true,
-            ],
-            // Pengguna (Indah Triyani) - tanpa departemen (sesuai tabel departemen: PEM 0 users)
+            // Koordinator Pengadaan (Indah Triyani) - PGD (Koordinator)
             [
                 'name' => 'Indah Triyani',
                 'username' => 'indah.triyani',
                 'email' => 'indah@azra.com',
                 'password' => bcrypt('password'),
+                'role_id' => Role::where('name', 'purchasing')->first()->id,
+                'department' => 'PGD',
+                'position' => 'Koordinator Pengadaan',
+                'is_primary' => true,
+                'is_manager' => true,
+            ],
+            // Manager Keperawatan (Seni Maulida) - KEP (Manager)
+            [
+                'name' => 'Seni Maulida',
+                'username' => 'seni.maulida',
+                'email' => 'seni@azra.com',
+                'password' => bcrypt('password'),
+                'role_id' => Role::where('name', 'manager')->first()->id,
+                'department' => 'KEP',
+                'position' => 'Manager Keperawatan',
+                'is_primary' => true,
+                'is_manager' => true,
+            ],
+            // Karu NS 3 (Eka Setia) - KEP (Kepala Ruang)
+            [
+                'name' => 'Eka Setia',
+                'username' => 'eka.setia',
+                'email' => 'eka@azra.com',
+                'password' => bcrypt('password'),
                 'role_id' => Role::where('name', 'user')->first()->id,
-                // sengaja tidak diberi key 'department' agar tidak menambah count users di PEM
+                'department' => 'KEP',
+                'position' => 'Karu NS 3',
+                'is_primary' => true,
+                'is_manager' => false,
+            ],
+            // Pengguna SIMRS (Umar) - IT (Staff)
+            [
+                'name' => 'Umar',
+                'username' => 'umar',
+                'email' => 'umar@azra.com',
+                'password' => bcrypt('password'),
+                'role_id' => Role::where('name', 'user')->first()->id,
+                'department' => 'IT',
+                'position' => 'Staff SIMRS',
+                'is_primary' => true,
+                'is_manager' => false,
             ],
         ];
 
@@ -144,35 +178,6 @@ class DepartmentSeeder extends Seeder
             }
         }
 
-        // Buat single approval workflow untuk Rumah Sakit
-        $workflow = [
-            'name' => 'Standard Approval Workflow',
-            'type' => 'standard',
-            'description' => 'Workflow standar untuk semua permintaan approval',
-            'workflow_steps' => [
-                [
-                    'name' => 'Technical Expert',
-                    'approver_type' => 'role',
-                    'approver_role_id' => Role::where('name', 'technical_expert')->first()->id,
-                ],
-                [
-                    'name' => 'Manager IT',
-                    'approver_type' => 'role',
-                    'approver_role_id' => Role::where('name', 'manager_it')->first()->id,
-                ],
-                [
-                    'name' => 'Manager Keuangan',
-                    'approver_type' => 'role',
-                    'approver_role_id' => Role::where('name', 'manager_keuangan')->first()->id,
-                ],
-                [
-                    'name' => 'Direktur',
-                    'approver_type' => 'role',
-                    'approver_role_id' => Role::where('name', 'direktur')->first()->id,
-                ],
-            ],
-        ];
-
-        ApprovalWorkflow::firstOrCreate(['name' => $workflow['name']], $workflow);
+        // Workflow creation is handled by ApprovalWorkflowSeeder
     }
 }

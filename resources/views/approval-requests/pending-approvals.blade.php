@@ -140,7 +140,7 @@
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
-                            <a href="{{ route('approval-requests.show', $row->request) }}" 
+                            <a href="{{ route('approval-requests.show', ['approvalRequest' => $row->request->id, 'item_id' => $row->itemData->id]) }}" 
                                class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Review">👁</a>
                         </div>
                     </td>

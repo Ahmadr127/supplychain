@@ -396,7 +396,7 @@ class ApprovalRequestController extends Controller
                         ->with('success', 'Approval request berhasil dibuat!');
     }
 
-    public function show(ApprovalRequest $approvalRequest)
+    public function show(ApprovalRequest $approvalRequest, Request $request)
     {
         // Allow all authenticated users to view approval requests
 
@@ -425,10 +425,14 @@ class ApprovalRequestController extends Controller
         // Group item extras by master_item_id for easy access
         $itemExtras = $approvalRequest->itemExtras->keyBy('master_item_id');
         
+        // Check if filtering by specific item
+        $filterItemId = $request->get('item_id');
+        
         return view('approval-requests.show', [
             'approvalRequest' => $approvalRequest,
             'itemFiles' => $files,
             'itemExtras' => $itemExtras,
+            'filterItemId' => $filterItemId,
         ]);
     }
 

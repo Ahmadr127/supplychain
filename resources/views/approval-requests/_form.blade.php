@@ -542,7 +542,7 @@
         </div>
         
         <!-- First row of inputs -->
-        <div class="grid grid-cols-1 md:grid-cols-3 ${isCreateMode ? 'lg:grid-cols-4' : 'lg:grid-cols-6'} gap-1">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-1">
             <div>
                 <label class="block text-xs text-gray-600">Nama Item <span class="text-red-500">*</span></label>
                 <div class="relative">
@@ -554,16 +554,6 @@
                 <label class="block text-xs text-gray-600">Jumlah <span class="text-red-500">*</span></label>
                 <input type="number" min="1" class="item-qty w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" value="${row.quantity}" required>
             </div>
-            ${!isCreateMode ? `
-            <div>
-                <label class="block text-xs text-gray-600">Harga Satuan</label>
-                <input type="text" inputmode="numeric" class="item-price w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="0" value="${formatRupiahInputValue(row.unit_price)}">
-            </div>
-            <div>
-                <label class="block text-xs text-gray-600">Total (Qty x Harga)</label>
-                <input type="text" class="item-total w-full h-6 px-1 border border-gray-200 rounded text-xs bg-gray-50 text-gray-700" readonly value="${formatRupiahInputValue(((parseInt(row.quantity||0)||0) * (parseInt(row.unit_price||0)||0)))}">
-            </div>
-            ` : ''}
             <div>
                 <label class="block text-xs text-gray-600">Merk</label>
                 <input type="text" class="item-brand w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Merk barang" value="${escapeHtml(row.brand)}">
@@ -655,8 +645,6 @@
     function bindRowEvents(itemDiv, row) {
         const nameInput = itemDiv.querySelector('.item-name');
         const qtyInput = itemDiv.querySelector('.item-qty');
-        const priceInput = itemDiv.querySelector('.item-price');
-        const totalInput = itemDiv.querySelector('.item-total');
         const notesInput = itemDiv.querySelector('.item-notes');
         const specInput = itemDiv.querySelector('.item-spec');
         const brandInput = itemDiv.querySelector('.item-brand');
@@ -691,7 +679,7 @@
                 }
             });
             const data = await res.json();
-            renderSuggestions(sugBox, data.items || [], row, nameInput, priceInput, categoryInput);
+            renderSuggestions(sugBox, data.items || [], row, nameInput, null, categoryInput);
         });
         nameInput.addEventListener('blur', function() {
             setTimeout(() => sugBox.classList.add('hidden'), 200);
@@ -699,7 +687,7 @@
         nameInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                resolveTyped(nameInput, row, priceInput);
+                resolveTyped(nameInput, row, null);
             } else if (e.key === 'Escape') {
                 sugBox.classList.add('hidden');
             }
@@ -708,36 +696,9 @@
         qtyInput.addEventListener('change', function() {
             row.quantity = parseInt(this.value) || 1;
             toggleRowStaticSectionForRow(row.index);
-            // update total display (only if price input exists - edit mode)
-            if (priceInput && totalInput) {
-                const q = parseInt(row.quantity || 0) || 0;
-                const p = parseInt(row.unit_price || 0) || 0;
-                totalInput.value = formatRupiahInputValue(q * p);
-            }
             // Realtime sync quantity to form statis
             syncFormExtraFields(row.index, { force: true });
         });
-        
-        // Price input only exists in edit mode
-        if (priceInput) {
-            const handlePriceInput = function() {
-                const v = (priceInput.value || '').trim();
-                const normalized = parseRupiahToNumber(v);
-                row.unit_price = normalized; // numeric string, can be long, integer only
-                priceInput.value = formatRupiahInputValue(row.unit_price);
-                toggleRowStaticSectionForRow(row.index);
-                // update total display
-                const q = parseInt(row.quantity || 0) || 0;
-                const p = parseInt(row.unit_price || 0) || 0;
-                if (totalInput) totalInput.value = formatRupiahInputValue(q * p);
-                // Realtime sync price to form statis
-                syncFormExtraFields(row.index, { force: true });
-            };
-            priceInput.addEventListener('input', handlePriceInput);
-            priceInput.addEventListener('blur', handlePriceInput);
-            // initialize total display once
-            (function(){ const q = parseInt(row.quantity || 0) || 0; const p = parseInt(row.unit_price || 0) || 0; if (totalInput) totalInput.value = formatRupiahInputValue(q * p); })();
-        }
         if (fileBtn && fileInput) {
             fileBtn.addEventListener('click', function() {
                 fileInput.click();

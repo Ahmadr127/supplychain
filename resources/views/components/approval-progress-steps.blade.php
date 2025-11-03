@@ -1,24 +1,28 @@
 @props(['request', 'stepData' => null, 'showMetadata' => false])
 
 @php
-    // Use stepData if provided (for pending-approvals), otherwise use request directly
-    $workflowSteps = $stepData ? $stepData->request->workflow->steps : $request->workflow->steps;
-    $requestStatus = $stepData ? $stepData->request->status : $request->status;
-    // DEPRECATED: current_step removed in per-item approval system
-    // Use step_number from stepData if available, otherwise default to 1
-    $currentStep = $stepData ? ($stepData->step_number ?? 1) : 1;
-    $requestId = $stepData ? $stepData->request->id : $request->id;
+    // Use stepData if provided (for per-item display), otherwise use request directly
+    $workflowSteps = $request->workflow->steps ?? collect();
+    $requestStatus = $request->status;
+    $requestId = $request->id;
     
-    // Get actual step statuses from database (for pending-approvals accuracy)
+    // Get actual step statuses from database for this specific item
     $actualStepStatuses = [];
     if ($stepData) {
-        $itemSteps = $stepData->request->itemSteps()
+        // stepData is ApprovalRequestItem
+        $itemSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $stepData->approval_request_id)
             ->where('master_item_id', $stepData->master_item_id)
             ->get()
             ->keyBy('step_number');
         foreach ($itemSteps as $itemStep) {
             $actualStepStatuses[$itemStep->step_number] = $itemStep->status;
         }
+        
+        // Get current pending step number
+        $currentPendingStep = $itemSteps->firstWhere('status', 'pending');
+        $currentStep = $currentPendingStep ? $currentPendingStep->step_number : ($itemSteps->count() + 1);
+    } else {
+        $currentStep = 1;
     }
 @endphp
 

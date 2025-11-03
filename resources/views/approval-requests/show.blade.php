@@ -161,6 +161,12 @@
                         <div class="space-y-3">
                             @foreach($approvalRequest->items as $item)
                             @php
+                                // Filter by item_id if provided
+                                if(isset($filterItemId) && $filterItemId && $item->id != $filterItemId) {
+                                    continue;
+                                }
+                            @endphp
+                            @php
                                 $masterItem = $item->masterItem; // Access master item via relationship
                                 $qty = (int) ($item->quantity ?? 0);
                                 $unitPrice = $item->unit_price;
@@ -347,6 +353,10 @@
                     <!-- Per-Item Approval Actions -->
                     @foreach($approvalRequest->items as $item)
                         @php
+                            // Filter by item_id if provided
+                            if(isset($filterItemId) && $filterItemId && $item->id != $filterItemId) {
+                                continue;
+                            }
                             $masterItem = $item->masterItem;
                             $__hideFormStatis = \Illuminate\Support\Str::contains($masterItem->name ?? '', '(Form Statis)');
                         @endphp

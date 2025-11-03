@@ -103,7 +103,7 @@
                         <span class="text-sm text-gray-900">{{ $deptNames->count() ? $deptNames->implode(', ') : '-' }}</span>
                     </td>
                     <td class="w-3/5">
-                        <x-approval-progress-steps :request="$row->request" :show-metadata="true" />
+                        <x-approval-progress-steps :request="$row->request" :step-data="$row->itemData" :show-metadata="true" />
                     </td>
                     <td class="w-20">
                         <x-approval-status-badge :status="$row->request->status" />
@@ -113,7 +113,7 @@
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
-                            <a href="{{ route('approval-requests.show', $row->request) }}" 
+                            <a href="{{ route('approval-requests.show', ['approvalRequest' => $row->request->id, 'item_id' => $row->itemData->id]) }}" 
                                class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Lihat">👁</a>
                             @if($row->request->status == 'pending')
                                 <a href="{{ route('approval-requests.edit', $row->request) }}" 

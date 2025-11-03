@@ -17,7 +17,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RolePermissionSeeder::class,
             VendorPermissionSeeder::class,
-            SettingsPermissionSeeder::class, // Add settings permission seeder
+            SettingsPermissionSeeder::class,
+            ManagePurchasingPermissionSeeder::class,
             DepartmentSeeder::class,
             SubmissionTypeSeeder::class,
             MasterItemSeeder::class,

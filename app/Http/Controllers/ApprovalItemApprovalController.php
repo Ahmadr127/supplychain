@@ -202,8 +202,8 @@ class ApprovalItemApprovalController extends Controller
             Log::info('🟩 Database transaction committed');
             Log::info('🟩 ========== APPROVAL PROCESS COMPLETED ==========');
 
-            // Redirect to same page to refresh data
-            return redirect()->route('approval-requests.show', $approvalRequest)
+            // Redirect to same page with item_id to keep viewing single item
+            return redirect()->route('approval-requests.show', ['approvalRequest' => $approvalRequest->id, 'item_id' => $item->id])
                 ->with('success', 'Item berhasil di-approve!');
 
         } catch (\Exception $e) {
@@ -271,8 +271,8 @@ class ApprovalItemApprovalController extends Controller
 
             DB::commit();
 
-            // Redirect to same page to refresh data
-            return redirect()->route('approval-requests.show', $approvalRequest)
+            // Redirect to same page with item_id to keep viewing single item
+            return redirect()->route('approval-requests.show', ['approvalRequest' => $approvalRequest->id, 'item_id' => $item->id])
                 ->with('success', 'Item berhasil di-reject.');
 
         } catch (\Exception $e) {
@@ -362,8 +362,8 @@ class ApprovalItemApprovalController extends Controller
 
             DB::commit();
 
-            // Redirect to same page to refresh data
-            return redirect()->route('approval-requests.show', $approvalRequest)
+            // Redirect to same page with item_id to keep viewing single item
+            return redirect()->route('approval-requests.show', ['approvalRequest' => $approvalRequest->id, 'item_id' => $item->id])
                 ->with('success', 'Item berhasil di-reset ke status pending.');
 
         } catch (\Exception $e) {

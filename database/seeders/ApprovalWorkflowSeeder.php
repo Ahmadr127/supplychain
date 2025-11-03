@@ -43,7 +43,7 @@ class ApprovalWorkflowSeeder extends Seeder
                     'workflow_steps' => [
                         [
                             'name' => 'Manager',
-                            'approver_type' => 'requester_department_manager',
+                            'approver_type' => 'any_department_manager',
                             'approver_role_id' => null,
                             'description' => 'Manager unit input harga dan approve'
                         ],
@@ -85,7 +85,7 @@ class ApprovalWorkflowSeeder extends Seeder
                     'workflow_steps' => [
                         [
                             'name' => 'Manager',
-                            'approver_type' => 'requester_department_manager',
+                            'approver_type' => 'any_department_manager',
                             'approver_role_id' => null,
                             'description' => 'Manager unit input harga dan approve'
                         ],
@@ -126,7 +126,7 @@ class ApprovalWorkflowSeeder extends Seeder
                 'workflow_steps' => [
                     [
                         'name' => 'Manager',
-                        'approver_type' => 'requester_department_manager',
+                        'approver_type' => 'any_department_manager',
                         'approver_role_id' => null,
                         'description' => 'Manager unit input harga dan approve'
                     ],
