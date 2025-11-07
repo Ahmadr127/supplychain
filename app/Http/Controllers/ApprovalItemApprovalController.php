@@ -35,25 +35,25 @@ class ApprovalItemApprovalController extends Controller
         } else {
             Log::warning('🟥 No pending step found for this item!');
         }
-        
         // Dynamic validation based on step
         $rules = [
             'comments' => 'nullable|string|max:1000',
         ];
         
-        // Manager step (step 1): require price input
-        if ($currentStep && $currentStep->step_number == 1 && ($item->unit_price === null || $item->unit_price <= 0)) {
+        // Step with required_action 'input_price': require price input if not set
+        if ($currentStep && $currentStep->required_action == 'input_price' && ($item->unit_price === null || $item->unit_price <= 0)) {
             $rules['unit_price'] = 'required|string|min:1'; // Accept string with dots
-            Log::info('🟨 Manager Step: Price input required');
+            Log::info('🟨 Step requires price input (required_action: input_price)');
         }
         
-        // Keuangan step (step 2): require FS upload if total >= 100jt
-        if ($currentStep && $currentStep->step_number == 2) {
+        // Step with required_action 'verify_budget': require FS upload if total >= threshold
+        if ($currentStep && $currentStep->required_action == 'verify_budget') {
             $totalPrice = $item->quantity * ($item->unit_price ?? 0);
-            Log::info('🟨 Keuangan Step: Total Price = Rp ' . number_format($totalPrice, 0, ',', '.'));
-            if ($totalPrice >= 100000000) {
+            $fsThreshold = \App\Models\Setting::get('fs_threshold_per_item', 100000000);
+            Log::info('🟨 Budget Verification Step: Total Price = Rp ' . number_format($totalPrice, 0, ',', '.') . ' | Threshold = Rp ' . number_format($fsThreshold, 0, ',', '.'));
+            if ($totalPrice >= $fsThreshold) {
                 $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
-                Log::info('🟨 FS Document upload required (total >= 100jt)');
+                Log::info('🟨 FS Document upload required (total >= threshold)');
             }
         }
         
@@ -115,15 +115,16 @@ class ApprovalItemApprovalController extends Controller
                 ]);
             }
             
-            // Keuangan step: Save FS document
-            if ($currentStep->step_number == 2 && $request->hasFile('fs_document')) {
-                Log::info('🟦 Uploading FS document...');
+            // Save FS document if step requires budget verification
+            if ($currentStep->required_action == 'verify_budget' && $request->hasFile('fs_document')) {
+                Log::info('🟦 Uploading FS document for budget verification...');
                 $fsPath = $request->file('fs_document')->store('fs_documents', 'public');
                 $item->update(['fs_document' => $fsPath]);
                 
-                Log::info('🟩 Keuangan uploaded FS document:', [
+                Log::info('🟩 FS document uploaded:', [
                     'item_id' => $item->id,
                     'fs_document' => $fsPath,
+                    'step_name' => $currentStep->step_name,
                 ]);
             }
 
@@ -154,6 +155,12 @@ class ApprovalItemApprovalController extends Controller
                 'step_name' => $currentStep->step_name,
                 'approver_id' => auth()->id(),
             ]);
+            
+            // Handle quick insert step (if checkbox checked)
+            if ($request->has('quick_insert_step') && $currentStep->insert_step_template) {
+                Log::info('🟨 Quick insert step requested');
+                $this->handleQuickInsertStep($item, $currentStep);
+            }
 
             // Check if there are more steps
             Log::info('🟦 Checking for next steps...');
@@ -412,5 +419,54 @@ class ApprovalItemApprovalController extends Controller
 
         // Default: pending
         $approvalRequest->update(['status' => 'pending']);
+    }
+    
+    /**
+     * Handle quick insert step using template
+     */
+    private function handleQuickInsertStep(ApprovalRequestItem $item, ApprovalItemStep $currentStep): void
+    {
+        try {
+            $template = $currentStep->insert_step_template;
+            
+            // Renumber existing steps after current step
+            ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+                ->where('master_item_id', $item->master_item_id)
+                ->where('step_number', '>', $currentStep->step_number)
+                ->increment('step_number');
+            
+            // Create new step from template
+            ApprovalItemStep::create([
+                'approval_request_id' => $item->approval_request_id,
+                'master_item_id' => $item->master_item_id,
+                'step_number' => $currentStep->step_number + 1,
+                'step_name' => $template['name'],
+                'approver_type' => $template['approver_type'],
+                'approver_id' => $template['approver_id'] ?? null,
+                'approver_role_id' => $template['approver_role_id'] ?? null,
+                'approver_department_id' => $template['approver_department_id'] ?? null,
+                'status' => 'pending',
+                'can_insert_step' => $template['can_insert_step'] ?? false,
+                'insert_step_template' => $template['insert_step_template'] ?? null,
+                'is_dynamic' => true,
+                'inserted_by' => auth()->id(),
+                'inserted_at' => now(),
+                'insertion_reason' => 'Ditambahkan via quick insert oleh ' . auth()->user()->name,
+                'required_action' => $template['required_action'] ?? null,
+            ]);
+            
+            Log::info('✅ Quick insert step created', [
+                'item_id' => $item->id,
+                'template_name' => $template['name'],
+                'inserted_by' => auth()->id(),
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('❌ Quick insert step failed', [
+                'item_id' => $item->id,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - continue with normal approval flow
+        }
     }
 }

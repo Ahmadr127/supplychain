@@ -181,6 +181,14 @@ class ApprovalWorkflowController extends Controller
                 'name' => trim($step['name']),
                 'approver_type' => $step['approver_type']
             ];
+            
+            // Add optional fields
+            if (!empty($step['description'])) {
+                $processedStep['description'] = trim($step['description']);
+            }
+            if (!empty($step['required_action'])) {
+                $processedStep['required_action'] = trim($step['required_action']);
+            }
 
             // Add approver-specific data based on type
             switch ($step['approver_type']) {
@@ -209,6 +217,63 @@ class ApprovalWorkflowController extends Controller
                 case 'any_department_manager':
                     // No extra fields required; semua manager lintas departemen
                     break;
+            }
+            
+            // Add conditional step settings
+            if (isset($step['is_conditional']) && $step['is_conditional']) {
+                $processedStep['is_conditional'] = true;
+                if (!empty($step['condition_type'])) {
+                    $processedStep['condition_type'] = $step['condition_type'];
+                }
+                if (!empty($step['condition_value'])) {
+                    // Remove dots from formatted number
+                    $processedStep['condition_value'] = (int) str_replace('.', '', $step['condition_value']);
+                }
+            }
+            
+            // Add dynamic step insertion support (NEW)
+            if (isset($step['can_insert_step']) && $step['can_insert_step']) {
+                $processedStep['can_insert_step'] = true;
+                
+                // Process insert step template if provided
+                if (!empty($step['insert_step_template']) && is_array($step['insert_step_template'])) {
+                    $template = $step['insert_step_template'];
+                    
+                    // Only include template if name and approver_type are set
+                    if (!empty($template['name']) && !empty($template['approver_type'])) {
+                        $processedTemplate = [
+                            'name' => trim($template['name']),
+                            'approver_type' => $template['approver_type'],
+                        ];
+                        
+                        // Add approver-specific fields
+                        if (!empty($template['approver_id'])) {
+                            $processedTemplate['approver_id'] = (int) $template['approver_id'];
+                        }
+                        if (!empty($template['approver_role_id'])) {
+                            $processedTemplate['approver_role_id'] = (int) $template['approver_role_id'];
+                        }
+                        if (!empty($template['approver_department_id'])) {
+                            $processedTemplate['approver_department_id'] = (int) $template['approver_department_id'];
+                        }
+                        if (!empty($template['required_action'])) {
+                            $processedTemplate['required_action'] = trim($template['required_action']);
+                        }
+                        if (!empty($template['condition_value'])) {
+                            // Remove dots from formatted number
+                            $processedTemplate['condition_value'] = (int) str_replace('.', '', $template['condition_value']);
+                        }
+                        if (isset($template['can_insert_step']) && $template['can_insert_step']) {
+                            $processedTemplate['can_insert_step'] = true;
+                        } else {
+                            $processedTemplate['can_insert_step'] = false;
+                        }
+                        
+                        $processedStep['insert_step_template'] = $processedTemplate;
+                    }
+                }
+            } else {
+                $processedStep['can_insert_step'] = false;
             }
 
             $processedSteps[] = $processedStep;

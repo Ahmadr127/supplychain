@@ -142,6 +142,28 @@
                                            placeholder="Contoh: Manager unit input harga dan approve">{{ $step['description'] ?? '' }}</textarea>
                                 </div>
                                 
+                                <!-- Required Action (NEW) -->
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        <i class="fas fa-cog text-blue-600 mr-1"></i>
+                                        Required Action (Aksi Khusus)
+                                    </label>
+                                    <select name="workflow_steps[{{ $index + 1 }}][required_action]"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">Tidak ada aksi khusus</option>
+                                        <option value="input_price" {{ isset($step['required_action']) && $step['required_action'] == 'input_price' ? 'selected' : '' }}>
+                                            Input Harga (Manager)
+                                        </option>
+                                        <option value="verify_budget" {{ isset($step['required_action']) && $step['required_action'] == 'verify_budget' ? 'selected' : '' }}>
+                                            Verifikasi Budget + Upload FS (Keuangan)
+                                        </option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        <strong>input_price:</strong> Step ini akan menampilkan form input harga satuan<br>
+                                        <strong>verify_budget:</strong> Step ini akan menampilkan upload dokumen FS jika total ≥ threshold
+                                    </p>
+                                </div>
+                                
                                 <!-- Conditional Step Settings -->
                                 <div class="md:col-span-2 border-t pt-3 mt-2">
                                     <label class="flex items-center mb-3">
@@ -169,6 +191,134 @@
                                                    placeholder="100000000"
                                                    oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
                                             <p class="text-xs text-gray-500 mt-1">Step ini akan dijalankan jika total harga >= nilai ini</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Dynamic Step Insertion Permission (NEW) -->
+                                <div class="md:col-span-2 border-t pt-3 mt-2">
+                                    <label class="flex items-center mb-3">
+                                        <input type="checkbox" name="workflow_steps[{{ $index + 1 }}][can_insert_step]" value="1"
+                                               {{ isset($step['can_insert_step']) && $step['can_insert_step'] ? 'checked' : '' }}
+                                               class="rounded border-gray-300 text-yellow-600 shadow-sm focus:border-yellow-300 focus:ring focus:ring-yellow-200 focus:ring-opacity-50"
+                                               onchange="toggleInsertStepTemplate(this, {{ $index + 1 }})">
+                                        <span class="ml-2 text-sm font-medium text-gray-700">
+                                            <i class="fas fa-plus-circle text-yellow-600 mr-1"></i>
+                                            Approver di step ini bisa menambah step baru
+                                        </span>
+                                    </label>
+                                    <p class="text-xs text-gray-500 mb-3 ml-6">
+                                        Jika dicentang, approver dapat menambahkan step approval tambahan secara dinamis
+                                    </p>
+                                    
+                                    <!-- Insert Step Template Configuration -->
+                                    <div id="insert_step_template_{{ $index + 1 }}" class="{{ isset($step['can_insert_step']) && $step['can_insert_step'] ? '' : 'hidden' }} bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+                                        <h4 class="text-sm font-semibold text-gray-900 mb-2">
+                                            <i class="fas fa-cog text-yellow-600 mr-1"></i>
+                                            Konfigurasi Quick Insert Template
+                                        </h4>
+                                        <p class="text-xs text-gray-600 mb-3">Template step yang akan ditambahkan (user hanya perlu centang checkbox)</p>
+                                        
+                                        @php
+                                            $template = $step['insert_step_template'] ?? [];
+                                        @endphp
+                                        
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div class="md:col-span-2">
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">Nama Step Template</label>
+                                                <input type="text" name="workflow_steps[{{ $index + 1 }}][insert_step_template][name]"
+                                                       value="{{ $template['name'] ?? '' }}"
+                                                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                                       placeholder="Contoh: Manager Keuangan - Verifikasi Budget">
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">Tipe Approver</label>
+                                                <select name="workflow_steps[{{ $index + 1 }}][insert_step_template][approver_type]"
+                                                        id="template_approver_type_{{ $index + 1 }}"
+                                                        onchange="toggleTemplateApproverFields(this, {{ $index + 1 }})"
+                                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                                    <option value="">Pilih Tipe...</option>
+                                                    <option value="user" {{ isset($template['approver_type']) && $template['approver_type'] == 'user' ? 'selected' : '' }}>User Spesifik</option>
+                                                    <option value="role" {{ isset($template['approver_type']) && $template['approver_type'] == 'role' ? 'selected' : '' }}>Role</option>
+                                                    <option value="department_manager" {{ isset($template['approver_type']) && $template['approver_type'] == 'department_manager' ? 'selected' : '' }}>Manager Department</option>
+                                                    <option value="requester_department_manager" {{ isset($template['approver_type']) && $template['approver_type'] == 'requester_department_manager' ? 'selected' : '' }}>Manager Dept Requester</option>
+                                                    <option value="any_department_manager" {{ isset($template['approver_type']) && $template['approver_type'] == 'any_department_manager' ? 'selected' : '' }}>Semua Manager</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div id="template_approver_user_{{ $index + 1 }}" class="{{ isset($template['approver_type']) && $template['approver_type'] == 'user' ? '' : 'hidden' }}">
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">User</label>
+                                                <select name="workflow_steps[{{ $index + 1 }}][insert_step_template][approver_id]"
+                                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                                    <option value="">Pilih User...</option>
+                                                    @foreach ($users as $user)
+                                                        <option value="{{ $user->id }}" {{ isset($template['approver_id']) && $template['approver_id'] == $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            
+                                            <div id="template_approver_role_{{ $index + 1 }}" class="{{ isset($template['approver_type']) && $template['approver_type'] == 'role' ? '' : 'hidden' }}">
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">Role</label>
+                                                <select name="workflow_steps[{{ $index + 1 }}][insert_step_template][approver_role_id]"
+                                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                                    <option value="">Pilih Role...</option>
+                                                    @foreach ($roles as $role)
+                                                        <option value="{{ $role->id }}" {{ isset($template['approver_role_id']) && $template['approver_role_id'] == $role->id ? 'selected' : '' }}>{{ $role->display_name }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            
+                                            <div id="template_approver_department_{{ $index + 1 }}" class="{{ isset($template['approver_type']) && $template['approver_type'] == 'department_manager' ? '' : 'hidden' }}">
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">Department</label>
+                                                <select name="workflow_steps[{{ $index + 1 }}][insert_step_template][approver_department_id]"
+                                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                                    <option value="">Pilih Department...</option>
+                                                    @foreach ($departments as $dept)
+                                                        <option value="{{ $dept->id }}" {{ isset($template['approver_department_id']) && $template['approver_department_id'] == $dept->id ? 'selected' : '' }}>{{ $dept->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">
+                                                    <i class="fas fa-cog text-blue-600 mr-1"></i>
+                                                    Required Action
+                                                </label>
+                                                <select name="workflow_steps[{{ $index + 1 }}][insert_step_template][required_action]"
+                                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                                    <option value="">Tidak ada aksi khusus</option>
+                                                    <option value="input_price" {{ isset($template['required_action']) && $template['required_action'] == 'input_price' ? 'selected' : '' }}>
+                                                        Input Harga (Manager)
+                                                    </option>
+                                                    <option value="verify_budget" {{ isset($template['required_action']) && $template['required_action'] == 'verify_budget' ? 'selected' : '' }}>
+                                                        Verifikasi Budget + Upload FS
+                                                    </option>
+                                                </select>
+                                                <p class="text-xs text-gray-500 mt-1">Aksi khusus yang diperlukan di step ini</p>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 mb-1">
+                                                    <i class="fas fa-dollar-sign text-green-600 mr-1"></i>
+                                                    Threshold FS (Rp)
+                                                </label>
+                                                <input type="text" name="workflow_steps[{{ $index + 1 }}][insert_step_template][condition_value]"
+                                                       value="{{ isset($template['condition_value']) ? number_format($template['condition_value'], 0, ',', '.') : '' }}"
+                                                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                                       placeholder="90.000"
+                                                       oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                                                <p class="text-xs text-gray-500 mt-1">Upload FS jika total ≥ nilai ini (kosongkan = 100jt default)</p>
+                                            </div>
+                                            
+                                            <div class="md:col-span-2">
+                                                <label class="flex items-center">
+                                                    <input type="checkbox" name="workflow_steps[{{ $index + 1 }}][insert_step_template][can_insert_step]" value="1"
+                                                           {{ isset($template['can_insert_step']) && $template['can_insert_step'] ? 'checked' : '' }}
+                                                           class="rounded border-gray-300 text-yellow-600">
+                                                    <span class="ml-2 text-xs text-gray-700">Step yang ditambahkan juga bisa insert step lagi (nested)</span>
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -437,6 +587,38 @@ function toggleConditionalFields(checkbox, stepNumber) {
         conditionalFields.classList.remove('hidden');
     } else {
         conditionalFields.classList.add('hidden');
+    }
+}
+
+// Toggle insert step template configuration
+function toggleInsertStepTemplate(checkbox, stepNumber) {
+    const templateDiv = document.getElementById(`insert_step_template_${stepNumber}`);
+    if (checkbox.checked) {
+        templateDiv.classList.remove('hidden');
+    } else {
+        templateDiv.classList.add('hidden');
+    }
+}
+
+// Toggle template approver fields based on type
+function toggleTemplateApproverFields(select, stepNumber) {
+    const approverType = select.value;
+    const userField = document.getElementById(`template_approver_user_${stepNumber}`);
+    const roleField = document.getElementById(`template_approver_role_${stepNumber}`);
+    const deptField = document.getElementById(`template_approver_department_${stepNumber}`);
+    
+    // Hide all
+    userField.classList.add('hidden');
+    roleField.classList.add('hidden');
+    deptField.classList.add('hidden');
+    
+    // Show relevant field
+    if (approverType === 'user') {
+        userField.classList.remove('hidden');
+    } else if (approverType === 'role') {
+        roleField.classList.remove('hidden');
+    } else if (approverType === 'department_manager') {
+        deptField.classList.remove('hidden');
     }
 }
 

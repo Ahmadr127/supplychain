@@ -313,6 +313,104 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Dynamic Step Insertion Permission (NEW) -->
+            <div class="md:col-span-2 border-t pt-3 mt-2">
+                <label class="flex items-center mb-3">
+                    <input type="checkbox" name="workflow_steps[${stepNumber}][can_insert_step]" value="1"
+                           class="rounded border-gray-300 text-yellow-600 shadow-sm focus:border-yellow-300 focus:ring focus:ring-yellow-200 focus:ring-opacity-50"
+                           onchange="toggleInsertStepTemplate(this, ${stepNumber})">
+                    <span class="ml-2 text-sm font-medium text-gray-700">
+                        <i class="fas fa-plus-circle text-yellow-600 mr-1"></i>
+                        Approver di step ini bisa menambah step baru
+                    </span>
+                </label>
+                <p class="text-xs text-gray-500 mb-3 ml-6">
+                    Jika dicentang, approver dapat menambahkan step approval tambahan secara dinamis
+                </p>
+                
+                <!-- Insert Step Template Configuration -->
+                <div id="insert_step_template_${stepNumber}" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+                    <h4 class="text-sm font-semibold text-gray-900 mb-2">
+                        <i class="fas fa-cog text-yellow-600 mr-1"></i>
+                        Konfigurasi Quick Insert Template
+                    </h4>
+                    <p class="text-xs text-gray-600 mb-3">Template step yang akan ditambahkan (user hanya perlu centang checkbox)</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Nama Step Template</label>
+                            <input type="text" name="workflow_steps[${stepNumber}][insert_step_template][name]"
+                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                   placeholder="Contoh: Manager Keuangan - Verifikasi Budget">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Tipe Approver</label>
+                            <select name="workflow_steps[${stepNumber}][insert_step_template][approver_type]"
+                                    id="template_approver_type_${stepNumber}"
+                                    onchange="toggleTemplateApproverFields(this, ${stepNumber})"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                <option value="">Pilih Tipe...</option>
+                                <option value="user">User Spesifik</option>
+                                <option value="role">Role</option>
+                                <option value="department_manager">Manager Department</option>
+                                <option value="requester_department_manager">Manager Dept Requester</option>
+                                <option value="any_department_manager">Semua Manager</option>
+                            </select>
+                        </div>
+                        
+                        <div id="template_approver_user_${stepNumber}" class="hidden">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">User</label>
+                            <select name="workflow_steps[${stepNumber}][insert_step_template][approver_id]"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                <option value="">Pilih User...</option>
+                                @foreach ($users as $user)
+                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        
+                        <div id="template_approver_role_${stepNumber}" class="hidden">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Role</label>
+                            <select name="workflow_steps[${stepNumber}][insert_step_template][approver_role_id]"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                <option value="">Pilih Role...</option>
+                                @foreach ($roles as $role)
+                                    <option value="{{ $role->id }}">{{ $role->display_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        
+                        <div id="template_approver_department_${stepNumber}" class="hidden">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Department</label>
+                            <select name="workflow_steps[${stepNumber}][insert_step_template][approver_department_id]"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                <option value="">Pilih Department...</option>
+                                @foreach ($departments as $dept)
+                                    <option value="{{ $dept->id }}">{{ $dept->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Required Action (Opsional)</label>
+                            <input type="text" name="workflow_steps[${stepNumber}][insert_step_template][required_action]"
+                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                   placeholder="verify_budget, upload_document">
+                            <p class="text-xs text-gray-500 mt-1">Kode aksi untuk tracking</p>
+                        </div>
+                        
+                        <div class="md:col-span-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" name="workflow_steps[${stepNumber}][insert_step_template][can_insert_step]" value="1"
+                                       class="rounded border-gray-300 text-yellow-600">
+                                <span class="ml-2 text-xs text-gray-700">Step yang ditambahkan juga bisa insert step lagi (nested)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div id="approver_user_${stepNumber}" class="approver-field" style="display: none;">
                 <label class="block text-sm font-medium text-gray-700 mb-2">User</label>
                 <select name="workflow_steps[${stepNumber}][approver_id]"
@@ -378,6 +476,38 @@
                 conditionalFields.classList.remove('hidden');
             } else {
                 conditionalFields.classList.add('hidden');
+            }
+        }
+        
+        // Toggle insert step template configuration
+        function toggleInsertStepTemplate(checkbox, stepNumber) {
+            const templateDiv = document.getElementById(`insert_step_template_${stepNumber}`);
+            if (checkbox.checked) {
+                templateDiv.classList.remove('hidden');
+            } else {
+                templateDiv.classList.add('hidden');
+            }
+        }
+        
+        // Toggle template approver fields based on type
+        function toggleTemplateApproverFields(select, stepNumber) {
+            const approverType = select.value;
+            const userField = document.getElementById(`template_approver_user_${stepNumber}`);
+            const roleField = document.getElementById(`template_approver_role_${stepNumber}`);
+            const deptField = document.getElementById(`template_approver_department_${stepNumber}`);
+            
+            // Hide all
+            userField.classList.add('hidden');
+            roleField.classList.add('hidden');
+            deptField.classList.add('hidden');
+            
+            // Show relevant field
+            if (approverType === 'user') {
+                userField.classList.remove('hidden');
+            } else if (approverType === 'role') {
+                roleField.classList.remove('hidden');
+            } else if (approverType === 'department_manager') {
+                deptField.classList.remove('hidden');
             }
         }
 

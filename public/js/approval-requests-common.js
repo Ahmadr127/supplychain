@@ -169,6 +169,7 @@ async function loadStepMetadata() {
                 const timeStr = actionDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
                 const userName = data.action_by; // Full name
                 
+                // Don't show required_action - it's internal metadata
                 meta.innerHTML = `<div class="text-gray-600 whitespace-nowrap">${dateStr} ${timeStr} • ${userName}</div>`;
             } else {
                 meta.innerHTML = '<div class="text-gray-400">-</div>';

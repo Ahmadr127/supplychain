@@ -23,10 +23,22 @@ class ApprovalItemStep extends Model
         'approved_at',
         'comments',
         'rejected_reason',
+        // Dynamic step insertion support
+        'can_insert_step',
+        'insert_step_template',
+        'is_dynamic',
+        'inserted_by',
+        'inserted_at',
+        'insertion_reason',
+        'required_action',
     ];
 
     protected $casts = [
         'approved_at' => 'datetime',
+        'inserted_at' => 'datetime',
+        'can_insert_step' => 'boolean',
+        'insert_step_template' => 'array',
+        'is_dynamic' => 'boolean',
     ];
 
     public function request()
@@ -42,6 +54,11 @@ class ApprovalItemStep extends Model
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function inserter()
+    {
+        return $this->belongsTo(User::class, 'inserted_by');
     }
 
     // Check if a user can approve this item step

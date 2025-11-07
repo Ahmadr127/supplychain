@@ -109,6 +109,11 @@ Route::middleware('auth')->group(function () {
         Route::post('approval-requests/{approvalRequest}/items/{item}/reject', [\App\Http\Controllers\ApprovalItemApprovalController::class, 'reject'])->name('approval.items.reject');
         Route::post('approval-requests/{approvalRequest}/items/{item}/set-pending', [\App\Http\Controllers\ApprovalItemApprovalController::class, 'setPending'])->name('approval.items.setPending');
         
+        // Dynamic step insertion (NEW)
+        Route::post('approval-items/{item}/insert-step', [\App\Http\Controllers\ApprovalItemStepController::class, 'insertStep'])->name('approval-items.insert-step');
+        Route::post('approval-items/{item}/quick-insert-step', [\App\Http\Controllers\ApprovalItemStepController::class, 'quickInsertStep'])->name('approval-items.quick-insert-step');
+        Route::delete('approval-steps/{step}/delete', [\App\Http\Controllers\ApprovalItemStepController::class, 'deleteStep'])->name('approval-steps.delete');
+        
         // Simplified approval action (single endpoint for approve/reject)
         Route::post('approval-requests/approve-item', [ApprovalRequestController::class, 'approveItem'])->name('approval-requests.approve-item');
     });
