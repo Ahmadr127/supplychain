@@ -49,8 +49,14 @@ class ApprovalItemApprovalController extends Controller
         // Step with required_action 'verify_budget': require FS upload if total >= threshold
         if ($currentStep && $currentStep->required_action == 'verify_budget') {
             $totalPrice = $item->quantity * ($item->unit_price ?? 0);
-            $fsThreshold = \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-            Log::info('🟨 Budget Verification Step: Total Price = Rp ' . number_format($totalPrice, 0, ',', '.') . ' | Threshold = Rp ' . number_format($fsThreshold, 0, ',', '.'));
+            
+            // Use step's condition_value as threshold if available, otherwise use global setting
+            $fsThreshold = $currentStep->condition_value 
+                ? $currentStep->condition_value 
+                : \App\Models\Setting::get('fs_threshold_per_item', 100000000);
+            
+            Log::info('🟨 Budget Verification Step: Total Price = Rp ' . number_format($totalPrice, 0, ',', '.') . ' | Threshold = Rp ' . number_format($fsThreshold, 0, ',', '.') . ' | Step condition_value = ' . ($currentStep->condition_value ?? 'NULL'));
+            
             if ($totalPrice >= $fsThreshold) {
                 $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
                 Log::info('🟨 FS Document upload required (total >= threshold)');
@@ -453,12 +459,15 @@ class ApprovalItemApprovalController extends Controller
                 'inserted_at' => now(),
                 'insertion_reason' => 'Ditambahkan via quick insert oleh ' . auth()->user()->name,
                 'required_action' => $template['required_action'] ?? null,
+                'condition_value' => $template['condition_value'] ?? null,
             ]);
             
             Log::info('✅ Quick insert step created', [
                 'item_id' => $item->id,
                 'template_name' => $template['name'],
                 'inserted_by' => auth()->id(),
+                'required_action' => $template['required_action'] ?? null,
+                'condition_value' => $template['condition_value'] ?? null,
             ]);
             
         } catch (\Exception $e) {

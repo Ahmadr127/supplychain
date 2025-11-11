@@ -7,6 +7,20 @@
 @php
     // Check if current user is director level
     $isDirectorLevel = auth()->user()->isDirectorLevel();
+    $currentUser = auth()->user();
+    
+    // Check if user should see progress column at all
+    $showProgressColumn = $isDirectorLevel;
+    
+    // If not director, check if user is manager and has any requests from their department
+    if (!$showProgressColumn) {
+        foreach ($pendingItems as $item) {
+            if ($currentUser->isManagerOfRequester($item->request->requester)) {
+                $showProgressColumn = true;
+                break;
+            }
+        }
+    }
 @endphp
 
 <x-responsive-table 
@@ -71,7 +85,7 @@
                     <th class="w-1/5 text-left">Request & Item</th>
                     <th class="w-48 text-left">Unit Peruntukan</th>
                     <th class="w-32 text-left">Pengaju</th>
-                    @if($isDirectorLevel)
+                    @if($showProgressColumn)
                         <th class="w-1/2 text-left">Progress</th>
                     @endif
                     <th class="w-20 text-left">Status</th>
@@ -112,10 +126,20 @@
                     <td class="w-32">
                         <div class="text-sm font-medium text-gray-900">{{ $row->request->requester->name }}</div>
                     </td>
-                    @if($isDirectorLevel)
-                        <td class="w-1/2">
-                            <x-approval-progress-steps :request="$row->request" :step-data="$row->itemData" :show-metadata="true" />
-                        </td>
+                    @if($showProgressColumn)
+                        @php
+                            // Show progress if user is director OR manager of requester's department
+                            $showProgress = $isDirectorLevel || $currentUser->isManagerOfRequester($row->request->requester);
+                        @endphp
+                        @if($showProgress)
+                            <td class="w-1/2">
+                                <x-approval-progress-steps :request="$row->request" :step-data="$row->itemData" :show-metadata="true" />
+                            </td>
+                        @else
+                            <td class="w-1/2">
+                                <span class="text-xs text-gray-400 italic">-</span>
+                            </td>
+                        @endif
                     @endif
                     <td class="w-20">
                         @php

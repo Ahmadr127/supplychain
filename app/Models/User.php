@@ -148,4 +148,22 @@ class User extends Authenticatable
         
         return false;
     }
+
+    // Method untuk check apakah user adalah manager dari requester tertentu
+    public function isManagerOfRequester($requester)
+    {
+        if (!$requester) {
+            return false;
+        }
+
+        // Get requester's primary department
+        $requesterPrimaryDept = $requester->departments()->wherePivot('is_primary', true)->first();
+        
+        if (!$requesterPrimaryDept) {
+            return false;
+        }
+
+        // Check if current user is manager of that department
+        return $this->isManagerOf($requesterPrimaryDept->id);
+    }
 }

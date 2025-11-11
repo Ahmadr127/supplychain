@@ -31,6 +31,10 @@ class ApprovalItemStep extends Model
         'inserted_at',
         'insertion_reason',
         'required_action',
+        // Conditional step fields
+        'is_conditional',
+        'condition_type',
+        'condition_value',
     ];
 
     protected $casts = [

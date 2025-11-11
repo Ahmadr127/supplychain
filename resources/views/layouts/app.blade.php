@@ -25,9 +25,35 @@
         .allow-horizontal-scroll {
             max-width: none;
         }
+
+        /* Custom Scrollbar for Sidebar */
+        .sidebar-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }
+        
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* For Firefox */
+        .sidebar-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+        }
     </style>
 </head>
-<body class="bg-gray-100 overflow-x-hidden">
+<body class="bg-gray-100 overflow-x-hidden h-screen">
     <div x-data="{
             sidebarOpen: false,
             sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === '1',
@@ -43,16 +69,16 @@
             // Dispatch custom event for responsive table components
             document.dispatchEvent(new CustomEvent('sidebar-toggled'));
         })"
-        class="min-h-screen flex overflow-x-hidden">
+        class="h-full flex overflow-x-hidden">
         <!-- Sidebar -->
         <div :class="[
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full',
                 sidebarCollapsed ? 'w-20' : 'w-64'
             ]"
-            class="fixed inset-y-0 left-0 z-50 bg-green-700 shadow-lg transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0">
+            class="fixed inset-y-0 left-0 z-50 bg-green-700 shadow-lg transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col h-screen">
             
             <!-- Logo/Brand -->
-            <div class="flex items-center justify-between h-20 px-4 border-b border-green-600">
+            <div class="flex items-center justify-between h-20 px-4 border-b border-green-600 flex-shrink-0">
                 <div class="flex items-center space-x-3 overflow-hidden">
                     <div class="bg-white rounded-xl border border-green-200 shadow-sm p-2 flex-shrink-0">
                         <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-8 w-auto object-contain">
@@ -63,7 +89,7 @@
             </div>
 
             <!-- Sidebar Navigation -->
-            <nav class="px-4 py-6">
+            <nav class="flex-1 overflow-y-auto sidebar-scroll px-4 py-6">
                 <div class="mb-6">
                     <h3 x-show="!sidebarCollapsed" class="text-xs font-semibold text-green-200 uppercase tracking-wider mb-3">MENU UTAMA</h3>
                 </div>
@@ -233,7 +259,7 @@
         </div>
 
         <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col lg:ml-0 overflow-x-hidden max-w-full">
+        <div class="flex-1 flex flex-col lg:ml-0 overflow-x-hidden max-w-full h-full">
             <!-- Top Navigation Bar -->
             <header class="bg-white shadow-sm border-b border-gray-200">
                 <div class="flex items-center justify-between h-16 px-6">
@@ -333,7 +359,7 @@
             </header>
 
             <!-- Page Content -->
-            <main class="flex-1 p-3 sm:p-4 lg:p-5 bg-gray-50 overflow-x-hidden max-w-full">
+            <main class="flex-1 p-3 sm:p-4 lg:p-5 bg-gray-50 overflow-y-auto overflow-x-hidden max-w-full">
                 {{-- Toasts handled globally via JS --}}
 
                 @yield('content')

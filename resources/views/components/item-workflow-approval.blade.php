@@ -26,9 +26,22 @@ $masterItem = $item->masterItem;
     
     // Use step's condition_value as threshold if available, otherwise use global setting
     // Priority: 1. Step's condition_value, 2. Global setting (100jt default)
-    $fsThreshold = ($currentPendingStep && $currentPendingStep->condition_value) 
+    $fsThreshold = ($currentPendingStep && $currentPendingStep->condition_value !== null) 
         ? $currentPendingStep->condition_value 
         : \App\Models\Setting::get('fs_threshold_per_item', 100000000);
+    
+    // Debug logging jangan dihapus
+    \Log::info('🔍 FS Upload Check', [
+        'item_id' => $item->id,
+        'current_step_number' => $currentPendingStep ? $currentPendingStep->step_number : 'NO_STEP',
+        'current_step_name' => $currentPendingStep ? $currentPendingStep->step_name : 'NO_STEP',
+        'required_action' => $currentPendingStep ? $currentPendingStep->required_action : 'NO_STEP',
+        'requiresFsUpload' => $requiresFsUpload,
+        'totalPrice' => $totalPrice,
+        'fsThreshold' => $fsThreshold,
+        'step_condition_value' => $currentPendingStep ? $currentPendingStep->condition_value : 'NO_STEP',
+        'needsFsUpload' => $requiresFsUpload && $totalPrice >= $fsThreshold,
+    ]);
     
     $needsFsUpload = $requiresFsUpload && $totalPrice >= $fsThreshold;
 @endphp
@@ -133,7 +146,7 @@ $masterItem = $item->masterItem;
                             <div class="flex items-start gap-1">
                                 <i class="fas fa-exclamation-triangle text-yellow-600 text-xs mt-0.5"></i>
                                 <p class="text-[10px] text-yellow-800">
-                                    <strong>Keuangan:</strong> Total harga ≥ Rp 100.000.000. Wajib upload dokumen FS.
+                                    <strong>Keuangan:</strong> Total harga Rp {{ number_format($totalPrice, 0, ',', '.') }} ≥ Threshold Rp {{ number_format($fsThreshold, 0, ',', '.') }}. Wajib upload dokumen FS.
                                 </p>
                             </div>
                         </div>
