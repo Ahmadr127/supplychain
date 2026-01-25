@@ -13,17 +13,32 @@ class ApprovalWorkflow extends Model
         'name',
         'type',
         'description',
-        'workflow_steps',
+        'workflow_steps',  // JSON: array of step definitions
+        'steps',           // Alias for workflow_steps (from seeder)
         'is_active',
         'item_type_id',
-        'is_specific_type'
+        'is_specific_type',
+        // NEW: Procurement type and nominal-based workflow selection
+        'procurement_type_id',
+        'nominal_min',
+        'nominal_max',
+        'nominal_range',   // low, medium, high
+        'priority',        // For workflow selection ordering
     ];
 
     protected $casts = [
         'workflow_steps' => 'array',
+        'steps' => 'array',
         'is_active' => 'boolean',
         'is_specific_type' => 'boolean',
+        'nominal_min' => 'decimal:2',
+        'nominal_max' => 'decimal:2',
+        'priority' => 'integer',
     ];
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RELATIONSHIPS
+    // ═══════════════════════════════════════════════════════════════════════════
 
     // Relasi dengan approval requests
     public function requests()
@@ -37,30 +52,103 @@ class ApprovalWorkflow extends Model
         return $this->belongsTo(\App\Models\ItemType::class);
     }
 
-    // Method untuk mendapatkan workflow steps sebagai collection
-    public function getStepsAttribute()
+    // Relasi dengan procurement type
+    public function procurementType()
     {
-        if (!$this->workflow_steps) {
+        return $this->belongsTo(ProcurementType::class);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ACCESSORS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Method untuk mendapatkan workflow steps sebagai collection
+     * Supports both old format (workflow_steps) and new format (steps)
+     */
+    public function getStepsAttribute($value)
+    {
+        // If already accessed as attribute and cached
+        if ($value && is_array($value)) {
+            return $this->parseSteps($value);
+        }
+
+        // Try new 'steps' column first (from seeder), then fall back to 'workflow_steps'
+        $stepsData = $this->attributes['steps'] ?? $this->attributes['workflow_steps'] ?? null;
+        
+        if (!$stepsData) {
             return collect();
         }
 
-        return collect($this->workflow_steps)->map(function ($step, $index) {
+        // Decode if JSON string
+        if (is_string($stepsData)) {
+            $stepsData = json_decode($stepsData, true);
+        }
+
+        return $this->parseSteps($stepsData);
+    }
+
+    /**
+     * Parse steps array into collection of objects
+     */
+    protected function parseSteps(array $stepsData): \Illuminate\Support\Collection
+    {
+        return collect($stepsData)->map(function ($step, $index) {
+            // Handle both object and array formats
+            $step = (array) $step;
+            
             return (object) [
-                'step_number' => $index + 1,
-                'step_name' => $step['name'],
-                'approver_type' => $step['approver_type'],
+                'step_number' => $step['step_number'] ?? ($index + 1),
+                'step_name' => $step['step_name'] ?? $step['name'] ?? "Step " . ($index + 1),
+                'approver_type' => $step['approver_type'] ?? 'role',
                 'approver_id' => $step['approver_id'] ?? null,
                 'approver_role_id' => $step['approver_role_id'] ?? null,
                 'approver_department_id' => $step['approver_department_id'] ?? null,
-                'can_insert_step' => $step['can_insert_step'] ?? false, // Support dynamic step insertion
-                'insert_step_template' => $step['insert_step_template'] ?? null, // Pre-configured insert template
-                'required_action' => $step['required_action'] ?? null, // Required action (input_price, verify_budget, etc.)
-                'is_conditional' => $step['is_conditional'] ?? false, // Conditional step
-                'condition_type' => $step['condition_type'] ?? null, // Condition type (total_price, etc.)
-                'condition_value' => $step['condition_value'] ?? null, // Condition threshold value
-                'description' => $step['description'] ?? null, // Step description
+                'can_insert_step' => $step['can_insert_step'] ?? false,
+                'insert_step_template' => $step['insert_step_template'] ?? null,
+                'required_action' => $step['required_action'] ?? null,
+                'is_conditional' => $step['is_conditional'] ?? false,
+                'condition_type' => $step['condition_type'] ?? null,
+                'condition_value' => $step['condition_value'] ?? null,
+                'description' => $step['description'] ?? null,
+                // NEW: Step type and phase for 3-phase workflow
+                'step_type' => $step['step_type'] ?? 'approver',
+                'step_phase' => $step['step_phase'] ?? 'approval',
+                'scope_process' => $step['scope_process'] ?? null,
             ];
         });
+    }
+
+    /**
+     * Get only approval phase steps
+     */
+    public function getApprovalPhaseSteps(): \Illuminate\Support\Collection
+    {
+        return $this->steps->filter(fn($step) => ($step->step_phase ?? 'approval') === 'approval');
+    }
+
+    /**
+     * Get only release phase steps
+     */
+    public function getReleasePhaseSteps(): \Illuminate\Support\Collection
+    {
+        return $this->steps->filter(fn($step) => ($step->step_phase ?? 'approval') === 'release');
+    }
+
+    /**
+     * Count approval steps
+     */
+    public function countApprovalSteps(): int
+    {
+        return $this->getApprovalPhaseSteps()->count();
+    }
+
+    /**
+     * Count release steps
+     */
+    public function countReleaseSteps(): int
+    {
+        return $this->getReleasePhaseSteps()->count();
     }
 
     // Scope untuk workflow aktif

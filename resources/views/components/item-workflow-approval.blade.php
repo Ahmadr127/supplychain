@@ -12,6 +12,24 @@ $currentPendingStep = $item->getCurrentPendingStep();
 $userId = auth()->id();
 $masterItem = $item->masterItem;
 
+// Separate steps by phase
+$approvalPhaseSteps = $itemSteps->filter(fn($s) => ($s->step_phase ?? 'approval') === 'approval');
+$releasePhaseSteps = $itemSteps->filter(fn($s) => ($s->step_phase ?? 'approval') === 'release');
+$hasReleasePhase = $releasePhaseSteps->count() > 0;
+
+// Check current phase of the item
+$currentPhase = 'approval'; // default
+if ($item->status === 'in_purchasing') {
+    $currentPhase = 'purchasing';
+} elseif ($item->status === 'in_release') {
+    $currentPhase = 'release';
+} elseif ($item->status === 'approved') {
+    $currentPhase = 'completed';
+}
+
+// Is current step a release phase step?
+$isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'approval') === 'release';
+
 // Check if any step is rejected - if yes, don't show approval form
     $hasRejectedStep = $itemSteps->contains('status', 'rejected');
 
@@ -19,6 +37,9 @@ $masterItem = $item->masterItem;
     $needsPriceInput = $currentPendingStep && 
                        $currentPendingStep->required_action == 'input_price' && 
                        ($item->unit_price === null || $item->unit_price <= 0);
+
+    // Check if current step requires CapEx selection
+    $needsCapexSelection = $currentPendingStep && $currentPendingStep->required_action == 'select_capex';
 
     // Check if current step requires FS upload (based on required_action)
     $requiresFsUpload = $currentPendingStep && $currentPendingStep->required_action == 'verify_budget';
@@ -31,20 +52,37 @@ $masterItem = $item->masterItem;
         : \App\Models\Setting::get('fs_threshold_per_item', 100000000);
     
     // Debug logging jangan dihapus
-    \Log::info('🔍 FS Upload Check', [
+    \Log::info('🔍 Workflow Step Check', [
         'item_id' => $item->id,
+        'item_status' => $item->status,
+        'current_phase' => $currentPhase,
+        'has_release_phase' => $hasReleasePhase,
+        'is_release_step' => $isReleaseStep,
         'current_step_number' => $currentPendingStep ? $currentPendingStep->step_number : 'NO_STEP',
         'current_step_name' => $currentPendingStep ? $currentPendingStep->step_name : 'NO_STEP',
+        'step_phase' => $currentPendingStep ? ($currentPendingStep->step_phase ?? 'approval') : 'NO_STEP',
+        'step_type' => $currentPendingStep ? ($currentPendingStep->step_type ?? 'approver') : 'NO_STEP',
+        'scope_process' => $currentPendingStep ? $currentPendingStep->scope_process : 'NO_STEP',
         'required_action' => $currentPendingStep ? $currentPendingStep->required_action : 'NO_STEP',
-        'requiresFsUpload' => $requiresFsUpload,
-        'totalPrice' => $totalPrice,
-        'fsThreshold' => $fsThreshold,
-        'step_condition_value' => $currentPendingStep ? $currentPendingStep->condition_value : 'NO_STEP',
-        'needsFsUpload' => $requiresFsUpload && $totalPrice >= $fsThreshold,
     ]);
     
     $needsFsUpload = $requiresFsUpload && $totalPrice >= $fsThreshold;
+
+    // Get PurchasingItem for release phase info
+    $purchasingItem = null;
+    if ($isReleaseStep || $currentPhase === 'purchasing') {
+        $purchasingItem = \App\Models\PurchasingItem::where('approval_request_id', $approvalRequest->id)
+            ->where('master_item_id', $item->master_item_id)
+            ->first();
+    }
 @endphp
+
+{{-- Phase Indicator for 3-phase workflow --}}
+@if($hasReleasePhase)
+<div class="mb-3">
+    <x-phase-indicator :item="$item" :purchasingItem="$purchasingItem" />
+</div>
+@endif
 
 @if ($hasRejectedStep)
     <!-- Rejected Notice -->
@@ -60,11 +98,78 @@ $masterItem = $item->masterItem;
         </div>
     </div>
 @elseif($itemSteps->count() > 0 && $currentPendingStep && $currentPendingStep->canApprove($userId))
-    <!-- Approval Action Card - Simple & Professional -->
-    <div class="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
-        <h3 class="text-sm font-semibold text-gray-900 mb-3">Approval Form</h3>
+    {{-- Approval Action Card - Simple & Professional --}}
+    <div class="bg-white border {{ $isReleaseStep ? 'border-purple-200' : 'border-gray-200' }} rounded-lg p-3 shadow-sm">
+        {{-- Header based on phase --}}
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold {{ $isReleaseStep ? 'text-purple-900' : 'text-gray-900' }}">
+                @if($isReleaseStep)
+                    <i class="fas fa-paper-plane mr-1 text-purple-500"></i>Release Form
+                @else
+                    <i class="fas fa-check-circle mr-1 text-green-500"></i>Approval Form
+                @endif
+            </h3>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium
+                {{ $isReleaseStep ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">
+                Step {{ $currentPendingStep->step_number }}
+            </span>
+        </div>
 
-        <!-- Hybrid Action Form -->
+        {{-- Current Step Info --}}
+        <div class="bg-gray-50 rounded-md p-2 mb-3 border border-gray-100">
+            <div class="flex items-start gap-2">
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold
+                    {{ $isReleaseStep ? 'bg-purple-500 text-white' : 'bg-blue-500 text-white' }} flex-shrink-0">
+                    {{ $currentPendingStep->step_number }}
+                </span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-gray-900">{{ $currentPendingStep->step_name }}</p>
+                    @if($currentPendingStep->scope_process)
+                        <p class="text-[10px] text-gray-600 mt-0.5">
+                            <i class="fas fa-tasks mr-1"></i>{{ $currentPendingStep->scope_process }}
+                        </p>
+                    @endif
+                    @if($currentPendingStep->step_type && $currentPendingStep->step_type !== 'approver')
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium mt-1
+                            {{ $currentPendingStep->step_type === 'maker' ? 'bg-yellow-100 text-yellow-700' : '' }}
+                            {{ $currentPendingStep->step_type === 'releaser' ? 'bg-purple-100 text-purple-700' : '' }}">
+                            {{ ucfirst($currentPendingStep->step_type) }}
+                        </span>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        {{-- Purchasing Info for Release Phase --}}
+        @if($isReleaseStep && $purchasingItem)
+        <div class="bg-indigo-50 rounded-md p-2 mb-3 border border-indigo-100">
+            <h5 class="text-[10px] font-semibold text-indigo-800 uppercase mb-1">
+                <i class="fas fa-shopping-cart mr-1"></i>Info Purchasing
+            </h5>
+            <div class="grid grid-cols-2 gap-2 text-[10px]">
+                @if($purchasingItem->preferredVendor)
+                <div>
+                    <span class="text-indigo-600">Vendor:</span>
+                    <span class="font-medium text-indigo-900 ml-1">{{ $purchasingItem->preferredVendor->name }}</span>
+                </div>
+                @endif
+                @if($purchasingItem->preferred_total_price)
+                <div>
+                    <span class="text-indigo-600">Total:</span>
+                    <span class="font-semibold text-green-700 ml-1">Rp {{ number_format($purchasingItem->preferred_total_price, 0, ',', '.') }}</span>
+                </div>
+                @endif
+                @if($purchasingItem->po_number)
+                <div class="col-span-2">
+                    <span class="text-indigo-600">No. PO:</span>
+                    <span class="font-medium text-indigo-900 ml-1">{{ $purchasingItem->po_number }}</span>
+                </div>
+                @endif
+            </div>
+        </div>
+        @endif
+
+        {{-- Hybrid Action Form --}}
         <div x-data="{
             action: 'approve',
             approveRoute: '{{ route('approval.items.approve', [$approvalRequest, $item]) }}',
@@ -75,12 +180,12 @@ $masterItem = $item->masterItem;
                 method="POST" enctype="multipart/form-data" class="space-y-3">
                 @csrf
 
-                <!-- Action Selector -->
+                {{-- Action Selector --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">Pilih Aksi</label>
                     <select x-model="action"
                         class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors">
-                        <option value="approve">✓ Approve</option>
+                        <option value="approve">{{ $isReleaseStep ? '✓ Release' : '✓ Approve' }}</option>
                         <option value="reject">✗ Reject</option>
                         <option value="pending">⟲ Set Pending</option>
                     </select>

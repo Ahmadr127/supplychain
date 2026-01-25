@@ -1406,6 +1406,11 @@ class ApprovalRequestController extends Controller
 
     /**
      * Initialize per-item approval steps from workflow
+     * 
+     * 3-Phase Workflow:
+     * - Phase 1 (approval): Maker + Approvers → status = 'pending'
+     * - Phase 2 (purchasing): Handled by PurchasingItem (existing)
+     * - Phase 3 (release): Releasers → status = 'pending_purchase' (activated after purchasing)
      */
     private function initializeItemSteps(ApprovalRequest $approvalRequest, int $masterItemId): void
     {
@@ -1418,7 +1423,16 @@ class ApprovalRequestController extends Controller
         // Get workflow steps from JSON attribute (not a relation)
         $workflowSteps = $workflow->steps; // This uses getStepsAttribute() accessor
         
+        $approvalStepCount = 0;
+        $releaseStepCount = 0;
+        
         foreach ($workflowSteps as $step) {
+            // Determine initial status based on phase
+            // - Approval phase: 'pending' (can be approved immediately)
+            // - Release phase: 'pending_purchase' (waiting for purchasing to complete)
+            $stepPhase = $step->step_phase ?? 'approval';
+            $initialStatus = ($stepPhase === 'release') ? 'pending_purchase' : 'pending';
+            
             \App\Models\ApprovalItemStep::create([
                 'approval_request_id' => $approvalRequest->id,
                 'master_item_id' => $masterItemId,
@@ -1428,20 +1442,32 @@ class ApprovalRequestController extends Controller
                 'approver_id' => $step->approver_id,
                 'approver_role_id' => $step->approver_role_id,
                 'approver_department_id' => $step->approver_department_id,
-                'status' => 'pending',
-                'can_insert_step' => $step->can_insert_step ?? false, // Support dynamic step insertion
-                'insert_step_template' => $step->insert_step_template ?? null, // Pre-configured template
-                'required_action' => $step->required_action ?? null, // Required action (input_price, verify_budget, etc.)
-                'is_conditional' => $step->is_conditional ?? false, // Conditional step
-                'condition_type' => $step->condition_type ?? null, // Condition type (total_price, etc.)
-                'condition_value' => $step->condition_value ?? null, // Condition threshold value
+                'status' => $initialStatus,
+                'can_insert_step' => $step->can_insert_step ?? false,
+                'insert_step_template' => $step->insert_step_template ?? null,
+                'required_action' => $step->required_action ?? null,
+                'is_conditional' => $step->is_conditional ?? false,
+                'condition_type' => $step->condition_type ?? null,
+                'condition_value' => $step->condition_value ?? null,
+                // NEW: Step type and phase
+                'step_type' => $step->step_type ?? 'approver',
+                'step_phase' => $stepPhase,
+                'scope_process' => $step->scope_process ?? null,
             ]);
+            
+            if ($stepPhase === 'release') {
+                $releaseStepCount++;
+            } else {
+                $approvalStepCount++;
+            }
         }
 
-        Log::info('Item steps initialized', [
+        Log::info('Item steps initialized with 3-phase workflow', [
             'request_id' => $approvalRequest->id,
             'master_item_id' => $masterItemId,
-            'step_count' => count($workflowSteps),
+            'total_steps' => count($workflowSteps),
+            'approval_steps' => $approvalStepCount,
+            'release_steps' => $releaseStepCount,
         ]);
     }
 

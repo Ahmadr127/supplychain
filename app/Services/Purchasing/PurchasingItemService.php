@@ -55,6 +55,7 @@ class PurchasingItemService
 
     /**
      * Select preferred vendor for an item.
+     * This triggers the RELEASE phase in 3-phase workflow.
      */
     public function selectPreferred(PurchasingItem $item, int $supplierId, ?float $unitPrice, ?float $totalPrice): PurchasingItem
     {
@@ -82,11 +83,60 @@ class PurchasingItemService
                 'status_changed_at' => now(),
                 'status_changed_by' => auth()->id(),
             ]);
+            
+            // 3-Phase Workflow: Activate release steps
+            $this->activateReleaseSteps($item);
         });
 
         $item->approvalRequest->refreshPurchasingStatus();
 
         return $item->refresh(['vendors', 'preferredVendor']);
+    }
+
+    /**
+     * Activate release phase steps when vendor is selected.
+     * Changes release step status from 'pending_purchase' to 'pending'.
+     * This is the transition from Phase 2 (Purchasing) to Phase 3 (Release).
+     */
+    public function activateReleaseSteps(PurchasingItem $item): bool
+    {
+        $releaseSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->where('step_phase', 'release')
+            ->where('status', 'pending_purchase')
+            ->get();
+
+        if ($releaseSteps->isEmpty()) {
+            \Illuminate\Support\Facades\Log::info('No release steps to activate', [
+                'purchasing_item_id' => $item->id,
+            ]);
+            return false;
+        }
+
+        // Activate first release step only (sequential approval)
+        $firstReleaseStep = $releaseSteps->sortBy('step_number')->first();
+        $firstReleaseStep->update([
+            'status' => 'pending',
+        ]);
+
+        // Update approval request item status
+        $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->first();
+
+        if ($requestItem) {
+            $requestItem->update([
+                'status' => 'in_release', // New status: in release phase
+            ]);
+        }
+
+        \Illuminate\Support\Facades\Log::info('Release phase activated', [
+            'purchasing_item_id' => $item->id,
+            'release_steps_count' => $releaseSteps->count(),
+            'first_release_step' => $firstReleaseStep->step_name,
+        ]);
+
+        return true;
     }
 
     /**

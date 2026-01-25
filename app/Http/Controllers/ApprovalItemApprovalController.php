@@ -168,42 +168,124 @@ class ApprovalItemApprovalController extends Controller
                 $this->handleQuickInsertStep($item, $currentStep);
             }
 
-            // Check if there are more steps
-            Log::info('🟦 Checking for next steps...');
-            $nextStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                ->where('master_item_id', $item->master_item_id)
-                ->where('step_number', '>', $currentStep->step_number)
-                ->where('status', 'pending')
-                ->orderBy('step_number')
-                ->first();
-
-            if (!$nextStep) {
-                // This was the last step - mark item as fully approved
-                Log::info('🟨 No more steps - marking item as fully approved');
-                Log::info('🟦 Item status BEFORE: ' . $item->status);
+            // Determine if current step is in release phase
+            $isReleasePhase = ($currentStep->step_phase ?? 'approval') === 'release';
+            
+            if ($isReleasePhase) {
+                // RELEASE PHASE: Check for next release step
+                Log::info('🟦 Current step is RELEASE PHASE - checking for next release steps...');
                 
-                $item->update([
-                    'status' => 'approved',
-                    'approved_by' => auth()->id(),
-                    'approved_at' => now(),
-                ]);
+                $nextReleaseStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                    ->where('master_item_id', $item->master_item_id)
+                    ->where('step_number', '>', $currentStep->step_number)
+                    ->where('step_phase', 'release')
+                    ->whereIn('status', ['pending', 'pending_purchase'])
+                    ->orderBy('step_number')
+                    ->first();
+
+                if (!$nextReleaseStep) {
+                    // All RELEASE steps complete - Item is FULLY APPROVED!
+                    Log::info('🟩 All release steps complete - item FULLY APPROVED!');
+                    Log::info('🟦 Item status BEFORE: ' . $item->status);
+                    
+                    $item->update([
+                        'status' => 'approved',
+                        'approved_by' => auth()->id(),
+                        'approved_at' => now(),
+                    ]);
+                    
+                    $item->refresh();
+                    Log::info('🟩 Item status AFTER: ' . $item->status);
+                    Log::info('🟩 Item FULLY APPROVED (3-phase workflow complete)', ['item_id' => $item->id]);
+                    
+                } else {
+                    // Activate next release step
+                    Log::info('🟨 Next release step found: Step ' . $nextReleaseStep->step_number . ' - ' . $nextReleaseStep->step_name);
+                    
+                    // If next step is pending_purchase, activate it
+                    if ($nextReleaseStep->status === 'pending_purchase') {
+                        $nextReleaseStep->update(['status' => 'pending']);
+                        Log::info('🟩 Next release step activated');
+                    }
+                    
+                    $item->update(['status' => 'in_release']);
+                    $item->refresh();
+                    Log::info('🟩 Item status: ' . $item->status);
+                }
                 
-                $item->refresh();
-                Log::info('🟩 Item status AFTER: ' . $item->status);
-
-                // Create purchasing item immediately
-                $this->createPurchasingItem($item);
-
-                Log::info('🟩 Item fully approved', ['item_id' => $item->id]);
             } else {
-                // Move to next step
-                Log::info('🟨 Next step found: Step ' . $nextStep->step_number . ' - ' . $nextStep->step_name);
-                Log::info('🟦 Item status BEFORE: ' . $item->status);
+                // APPROVAL PHASE: Check for next approval step
+                Log::info('🟦 Current step is APPROVAL PHASE - checking for next approval steps...');
                 
-                $item->update(['status' => 'on progress']);
-                
-                $item->refresh();
-                Log::info('🟩 Item status AFTER: ' . $item->status);
+                // Get next pending step in approval phase
+                $nextApprovalStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                    ->where('master_item_id', $item->master_item_id)
+                    ->where('step_number', '>', $currentStep->step_number)
+                    ->where('status', 'pending')
+                    ->where(function($q) {
+                        $q->where('step_phase', 'approval')
+                          ->orWhereNull('step_phase');
+                    })
+                    ->orderBy('step_number')
+                    ->first();
+
+                if (!$nextApprovalStep) {
+                    // All APPROVAL PHASE steps are complete
+                    // Check if there are RELEASE PHASE steps waiting
+                    $hasReleaseSteps = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                        ->where('master_item_id', $item->master_item_id)
+                        ->where('step_phase', 'release')
+                        ->exists();
+
+                    if ($hasReleaseSteps) {
+                        // 3-Phase workflow: All approval done → Go to Purchasing
+                        Log::info('🟨 All approval steps complete - item entering PURCHASING phase');
+                        Log::info('🟦 Item status BEFORE: ' . $item->status);
+                        
+                        $item->update([
+                            'status' => 'in_purchasing', // New status: waiting for purchasing
+                        ]);
+                        
+                        $item->refresh();
+                        Log::info('🟩 Item status AFTER: ' . $item->status);
+
+                        // Create purchasing item immediately
+                        $this->createPurchasingItem($item);
+
+                        Log::info('🟩 Item approved for purchasing, awaiting vendor selection', ['item_id' => $item->id]);
+                        
+                        // Note: Release steps will be activated when purchasing is complete (vendor selected)
+                        // This is handled in PurchasingItemService::activateReleaseSteps()
+                        
+                    } else {
+                        // Old workflow (no release steps) - mark as fully approved immediately
+                        Log::info('🟨 No release steps - marking item as fully approved');
+                        Log::info('🟦 Item status BEFORE: ' . $item->status);
+                        
+                        $item->update([
+                            'status' => 'approved',
+                            'approved_by' => auth()->id(),
+                            'approved_at' => now(),
+                        ]);
+                        
+                        $item->refresh();
+                        Log::info('🟩 Item status AFTER: ' . $item->status);
+
+                        // Create purchasing item immediately
+                        $this->createPurchasingItem($item);
+
+                        Log::info('🟩 Item fully approved', ['item_id' => $item->id]);
+                    }
+                } else {
+                    // Move to next approval step
+                    Log::info('🟨 Next approval step found: Step ' . $nextApprovalStep->step_number . ' - ' . $nextApprovalStep->step_name);
+                    Log::info('🟦 Item status BEFORE: ' . $item->status);
+                    
+                    $item->update(['status' => 'on progress']);
+                    
+                    $item->refresh();
+                    Log::info('🟩 Item status AFTER: ' . $item->status);
+                }
             }
 
             // Aggregate request status

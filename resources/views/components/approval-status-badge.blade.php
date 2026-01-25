@@ -14,6 +14,12 @@
     } elseif ($actualStatus == 'pending') {
         $statusColor = 'bg-yellow-500 text-white';
         $displayStatus = 'Pending';
+    } elseif ($actualStatus == 'in_purchasing') {
+        $statusColor = 'bg-indigo-500 text-white';
+        $displayStatus = 'In Purchasing';
+    } elseif ($actualStatus == 'in_release') {
+        $statusColor = 'bg-purple-500 text-white';
+        $displayStatus = 'Awaiting Release';
     } elseif ($actualStatus == 'approved') {
         $statusColor = 'bg-green-600 text-white';
         $displayStatus = 'Approved';
@@ -29,3 +35,4 @@
 <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $statusColor }}">
     {{ $displayStatus }}
 </span>
+

@@ -107,7 +107,10 @@ class ApprovalRequestItem extends Model
         return $q->whereIn('status', ['pending', 'on progress']);
     }
 
-    // Helper methods
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STATUS HELPERS (3-Phase Workflow)
+    // ═══════════════════════════════════════════════════════════════════════════
+
     public function isFullyApproved(): bool
     {
         return $this->status === 'approved';
@@ -118,6 +121,38 @@ class ApprovalRequestItem extends Model
         return $this->status === 'rejected';
     }
 
+    public function isInPurchasing(): bool
+    {
+        return $this->status === 'in_purchasing';
+    }
+
+    public function isInRelease(): bool
+    {
+        return $this->status === 'in_release';
+    }
+
+    /**
+     * Get current phase of the approval process
+     */
+    public function getCurrentPhase(): string
+    {
+        return match($this->status) {
+            'pending', 'on progress' => 'approval',
+            'in_purchasing' => 'purchasing',
+            'in_release' => 'release',
+            'approved' => 'completed',
+            'rejected', 'cancelled' => 'ended',
+            default => 'unknown',
+        };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Get current pending step (approval or release phase)
+     */
     public function getCurrentPendingStep()
     {
         return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
@@ -126,4 +161,84 @@ class ApprovalRequestItem extends Model
             ->orderBy('step_number')
             ->first();
     }
+
+    /**
+     * Get all approval phase steps
+     */
+    public function getApprovalPhaseSteps()
+    {
+        return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
+            ->where('master_item_id', $this->master_item_id)
+            ->where(function($q) {
+                $q->where('step_phase', 'approval')
+                  ->orWhereNull('step_phase');
+            })
+            ->orderBy('step_number')
+            ->get();
+    }
+
+    /**
+     * Get all release phase steps
+     */
+    public function getReleasePhaseSteps()
+    {
+        return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
+            ->where('master_item_id', $this->master_item_id)
+            ->where('step_phase', 'release')
+            ->orderBy('step_number')
+            ->get();
+    }
+
+    /**
+     * Check if all approval phase steps are complete
+     */
+    public function isApprovalPhaseComplete(): bool
+    {
+        $pendingApprovalSteps = ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
+            ->where('master_item_id', $this->master_item_id)
+            ->where('status', 'pending')
+            ->where(function($q) {
+                $q->where('step_phase', 'approval')
+                  ->orWhereNull('step_phase');
+            })
+            ->count();
+
+        return $pendingApprovalSteps === 0;
+    }
+
+    /**
+     * Check if all release phase steps are complete
+     */
+    public function isReleasePhaseComplete(): bool
+    {
+        $pendingReleaseSteps = ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
+            ->where('master_item_id', $this->master_item_id)
+            ->where('step_phase', 'release')
+            ->whereIn('status', ['pending', 'pending_purchase'])
+            ->count();
+
+        return $pendingReleaseSteps === 0;
+    }
+
+    /**
+     * Check if this item has release phase steps
+     */
+    public function hasReleasePhase(): bool
+    {
+        return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
+            ->where('master_item_id', $this->master_item_id)
+            ->where('step_phase', 'release')
+            ->exists();
+    }
+
+    /**
+     * Get the associated PurchasingItem
+     */
+    public function purchasingItem()
+    {
+        return PurchasingItem::where('approval_request_id', $this->approval_request_id)
+            ->where('master_item_id', $this->master_item_id)
+            ->first();
+    }
 }
+

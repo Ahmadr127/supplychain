@@ -1,0 +1,424 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\ApprovalWorkflow;
+use App\Models\ProcurementType;
+use App\Models\Role;
+use Illuminate\Support\Facades\DB;
+
+class DynamicWorkflowSeeder extends Seeder
+{
+    /**
+     * Seed the 6 workflows based on:
+     * - Procurement Type: BARANG_BARU or PEREMAJAAN
+     * - Nominal Range: ≤10 Juta, 10-50 Juta, >50 Juta
+     * 
+     * FLOW URUTAN:
+     * 1. APPROVAL: Maker → Approvers → [APPROVED]
+     * 2. PURCHASING: SPH 1, SPH 2 (existing system - tidak diubah)
+     * 3. RELEASE: Releasers → [FINAL RELEASE]
+     * 
+     * Catatan: Releasers baru aktif SETELAH purchasing selesai (vendor selected)
+     */
+    public function run(): void
+    {
+        // Get procurement types
+        $barangBaru = ProcurementType::where('code', 'BARANG_BARU')->first();
+        $peremajaan = ProcurementType::where('code', 'PEREMAJAAN')->first();
+
+        if (!$barangBaru || !$peremajaan) {
+            $this->command->error('❌ Procurement types not found. Run ProcurementTypeSeeder first.');
+            return;
+        }
+
+        // Get roles
+        $roles = [
+            'koordinator' => Role::where('name', 'koordinator')->first(),
+            'manager_unit' => Role::where('name', 'manager_unit')->first(),
+            'hospital_director' => Role::where('name', 'hospital_director')->orWhere('name', 'direktur')->first(),
+            'manager_pt' => Role::where('name', 'manager_pt')->first(),
+            'manager_pembelian' => Role::where('name', 'manager_pembelian')->orWhere('name', 'purchasing')->first(),
+            'manager_keuangan' => Role::where('name', 'manager_keuangan')->first(),
+            'direktur_pt' => Role::where('name', 'direktur_pt')->first(),
+        ];
+
+        // Log missing roles
+        foreach ($roles as $name => $role) {
+            if (!$role) {
+                $this->command->warn("⚠️ Role '{$name}' not found. Some steps may not work correctly.");
+            }
+        }
+
+        DB::transaction(function () use ($barangBaru, $peremajaan, $roles) {
+            
+            // ═══════════════════════════════════════════════════════════════════
+            // WORKFLOW 1: PENGADAAN BARANG BARU (Nominal ≤ 10 Juta)
+            // ═══════════════════════════════════════════════════════════════════
+            $this->createWorkflow([
+                'name' => 'Pengadaan Barang Baru (≤ 10 Juta)',
+                'description' => 'Workflow untuk pengadaan barang baru dengan nominal sampai dengan 10 juta rupiah',
+                'type' => 'procurement_low',
+                'procurement_type_id' => $barangBaru->id,
+                'nominal_min' => 0,
+                'nominal_max' => 10000000,
+                'nominal_range' => 'low',
+                'priority' => 10,
+                'is_active' => true,
+                'is_specific_type' => true,
+            ], $this->getBarangBaruLowSteps($roles));
+
+            // ═══════════════════════════════════════════════════════════════════
+            // WORKFLOW 2: PENGADAAN BARANG BARU (Nominal 10 - 50 Juta)
+            // ═══════════════════════════════════════════════════════════════════
+            $this->createWorkflow([
+                'name' => 'Pengadaan Barang Baru (10 - 50 Juta)',
+                'description' => 'Workflow untuk pengadaan barang baru dengan nominal 10 sampai 50 juta rupiah',
+                'type' => 'procurement_medium',
+                'procurement_type_id' => $barangBaru->id,
+                'nominal_min' => 10000000,
+                'nominal_max' => 50000000,
+                'nominal_range' => 'medium',
+                'priority' => 20,
+                'is_active' => true,
+                'is_specific_type' => true,
+            ], $this->getBarangBaruMediumSteps($roles));
+
+            // ═══════════════════════════════════════════════════════════════════
+            // WORKFLOW 3: PENGADAAN BARANG BARU (Nominal > 50 Juta)
+            // ═══════════════════════════════════════════════════════════════════
+            $this->createWorkflow([
+                'name' => 'Pengadaan Barang Baru (> 50 Juta)',
+                'description' => 'Workflow untuk pengadaan barang baru dengan nominal diatas 50 juta rupiah. Memerlukan FS dan approval Direktur PT.',
+                'type' => 'procurement_high',
+                'procurement_type_id' => $barangBaru->id,
+                'nominal_min' => 50000000,
+                'nominal_max' => null,
+                'nominal_range' => 'high',
+                'priority' => 30,
+                'is_active' => true,
+                'is_specific_type' => true,
+            ], $this->getBarangBaruHighSteps($roles));
+
+            // ═══════════════════════════════════════════════════════════════════
+            // WORKFLOW 4: PEREMAJAAN (Nominal ≤ 10 Juta)
+            // ═══════════════════════════════════════════════════════════════════
+            $this->createWorkflow([
+                'name' => 'Peremajaan (≤ 10 Juta)',
+                'description' => 'Workflow untuk peremajaan/renewal dengan nominal sampai dengan 10 juta rupiah',
+                'type' => 'renewal_low',
+                'procurement_type_id' => $peremajaan->id,
+                'nominal_min' => 0,
+                'nominal_max' => 10000000,
+                'nominal_range' => 'low',
+                'priority' => 10,
+                'is_active' => true,
+                'is_specific_type' => true,
+            ], $this->getPeremajaanLowSteps($roles));
+
+            // ═══════════════════════════════════════════════════════════════════
+            // WORKFLOW 5: PEREMAJAAN (Nominal ≤ 50 Juta)
+            // ═══════════════════════════════════════════════════════════════════
+            $this->createWorkflow([
+                'name' => 'Peremajaan (≤ 50 Juta)',
+                'description' => 'Workflow untuk peremajaan/renewal dengan nominal sampai dengan 50 juta rupiah',
+                'type' => 'renewal_medium',
+                'procurement_type_id' => $peremajaan->id,
+                'nominal_min' => 10000000,
+                'nominal_max' => 50000000,
+                'nominal_range' => 'medium',
+                'priority' => 20,
+                'is_active' => true,
+                'is_specific_type' => true,
+            ], $this->getPeremajaanMediumSteps($roles));
+
+            // ═══════════════════════════════════════════════════════════════════
+            // WORKFLOW 6: PEREMAJAAN (Nominal > 50 Juta)
+            // ═══════════════════════════════════════════════════════════════════
+            $this->createWorkflow([
+                'name' => 'Peremajaan (> 50 Juta)',
+                'description' => 'Workflow untuk peremajaan/renewal dengan nominal diatas 50 juta rupiah. Memerlukan FS dan approval Direktur PT.',
+                'type' => 'renewal_high',
+                'procurement_type_id' => $peremajaan->id,
+                'nominal_min' => 50000000,
+                'nominal_max' => null,
+                'nominal_range' => 'high',
+                'priority' => 30,
+                'is_active' => true,
+                'is_specific_type' => true,
+            ], $this->getPeremajaanHighSteps($roles));
+
+        });
+
+        $this->command->info('');
+        $this->command->info('✅ Dynamic workflows seeded successfully!');
+        $this->command->newLine();
+        $this->command->info('📋 Flow Urutan:');
+        $this->command->info('   1. APPROVAL: Maker → Approvers');
+        $this->command->info('   2. PURCHASING: SPH 1, SPH 2 (existing system)');
+        $this->command->info('   3. RELEASE: Releasers (after purchasing complete)');
+        $this->command->newLine();
+        
+        $this->command->table(
+            ['Workflow', 'Type', 'Nominal', 'Approval Steps', 'Release Steps'],
+            ApprovalWorkflow::whereNotNull('procurement_type_id')
+                ->with('procurementType')
+                ->get()
+                ->map(function ($w) {
+                    $steps = $w->steps ?? [];
+                    $approvalSteps = collect($steps)->filter(fn($s) => in_array($s->step_type ?? 'approver', ['maker', 'approver']))->count();
+                    $releaseSteps = collect($steps)->filter(fn($s) => ($s->step_type ?? '') === 'releaser')->count();
+                    return [
+                        $w->name,
+                        $w->procurementType->code ?? '-',
+                        $w->nominal_range,
+                        $approvalSteps,
+                        $releaseSteps,
+                    ];
+                })->toArray()
+        );
+    }
+
+    /**
+     * Create or update workflow with steps
+     */
+    private function createWorkflow(array $data, array $steps): void
+    {
+        $data['steps'] = $steps;
+        
+        $workflow = ApprovalWorkflow::updateOrCreate(
+            [
+                'procurement_type_id' => $data['procurement_type_id'],
+                'nominal_range' => $data['nominal_range'],
+            ],
+            $data
+        );
+
+        $approvalCount = collect($steps)->filter(fn($s) => in_array($s->step_type, ['maker', 'approver']))->count();
+        $releaseCount = collect($steps)->filter(fn($s) => $s->step_type === 'releaser')->count();
+
+        $this->command->info("  📋 {$workflow->name}: {$approvalCount} approval + {$releaseCount} release steps");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BARANG BARU WORKFLOWS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Steps for BARANG BARU ≤ 10 Juta
+     * 
+     * APPROVAL: Maker → 4 Approvers
+     * PURCHASING: (existing system)
+     * RELEASE: 2 Releasers
+     */
+    private function getBarangBaruLowSteps(array $roles): array
+    {
+        return [
+            // ═══ PHASE 1: APPROVAL ═══
+            $this->makerStep(1),
+            $this->approverStep(2, 'Approver 1', $roles['manager_unit'], 'Pemilihan ID Number CapEx', 'select_capex'),
+            $this->approverStep(3, 'Approver 2', $roles['hospital_director'], null, 'approve'),
+            $this->approverStep(4, 'Approver 3', $roles['manager_pt'], null, 'approve'),
+            $this->approverStep(5, 'Approver 4', $roles['manager_pembelian'], null, 'approve'),
+            
+            // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            // SPH 1, SPH 2 - tidak perlu step, akan auto-create PurchasingItem
+            
+            // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
+            $this->releaserStep(6, 'Releaser 1', $roles['manager_pembelian']),
+            $this->releaserStep(7, 'Releaser 2', $roles['manager_pt']),
+        ];
+    }
+
+    /**
+     * Steps for BARANG BARU 10 - 50 Juta
+     * Same structure as low (based on diagram)
+     */
+    private function getBarangBaruMediumSteps(array $roles): array
+    {
+        return $this->getBarangBaruLowSteps($roles);
+    }
+
+    /**
+     * Steps for BARANG BARU > 50 Juta
+     * 
+     * APPROVAL: Maker → 5 Approvers (+ Manager Keuangan for FS)
+     * PURCHASING: (existing system)
+     * RELEASE: 3 Releasers (+ Direktur PT)
+     */
+    private function getBarangBaruHighSteps(array $roles): array
+    {
+        return [
+            // ═══ PHASE 1: APPROVAL ═══
+            $this->makerStep(1),
+            $this->approverStep(2, 'Approver 1', $roles['manager_unit'], 'Pemilihan ID Number CapEx', 'select_capex'),
+            $this->approverStep(3, 'Approver 2', $roles['manager_keuangan'], 'Pembuatan FS', 'create_fs'),
+            $this->approverStep(4, 'Approver 3', $roles['hospital_director'], null, 'approve'),
+            $this->approverStep(5, 'Approver 4', $roles['manager_pt'], null, 'approve'),
+            $this->approverStep(6, 'Approver 5', $roles['manager_pembelian'], null, 'approve'),
+            
+            // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            
+            // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
+            $this->releaserStep(7, 'Releaser 1', $roles['manager_pembelian']),
+            $this->releaserStep(8, 'Releaser 2', $roles['manager_pt']),
+            $this->releaserStep(9, 'Releaser 3', $roles['direktur_pt']),
+        ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PEREMAJAAN WORKFLOWS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Steps for PEREMAJAAN ≤ 10 Juta
+     * 
+     * APPROVAL: Maker → 3 Approvers
+     * PURCHASING: (existing system)
+     * RELEASE: 1 Releaser
+     */
+    private function getPeremajaanLowSteps(array $roles): array
+    {
+        return [
+            // ═══ PHASE 1: APPROVAL ═══
+            $this->makerStep(1),
+            $this->approverStep(2, 'Approver 1', $roles['manager_unit'], 'Pemilihan ID Number CapEx', 'select_capex'),
+            $this->approverStep(3, 'Approver 2', $roles['hospital_director'], null, 'approve'),
+            $this->approverStep(4, 'Approver 3', $roles['manager_pembelian'], null, 'approve'),
+            
+            // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            
+            // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
+            $this->releaserStep(5, 'Releaser 1', $roles['manager_pembelian']),
+        ];
+    }
+
+    /**
+     * Steps for PEREMAJAAN ≤ 50 Juta
+     * 
+     * APPROVAL: Maker → 4 Approvers
+     * PURCHASING: (existing system)
+     * RELEASE: 2 Releasers
+     */
+    private function getPeremajaanMediumSteps(array $roles): array
+    {
+        return [
+            // ═══ PHASE 1: APPROVAL ═══
+            $this->makerStep(1),
+            $this->approverStep(2, 'Approver 1', $roles['manager_unit'], 'Pemilihan ID Number CapEx', 'select_capex'),
+            $this->approverStep(3, 'Approver 2', $roles['hospital_director'], null, 'approve'),
+            $this->approverStep(4, 'Approver 3', $roles['manager_pt'], null, 'approve'),
+            $this->approverStep(5, 'Approver 4', $roles['manager_pembelian'], null, 'approve'),
+            
+            // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            
+            // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
+            $this->releaserStep(6, 'Releaser 1', $roles['manager_pembelian']),
+            $this->releaserStep(7, 'Releaser 2', $roles['manager_pt']),
+        ];
+    }
+
+    /**
+     * Steps for PEREMAJAAN > 50 Juta
+     * 
+     * APPROVAL: Maker → 5 Approvers (+ Manager Keuangan for FS)
+     * PURCHASING: (existing system)
+     * RELEASE: 3 Releasers (+ Direktur PT)
+     */
+    private function getPeremajaanHighSteps(array $roles): array
+    {
+        return [
+            // ═══ PHASE 1: APPROVAL ═══
+            $this->makerStep(1),
+            $this->approverStep(2, 'Approver 1', $roles['manager_unit'], 'Pemilihan ID Number CapEx', 'select_capex'),
+            $this->approverStep(3, 'Approver 2', $roles['manager_keuangan'], 'Pembuatan FS', 'create_fs'),
+            $this->approverStep(4, 'Approver 3', $roles['hospital_director'], null, 'approve'),
+            $this->approverStep(5, 'Approver 4', $roles['manager_pt'], null, 'approve'),
+            $this->approverStep(6, 'Approver 5', $roles['manager_pembelian'], null, 'approve'),
+            
+            // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            
+            // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
+            $this->releaserStep(7, 'Releaser 1', $roles['manager_pembelian']),
+            $this->releaserStep(8, 'Releaser 2', $roles['manager_pt']),
+            $this->releaserStep(9, 'Releaser 3', $roles['direktur_pt']),
+        ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Create Maker step definition
+     * PIC: Koordinator / Kepala / Supervisor / Manager (requester's dept)
+     * Phase: APPROVAL
+     */
+    private function makerStep(int $stepNumber): object
+    {
+        return (object) [
+            'step_number' => $stepNumber,
+            'step_name' => 'Maker',
+            'step_type' => 'maker',
+            'step_phase' => 'approval', // Phase 1
+            'approver_type' => 'requester_department_manager',
+            'approver_id' => null,
+            'approver_role_id' => null,
+            'approver_department_id' => null,
+            'scope_process' => 'Input Administrasi Permintaan CapEx',
+            'required_action' => 'create_document',
+            'can_insert_step' => false,
+            'is_conditional' => false,
+        ];
+    }
+
+    /**
+     * Create Approver step definition
+     * Phase: APPROVAL
+     */
+    private function approverStep(
+        int $stepNumber, 
+        string $name, 
+        ?Role $role, 
+        ?string $scopeProcess, 
+        string $requiredAction = 'approve'
+    ): object {
+        return (object) [
+            'step_number' => $stepNumber,
+            'step_name' => $name,
+            'step_type' => 'approver',
+            'step_phase' => 'approval', // Phase 1
+            'approver_type' => 'role',
+            'approver_id' => null,
+            'approver_role_id' => $role?->id,
+            'approver_department_id' => null,
+            'scope_process' => $scopeProcess,
+            'required_action' => $requiredAction,
+            'can_insert_step' => false,
+            'is_conditional' => false,
+        ];
+    }
+
+    /**
+     * Create Releaser step definition
+     * Phase: RELEASE (after purchasing complete)
+     */
+    private function releaserStep(int $stepNumber, string $name, ?Role $role): object
+    {
+        return (object) [
+            'step_number' => $stepNumber,
+            'step_name' => $name,
+            'step_type' => 'releaser',
+            'step_phase' => 'release', // Phase 3 (after purchasing)
+            'approver_type' => 'role',
+            'approver_id' => null,
+            'approver_role_id' => $role?->id,
+            'approver_department_id' => null,
+            'scope_process' => null,
+            'required_action' => 'release',
+            'can_insert_step' => false,
+            'is_conditional' => false,
+        ];
+    }
+}
