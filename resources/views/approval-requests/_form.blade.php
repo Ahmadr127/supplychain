@@ -5,8 +5,8 @@
 <div class="space-y-2 max-w-full overflow-hidden">
     <!-- Main Form -->
     <div class="space-y-2 max-w-full">
-        <!-- Top grid: Jenis Pengajuan & Tipe Barang -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <!-- Top grid: Jenis Pengajuan, Sifat Pengadaan & Tipe Barang -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
             <!-- Jenis Pengajuan -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -28,6 +28,30 @@
                     @endforeach
                 </div>
                 @error('submission_type_id')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <!-- Procurement Type Selection -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Sifat Pengadaan <span class="text-red-500">*</span>
+                </label>
+                <div class="space-y-2">
+                    @foreach ($procurementTypes as $procType)
+                        <div class="flex items-center">
+                            <input type="radio" id="procurement_type_{{ $procType->id }}" name="procurement_type_id"
+                                value="{{ $procType->id }}"
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                {{ old('procurement_type_id', $isEdit ? $approvalRequest->procurement_type_id : null) == $procType->id ? 'checked' : '' }}
+                                required>
+                            <label for="procurement_type_{{ $procType->id }}" class="ml-2 text-sm text-gray-700">
+                                <span class="font-medium">{{ $procType->name }}</span>
+                            </label>
+                        </div>
+                    @endforeach
+                </div>
+                @error('procurement_type_id')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
             </div>
@@ -855,43 +879,16 @@
         itemTypeRadios.forEach(radio => {
             radio.addEventListener('change', function() {
                 currentItemTypeId = this.value;
-                updateWorkflowForItemType(currentItemTypeId);
             });
         });
         const checkedRadio = document.querySelector('input[name="item_type_id"]:checked');
         if (checkedRadio) {
             currentItemTypeId = checkedRadio.value;
-            updateWorkflowForItemType(currentItemTypeId);
         }
-    }
-
-    function updateWorkflowForItemType(itemTypeId) {
-        if (!itemTypeId) return;
-        fetch("{{ route('api.approval-requests.workflow-for-item-type', ['itemTypeId' => 'ITEM_TYPE_ID']) }}".replace(
-                'ITEM_TYPE_ID', itemTypeId))
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    document.querySelector('input[name="workflow_id"]').value = data.workflow.id;
-                    showWorkflowInfo(data.workflow, itemTypeId);
-                }
-            })
-            .catch(() => {});
-    }
-
-    function showWorkflowInfo(workflow, itemTypeId) {
-        document.querySelectorAll('.workflow-inline').forEach(e => e.remove());
-        const label = document.querySelector('label[for="item_type_' + itemTypeId + '"]');
-        if (!label) return;
-        const span = document.createElement('span');
-        span.className = 'workflow-inline ml-2 text-xs text-blue-600';
-        span.textContent = `(Workflow: ${escapeHtml(workflow.name)})`;
-        label.appendChild(span);
     }
 
     // Note: collectFormExtraData and loadItemExtraData are now defined in _form-extra.blade.php
     
     // expose functions to window
     window.addRow = addRow;
-    window.selectDepartmentSuggestion = selectDepartmentSuggestion;
 </script>

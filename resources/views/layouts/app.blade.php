@@ -95,164 +95,238 @@
                 </div>
                 
                 <ul class="space-y-2">
+                    {{-- Dashboard - Always visible at top --}}
                     @if(auth()->user()->hasPermission('view_dashboard'))
-                    <li>
-                        <a href="{{ route('dashboard') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('dashboard') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Dashboard">
-                            <i class="fas fa-tachometer-alt w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                            <span x-show="!sidebarCollapsed">Dashboard</span>
-                        </a>
-                    </li>
-                    @endif
-                    
-
-                    @if(auth()->user()->hasPermission('manage_users'))
-                    <li>
-                        <a href="{{ route('users.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('users.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Users">
-                            <i class="fas fa-users w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                            <span x-show="!sidebarCollapsed">Users</span>
-                        </a>
-                    </li>
+                        <x-sidebar-menu-item 
+                            route="dashboard" 
+                            icon="fa-tachometer-alt" 
+                            label="Dashboard" 
+                        />
                     @endif
 
-                    @if(auth()->user()->hasPermission('manage_roles'))
-                    <li>
-                        <a href="{{ route('roles.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('roles.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Roles">
-                            <i class="fas fa-user-shield w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                            <span x-show="!sidebarCollapsed">Roles</span>
-                        </a>
-                    </li>
+                    {{-- System Dropdown --}}
+                    @if(auth()->user()->hasPermission('manage_users') || auth()->user()->hasPermission('manage_roles') || auth()->user()->hasPermission('manage_permissions') || auth()->user()->hasPermission('manage_departments'))
+                        <x-sidebar-dropdown-menu 
+                            title="System" 
+                            icon="fa-cogs" 
+                            routePrefix="users.*,roles.*,permissions.*,departments.*"
+                            defaultOpen="false">
+                            @if(auth()->user()->hasPermission('manage_users'))
+                                <x-sidebar-menu-item 
+                                    route="users.index" 
+                                    icon="fa-users" 
+                                    label="Users" 
+                                    routeMatch="users.*"
+                                />
+                            @endif
+                            @if(auth()->user()->hasPermission('manage_roles'))
+                                <x-sidebar-menu-item 
+                                    route="roles.index" 
+                                    icon="fa-user-shield" 
+                                    label="Roles" 
+                                    routeMatch="roles.*"
+                                />
+                            @endif
+                            @if(auth()->user()->hasPermission('manage_permissions'))
+                                <x-sidebar-menu-item 
+                                    route="permissions.index" 
+                                    icon="fa-key" 
+                                    label="Permissions" 
+                                    routeMatch="permissions.*"
+                                />
+                            @endif
+                            @if(auth()->user()->hasPermission('manage_departments'))
+                                <x-sidebar-menu-item 
+                                    route="departments.index" 
+                                    icon="fa-building" 
+                                    label="Departments" 
+                                    routeMatch="departments.*"
+                                />
+                            @endif
+                        </x-sidebar-dropdown-menu>
                     @endif
 
-                    @if(auth()->user()->hasPermission('manage_permissions'))
-                    <li>
-                        <a href="{{ route('permissions.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('permissions.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Permissions">
-                            <i class="fas fa-key w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                            <span x-show="!sidebarCollapsed">Permissions</span>
-                        </a>
-                    </li>
+                    {{-- Workflow Dropdown --}}
+                    @if(auth()->user()->hasPermission('manage_workflows') || auth()->user()->hasPermission('view_all_approvals') || auth()->user()->hasPermission('manage_submission_types'))
+                        <x-sidebar-dropdown-menu 
+                            title="Workflow" 
+                            icon="fa-project-diagram" 
+                            routePrefix="approval-workflows.*,approval-requests.index,submission-types.*"
+                            defaultOpen="false">
+                            @if(auth()->user()->hasPermission('manage_workflows'))
+                                <x-sidebar-menu-item 
+                                    route="approval-workflows.index" 
+                                    icon="fa-sitemap" 
+                                    label="Workflows" 
+                                    routeMatch="approval-workflows.*"
+                                />
+                            @endif
+                            @if(auth()->user()->hasPermission('view_all_approvals'))
+                                <x-sidebar-menu-item 
+                                    route="approval-requests.index" 
+                                    icon="fa-clipboard-check" 
+                                    label="All Approval Requests" 
+                                    routeMatch="approval-requests.index"
+                                />
+                            @endif
+                            @if(auth()->user()->hasPermission('manage_submission_types'))
+                                <x-sidebar-menu-item 
+                                    route="submission-types.index" 
+                                    icon="fa-list-alt" 
+                                    label="Jenis Pengajuan" 
+                                    routeMatch="submission-types.*"
+                                />
+                            @endif
+                        </x-sidebar-dropdown-menu>
                     @endif
 
-                    @if(auth()->user()->hasPermission('manage_departments'))
-                    <li>
-                        <a href="{{ route('departments.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('departments.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Departments">
-                            <i class="fas fa-building w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                            <span x-show="!sidebarCollapsed">Departments</span>
-                        </a>
-                    </li>
+                    {{-- Master Data Dropdown --}}
+                    @if(auth()->user()->hasPermission('manage_items'))
+                        <x-sidebar-dropdown-menu 
+                            title="Master Data" 
+                            icon="fa-database" 
+                            permission="manage_items"
+                            routePrefix="master-items.*,item-categories.*,item-types.*,units.*,commodities.*"
+                            defaultOpen="false">
+                            <x-sidebar-menu-item 
+                                route="master-items.index" 
+                                icon="fa-box" 
+                                label="Master Barang" 
+                                routeMatch="master-items.*"
+                            />
+                            <x-sidebar-menu-item 
+                                route="item-categories.index" 
+                                icon="fa-tags" 
+                                label="Kategori Barang" 
+                                routeMatch="item-categories.*"
+                            />
+                            <x-sidebar-menu-item 
+                                route="item-types.index" 
+                                icon="fa-cube" 
+                                label="Tipe Barang" 
+                                routeMatch="item-types.*"
+                            />
+                            <x-sidebar-menu-item 
+                                route="units.index" 
+                                icon="fa-weight" 
+                                label="Satuan Barang" 
+                                routeMatch="units.*"
+                            />
+                            <x-sidebar-menu-item 
+                                route="commodities.index" 
+                                icon="fa-industry" 
+                                label="Komoditas" 
+                                routeMatch="commodities.*"
+                            />
+                        </x-sidebar-dropdown-menu>
                     @endif
 
-                    @if(auth()->user()->hasPermission('manage_workflows'))
-                    <li>
-                        <a href="{{ route('approval-workflows.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-workflows.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Workflows">
-                            <i class="fas fa-sitemap w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                            <span x-show="!sidebarCollapsed">Workflows</span>
-                        </a>
-                    </li>
+                    {{-- Config Dropdown (Suppliers & Settings) --}}
+                    @if(auth()->user()->hasPermission('manage_suppliers') || auth()->user()->hasPermission('manage_settings'))
+                        <x-sidebar-dropdown-menu 
+                            title="Config" 
+                            icon="fa-tools" 
+                            routePrefix="suppliers.*,settings.*"
+                            defaultOpen="false">
+                            @if(auth()->user()->hasPermission('manage_suppliers'))
+                                <x-sidebar-menu-item 
+                                    route="suppliers.index" 
+                                    icon="fa-truck" 
+                                    label="Suppliers" 
+                                    routeMatch="suppliers.*"
+                                />
+                            @endif
+                            @if(auth()->user()->hasPermission('manage_settings'))
+                                <x-sidebar-menu-item 
+                                    route="settings.index" 
+                                    icon="fa-cog" 
+                                    label="Pengaturan" 
+                                    routeMatch="settings.*"
+                                />
+                            @endif
+                        </x-sidebar-dropdown-menu>
                     @endif
 
-                    @if(auth()->user()->hasPermission('view_all_approvals'))
-                    <li>
-                        <a href="{{ route('approval-requests.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.index') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="All Approval Requests">
-                            <i class="fas fa-clipboard-check w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                            <span x-show="!sidebarCollapsed">All Approval Requests</span>
-                        </a>
-                    </li>
+                    {{-- Reports Dropdown --}}
+                    @if(auth()->user()->hasPermission('view_reports'))
+                        <x-sidebar-dropdown-menu 
+                            title="Reports" 
+                            icon="fa-chart-bar" 
+                            routePrefix="reports.*"
+                            defaultOpen="false">
+                            <x-sidebar-menu-item 
+                                route="reports.approval-requests" 
+                                icon="fa-clipboard-list" 
+                                label="Laporan Pengajuan" 
+                            />
+                        </x-sidebar-dropdown-menu>
                     @endif
-
-                @if(auth()->user()->hasPermission('manage_items'))
-                <li>
-                    <a href="{{ route('master-items.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('master-items.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Master Barang">
-                        <i class="fas fa-box w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Master Barang</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{{ route('item-categories.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('item-categories.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Kategori Barang">
-                        <i class="fas fa-tags w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Kategori Barang</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{{ route('item-types.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('item-types.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Tipe Barang">
-                        <i class="fas fa-cube w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Tipe Barang</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{{ route('units.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('units.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Satuan Barang">
-                        <i class="fas fa-weight w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Satuan Barang</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{{ route('commodities.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('commodities.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Komoditas">
-                        <i class="fas fa-industry w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Komoditas</span>
-                    </a>
-                </li>
-                @endif
-
-                @if(auth()->user()->hasPermission('manage_submission_types'))
-                <li>
-                    <a href="{{ route('submission-types.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('submission-types.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Jenis Pengajuan">
-                        <i class="fas fa-list-alt w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Jenis Pengajuan</span>
-                    </a>
-                </li>
-                @endif
-
-                @if(auth()->user()->hasPermission('manage_suppliers'))
-                <li>
-                    <a href="{{ route('suppliers.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('suppliers.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Supplier">
-                        <i class="fas fa-truck w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Suppliers</span>
-                    </a>
-                </li>
-                @endif
-                
-                @if(auth()->user()->hasPermission('manage_settings'))
-                <li>
-                    <a href="{{ route('settings.index') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('settings.*') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Pengaturan">
-                        <i class="fas fa-cog w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Pengaturan</span>
-                    </a>
-                </li>
-                @endif
-
-                @if(auth()->user()->hasPermission('view_reports'))
-                <li>
-                    <a href="{{ route('reports.approval-requests') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('reports.approval-requests') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Laporan Pengajuan">
-                        <i class="fas fa-chart-bar w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                        <span x-show="!sidebarCollapsed">Laporan Pengajuan</span>
-                    </a>
-                </li>
-                @endif
-
                 </ul>
 
-                <!-- Approval Section -->
+                {{-- My Approvals Dropdown --}}
                 @if(auth()->user()->hasPermission('view_my_approvals') || auth()->user()->hasPermission('approval'))
-                <div class="mt-6">
-                    <h3 class="px-4 py-2 text-xs font-semibold text-green-200 uppercase tracking-wider" x-show="!sidebarCollapsed">Approval</h3>
-                    <ul class="mt-2 space-y-1">
+                    <x-sidebar-dropdown-menu 
+                        title="My Approvals" 
+                        icon="fa-tasks" 
+                        routePrefix="approval-requests.my-requests,approval-requests.pending-approvals"
+                        defaultOpen="false">
                         @if(auth()->user()->hasPermission('view_my_approvals'))
-                        <li>
-                            <a href="{{ route('approval-requests.my-requests') }}" class="js-my-requests flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.my-requests') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="My Requests">
-                                <i class="fas fa-file-alt w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                                <span x-show="!sidebarCollapsed">My Requests</span>
-                            </a>
-                        </li>
+                            <x-sidebar-menu-item 
+                                route="approval-requests.my-requests" 
+                                icon="fa-file-alt" 
+                                label="My Requests" 
+                            />
                         @endif
                         @if(auth()->user()->hasPermission('approval'))
-                        <li>
-                            <a href="{{ route('approval-requests.pending-approvals') }}" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('approval-requests.pending-approvals') ? 'bg-green-800' : '' }}" :class="sidebarCollapsed ? 'justify-center' : ''" title="Approval">
-                                <i class="fas fa-check-circle w-5" :class="sidebarCollapsed ? '' : 'mr-3'"></i>
-                                <span x-show="!sidebarCollapsed">Approval</span>
-                            </a>
-                        </li>
+                            <x-sidebar-menu-item 
+                                route="approval-requests.pending-approvals" 
+                                icon="fa-check-circle" 
+                                label="Pending Approvals" 
+                            />
                         @endif
-                    </ul>
-                </div>
+                    </x-sidebar-dropdown-menu>
+                @endif
+
+                {{-- Purchasing Dropdown --}}
+                @if(auth()->user()->hasPermission('manage_purchasing'))
+                    <x-sidebar-dropdown-menu 
+                        title="Purchasing" 
+                        icon="fa-shopping-cart" 
+                        routePrefix="release-requests.*,reports.approval-requests*"
+                        defaultOpen="false">
+                        <x-sidebar-menu-item 
+                            route="release-requests.index" 
+                            icon="fa-paper-plane" 
+                            label="Release Requests" 
+                        />
+                        <x-sidebar-menu-item 
+                            route="release-requests.my-pending" 
+                            icon="fa-clock" 
+                            label="My Pending" 
+                        />
+                        <x-sidebar-menu-item 
+                            route="reports.approval-requests" 
+                            icon="fa-shopping-bag" 
+                            label="Process Purchasing" 
+                            routeMatch="reports.approval-requests*"
+                        />
+                    </x-sidebar-dropdown-menu>
+                @endif
+
+                {{-- CapEx Dropdown --}}
+                @if(auth()->user()->hasPermission('manage_capex'))
+                    <x-sidebar-dropdown-menu 
+                        title="CapEx" 
+                        icon="fa-wallet" 
+                        routePrefix="capex.*"
+                        defaultOpen="false">
+                        <x-sidebar-menu-item 
+                            route="capex.index" 
+                            icon="fa-list-ol" 
+                            label="CapEx ID Numbers" 
+                            routeMatch="capex.*"
+                        />
+                    </x-sidebar-dropdown-menu>
                 @endif
 
             </nav>

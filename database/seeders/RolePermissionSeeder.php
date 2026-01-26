@@ -27,6 +27,8 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_submission_types', 'display_name' => 'Kelola Jenis Pengajuan', 'description' => 'Mengelola jenis pengajuan (Barang/Jasa/Program Kerja)'],
             ['name' => 'view_reports', 'display_name' => 'Lihat Reports', 'description' => 'Mengakses halaman laporan'],
             ['name' => 'manage_purchasing', 'display_name' => 'Kelola Purchasing', 'description' => 'Mengelola proses purchasing per item'],
+            ['name' => 'manage_capex', 'display_name' => 'Kelola CapEx', 'description' => 'Mengelola CapEx ID Numbers dan budget'],
+            ['name' => 'manage_settings', 'display_name' => 'Kelola Pengaturan', 'description' => 'Mengelola pengaturan aplikasi'],
         ];
 
         foreach ($permissions as $permission) {
@@ -140,7 +142,8 @@ class RolePermissionSeeder extends Seeder
                 'view_my_approvals',
                 'approval',
                 'view_reports',
-                'manage_purchasing'
+                'manage_purchasing',
+                'manage_capex'
             ])->get()
         );
     }

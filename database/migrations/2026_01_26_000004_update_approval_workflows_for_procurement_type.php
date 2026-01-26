@@ -30,8 +30,8 @@ return new class extends Migration
             // Priority for workflow selection (higher = more specific, checked first)
             $table->integer('priority')->default(0)->after('nominal_range');
             
-            // Add index for workflow selection queries
-            $table->index(['procurement_type_id', 'nominal_range', 'is_active']);
+            // Add index for workflow selection queries (custom name to avoid MySQL 64-char limit)
+            $table->index(['procurement_type_id', 'nominal_range', 'is_active'], 'idx_workflow_procurement_lookup');
         });
     }
 
@@ -42,7 +42,7 @@ return new class extends Migration
     {
         Schema::table('approval_workflows', function (Blueprint $table) {
             $table->dropForeign(['procurement_type_id']);
-            $table->dropIndex(['procurement_type_id', 'nominal_range', 'is_active']);
+            $table->dropIndex('idx_workflow_procurement_lookup');
             $table->dropColumn(['procurement_type_id', 'nominal_min', 'nominal_max', 'nominal_range', 'priority']);
         });
     }

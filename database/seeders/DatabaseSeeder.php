@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             ManagePurchasingPermissionSeeder::class,
             DepartmentSeeder::class,
             SubmissionTypeSeeder::class,
+            ProcurementTypeSeeder::class,
             MasterItemSeeder::class,
             ItemTypeCodeSeeder::class,
             ApprovalWorkflowSeeder::class,

@@ -14,6 +14,7 @@
                     'previewRequestNumber' => $previewRequestNumber ?? '',
                     'submissionTypes' => $submissionTypes,
                     'itemTypes' => $itemTypes,
+                    'procurementTypes' => $procurementTypes,
                     'itemCategories' => $itemCategories,
                 ])
             </form>

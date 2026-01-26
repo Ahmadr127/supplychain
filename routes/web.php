@@ -22,6 +22,8 @@ use App\Http\Controllers\SupplierLookupController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\PurchasingItemController;
 use App\Http\Controllers\ApprovalRequestItemController;
+use App\Http\Controllers\CapexIdNumberController;
+use App\Http\Controllers\ReleaseRequestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -151,6 +153,19 @@ Route::middleware('auth')->group(function () {
     // Suppliers Management routes
     Route::middleware('permission:manage_suppliers')->group(function () {
         Route::resource('suppliers', SupplierController::class);
+    });
+
+    // CapEx ID Number Management routes (for managing budget IDs)
+    Route::middleware('permission:manage_capex')->group(function () {
+        Route::resource('capex', CapexIdNumberController::class);
+    });
+
+    // Release Requests routes (for viewing items in release phase)
+    Route::middleware('permission:manage_purchasing')->group(function () {
+        Route::get('release-requests', [ReleaseRequestController::class, 'index'])->name('release-requests.index');
+        Route::get('release-requests/my-pending', [ReleaseRequestController::class, 'myPendingReleases'])->name('release-requests.my-pending');
+        Route::post('release-requests/{item}/approve', [ReleaseRequestController::class, 'approve'])->name('release-requests.approve');
+        Route::post('release-requests/{item}/reject', [ReleaseRequestController::class, 'reject'])->name('release-requests.reject');
     });
 
     // Settings management

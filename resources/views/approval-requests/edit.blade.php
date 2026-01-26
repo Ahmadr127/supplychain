@@ -15,6 +15,7 @@
                     'approvalRequest' => $approvalRequest,
                     'submissionTypes' => $submissionTypes,
                     'itemTypes' => $itemTypes,
+                    'procurementTypes' => $procurementTypes,
                     'itemCategories' => $itemCategories,
                     'itemExtras' => $itemExtras ?? collect(),
                     'itemFiles' => $itemFiles ?? collect(),

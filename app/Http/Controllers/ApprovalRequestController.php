@@ -9,6 +9,7 @@ use App\Models\MasterItem;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Department;
+use App\Models\ProcurementType;
 use App\Models\ApprovalRequestItemExtra;
 use App\Models\ApprovalRequestItem;
 use Illuminate\Http\Request;
@@ -145,6 +146,8 @@ class ApprovalRequestController extends Controller
     {
         // Get all active item types for radio button selection
         $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        // Get all active procurement types
+        $procurementTypes = ProcurementType::where('is_active', true)->get();
         // Get submission types
         $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
@@ -180,7 +183,7 @@ class ApprovalRequestController extends Controller
         // Get FS document settings
         $fsSettings = Setting::getGroup('approval_request');
         
-        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments', 'fsSettings'));
+        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments', 'fsSettings'));
     }
 
     public function store(Request $request)
@@ -188,6 +191,7 @@ class ApprovalRequestController extends Controller
         $validator = Validator::make($request->all(), [
             'workflow_id' => 'required|exists:approval_workflows,id',
             'item_type_id' => 'required|exists:item_types,id',
+            'procurement_type_id' => 'required|exists:procurement_types,id',
             'submission_type_id' => 'required|exists:submission_types,id',
             'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number',
             'items' => 'required|array',
@@ -294,6 +298,7 @@ class ApprovalRequestController extends Controller
         // Update approval request with item type information
         $approvalRequest->update([
             'item_type_id' => $request->item_type_id,
+            'procurement_type_id' => $request->procurement_type_id,
             'submission_type_id' => $request->submission_type_id,
             'is_specific_type' => $isSpecificType,
         ]);
@@ -558,16 +563,16 @@ class ApprovalRequestController extends Controller
 
         // Get all active item types for radio button selection
         $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        // Get all active procurement types
+        $procurementTypes = ProcurementType::where('is_active', true)->get();
         
         // Get workflow based on item type or default general workflow
         $defaultWorkflow = null;
-        if ($approvalRequest->item_type_id) {
-            // Try to get specific workflow for this item type
-            $defaultWorkflow = ApprovalWorkflow::where('is_active', true)
-                ->where('item_type_id', $approvalRequest->item_type_id)
-                ->where('is_specific_type', true)
-                ->first();
-        }
+        // Get workflow based on item type or default general workflow
+        $defaultWorkflow = null;
+        
+        // Logic specific workflow selection removed as per request
+
         
         // If no specific workflow found, get general workflow
         if (!$defaultWorkflow) {
@@ -611,7 +616,7 @@ class ApprovalRequestController extends Controller
             ->get()
             ->groupBy('master_item_id');
         
-        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'fsSettings', 'itemExtras', 'itemFiles'));
+        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'fsSettings', 'itemExtras', 'itemFiles'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -639,6 +644,7 @@ class ApprovalRequestController extends Controller
 
         $validator = Validator::make($request->all(), [
             'item_type_id' => 'required|exists:item_types,id',
+            'procurement_type_id' => 'required|exists:procurement_types,id',
             'submission_type_id' => 'required|exists:submission_types,id',
             'request_number' => 'nullable|string|max:255|unique:approval_requests,request_number,' . $approvalRequest->id,
             'items' => 'nullable|array',
@@ -687,6 +693,7 @@ class ApprovalRequestController extends Controller
             'priority' => 'normal',
             'is_cto_request' => false,
             'item_type_id' => $request->item_type_id,
+            'procurement_type_id' => $request->procurement_type_id,
             'submission_type_id' => $request->submission_type_id,
             'is_specific_type' => $isSpecificType,
         ]);
@@ -1104,6 +1111,17 @@ class ApprovalRequestController extends Controller
                                 $q->whereIn('status', ['pending', 'on progress', 'approved', 'rejected']);
                             });
 
+        // Phase filter - NEW: Filter by step_phase (approval vs release)
+        if ($request->filled('phase')) {
+            $phaseFilter = $request->phase;
+            if ($phaseFilter === 'approval') {
+                $query->where('step_phase', 'approval');
+            } elseif ($phaseFilter === 'release') {
+                $query->where('step_phase', 'release');
+            }
+            // If 'all' or invalid, don't filter by phase
+        }
+
         // Status filter - can filter by step status OR request status
         if ($request->filled('status')) {
             $statusFilter = $request->status;
@@ -1187,7 +1205,58 @@ class ApprovalRequestController extends Controller
 
         $departmentsMap = Department::pluck('name', 'id');
         
-        return view('approval-requests.pending-approvals', compact('pendingItems', 'departmentsMap'));
+        // Get counts for tabs (only pending steps)
+        $baseQuery = \App\Models\ApprovalItemStep::where(function($q) use ($userDepartments, $userRoles, $user) {
+                        $q->where('approver_id', $user->id)
+                          ->orWhereIn('approver_role_id', $userRoles)
+                          ->orWhereIn('approver_department_id', $userDepartments)
+                          ->orWhere(function($anyMgrQuery) use ($user) {
+                              $anyMgrQuery->where('approver_type', 'any_department_manager')
+                                          ->whereExists(function($exists) use ($user) {
+                                              $exists->select(\DB::raw(1))
+                                                    ->from('user_departments')
+                                                    ->whereColumn('user_departments.user_id', \DB::raw((int)$user->id))
+                                                    ->where('user_departments.is_manager', true);
+                                          });
+                          })
+                          ->orWhere(function($reqMgrQuery) use ($user) {
+                              $reqMgrQuery->where('approver_type', 'requester_department_manager')
+                                          ->whereExists(function($exists) use ($user) {
+                                              $exists->select(\DB::raw(1))
+                                                    ->from('approval_requests')
+                                                    ->join('user_departments', function($join) {
+                                                        $join->on('user_departments.user_id', '=', 'approval_requests.requester_id')
+                                                             ->where('user_departments.is_primary', true);
+                                                    })
+                                                    ->join('departments', 'departments.id', '=', 'user_departments.department_id')
+                                                    ->whereColumn('approval_requests.id', 'approval_item_steps.approval_request_id')
+                                                    ->where('departments.manager_id', $user->id);
+                                          });
+                          })
+                          ->orWhere(function($deptMgrQuery) use ($user) {
+                              $deptMgrQuery->where('approver_type', 'department_manager')
+                                          ->whereExists(function($exists) use ($user) {
+                                              $exists->select(\DB::raw(1))
+                                                    ->from('departments')
+                                                    ->whereColumn('departments.id', 'approval_item_steps.approver_department_id')
+                                                    ->where('departments.manager_id', $user->id);
+                                          });
+                          });
+                    })
+                    ->where('status', 'pending')
+                    ->whereHas('request', function($q) {
+                        $q->whereIn('status', ['pending', 'on progress']);
+                    });
+        
+        $approvalPhasePendingCount = (clone $baseQuery)->where('step_phase', 'approval')->count();
+        $releasePhasePendingCount = (clone $baseQuery)->where('step_phase', 'release')->count();
+        
+        return view('approval-requests.pending-approvals', compact(
+            'pendingItems', 
+            'departmentsMap',
+            'approvalPhasePendingCount',
+            'releasePhasePendingCount'
+        ));
     }
 
     /**
