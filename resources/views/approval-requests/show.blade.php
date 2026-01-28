@@ -13,14 +13,6 @@
                     <p class="text-sm text-gray-600">{{ $approvalRequest->request_number }}</p>
                 </div>
                 <div class="flex space-x-2">
-                    <a href="{{ route('approval-requests.my-requests') }}"
-                       class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded text-sm">
-                        My Requests
-                    </a>
-                    <a href="{{ route('approval-requests.pending-approvals') }}"
-                       class="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-3 rounded text-sm">
-                        Approval
-                    </a>
                     @if(($approvalRequest->status == 'pending' || $approvalRequest->status == 'on progress') && $approvalRequest->requester_id == auth()->id())
                         <a href="{{ route('approval-requests.edit', $approvalRequest) }}" 
                            class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded text-sm">
@@ -111,6 +103,11 @@
                                 <div class="flex items-center gap-2">
                                     <span class="text-gray-600 w-32">Workflow:</span>
                                     <span class="font-medium text-gray-900">{{ $approvalRequest->workflow->name }}</span>
+                                </div>
+                                
+                                <div class="flex items-center gap-2">
+                                    <span class="text-gray-600 w-32">Sifat Pengadaan:</span>
+                                    <span class="font-medium text-gray-900">{{ $approvalRequest->procurementType->name ?? '-' }}</span>
                                 </div>
                             </div>
                             

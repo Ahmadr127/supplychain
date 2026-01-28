@@ -31,6 +31,7 @@ class ApprovalRequestItem extends Model
         'approved_by',
         'approved_at',
         'rejected_reason',
+        'capex_item_id',
     ];
 
     protected $casts = [
@@ -46,6 +47,11 @@ class ApprovalRequestItem extends Model
     public function masterItem()
     {
         return $this->belongsTo(MasterItem::class);
+    }
+
+    public function capexItem()
+    {
+        return $this->belongsTo(CapexItem::class);
     }
 
     public function supplier()

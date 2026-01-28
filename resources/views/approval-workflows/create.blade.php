@@ -59,25 +59,58 @@
                             @enderror
                         </div>
 
-                        <!-- Item Type Selection -->
+                        <!-- Sifat Pengadaan (Procurement Type) -->
                         <div>
-                            <label for="item_type_id" class="block text-sm font-medium text-gray-700 mb-2">
-                                Tipe Barang
+                            <label for="procurement_type_id" class="block text-sm font-medium text-gray-700 mb-2">
+                                Sifat Pengadaan <span class="text-red-500">*</span>
                             </label>
-                            <select id="item_type_id" name="item_type_id"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('item_type_id') border-red-500 @enderror">
-                                <option value="">Pilih Tipe Barang (Opsional)</option>
-                                @foreach (\App\Models\ItemType::where('is_active', true)->get() as $itemType)
-                                    <option value="{{ $itemType->id }}"
-                                        {{ old('item_type_id') == $itemType->id ? 'selected' : '' }}>
-                                        {{ $itemType->name }} - {{ $itemType->description }}
+                            <select id="procurement_type_id" name="procurement_type_id" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('procurement_type_id') border-red-500 @enderror">
+                                <option value="">Pilih Sifat Pengadaan</option>
+                                @foreach (\App\Models\ProcurementType::where('is_active', true)->get() as $procType)
+                                    <option value="{{ $procType->id }}"
+                                        {{ old('procurement_type_id') == $procType->id ? 'selected' : '' }}>
+                                        {{ $procType->name }}
                                     </option>
                                 @endforeach
                             </select>
-                            @error('item_type_id')
+                            @error('procurement_type_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
-                            <p class="mt-1 text-xs text-gray-500">Kosongkan jika workflow untuk semua tipe barang</p>
+                        </div>
+
+                        <!-- Placeholder for grid alignment -->
+                        <div></div>
+
+                        <!-- Nominal Min -->
+                        <div>
+                            <label for="nominal_min" class="block text-sm font-medium text-gray-700 mb-2">
+                                Nominal Minimum (Rp) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="nominal_min" name="nominal_min" required
+                                   value="{{ old('nominal_min', '0') }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('nominal_min') border-red-500 @enderror"
+                                   placeholder="0"
+                                   oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                            @error('nominal_min')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <!-- Nominal Max -->
+                        <div>
+                            <label for="nominal_max" class="block text-sm font-medium text-gray-700 mb-2">
+                                Nominal Maksimum (Rp)
+                            </label>
+                            <input type="text" id="nominal_max" name="nominal_max" 
+                                   value="{{ old('nominal_max') }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('nominal_max') border-red-500 @enderror"
+                                   placeholder="Kosongkan untuk tidak ada batas"
+                                   oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                            @error('nominal_max')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            <p class="mt-1 text-xs text-gray-500">Kosongkan jika tidak ada batas maksimum</p>
                         </div>
 
                         <!-- Status -->

@@ -152,7 +152,7 @@
                         <x-approval-progress-steps :request="$row->request" :step-data="$row->itemData" :show-metadata="true" />
                     </td>
                     <td class="w-20">
-                        <x-approval-status-badge :status="$row->request->status" />
+                        <x-approval-status-badge :status="$row->itemData->status" />
                     </td>
                     <td class="w-40">
                         <x-purchasing-status-badge :status="$row->request->purchasing_status" :request-id="$row->request->id" />

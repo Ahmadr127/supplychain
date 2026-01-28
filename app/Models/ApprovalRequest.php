@@ -45,6 +45,11 @@ class ApprovalRequest extends Model
         return $this->belongsTo(ApprovalWorkflow::class, 'workflow_id');
     }
 
+    public function procurementType()
+    {
+        return $this->belongsTo(\App\Models\ProcurementType::class);
+    }
+
     // Relasi dengan requester
     public function requester()
     {

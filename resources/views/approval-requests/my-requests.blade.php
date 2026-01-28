@@ -44,11 +44,6 @@
                 
                 <!-- Action Buttons -->
                 <div class="flex gap-2 flex-shrink-0">
-                    <a href="{{ route('approval-requests.pending-approvals') }}" 
-                       class="h-9 px-3 inline-flex items-center text-sm font-medium bg-yellow-600 hover:bg-yellow-700 text-white rounded-md transition-colors">
-                        <i class="fas fa-clock mr-1.5"></i>
-                        <span class="hidden sm:inline">Pending Approvals</span>
-                    </a>
                     <a href="{{ route('approval-requests.create') }}" 
                        class="h-9 px-3 inline-flex items-center text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors">
                         <i class="fas fa-plus mr-1.5"></i>
@@ -106,7 +101,7 @@
                         <x-approval-progress-steps :request="$row->request" :step-data="$row->itemData" :show-metadata="true" />
                     </td>
                     <td class="w-20">
-                        <x-approval-status-badge :status="$row->request->status" />
+                        <x-approval-status-badge :status="$row->itemData->status" />
                     </td>
                     <td class="w-40">
                         <x-purchasing-status-badge :status="$row->request->purchasing_status" :request-id="$row->request->id" />

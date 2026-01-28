@@ -209,8 +209,149 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
 
                 <!-- Manager Step: Price Input (Required) -->
                 @if ($needsPriceInput)
-                    <div x-show="action === 'approve'" x-transition>
-                        <div class="grid grid-cols-3 gap-3">
+                    <div x-show="action === 'approve'" x-transition x-data="{
+                        priceSource: 'capex', // capex or manual
+                        selectedCapexId: '',
+                        capexItems: [],
+                        isLoadingCapex: false,
+                        selectedCapex: null,
+                        
+                        async fetchCapex() {
+                            this.isLoadingCapex = true;
+                            try {
+                                // Fetch active Capex items for requester's department
+                                const response = await fetch('{{ route('api.capex.items.available', ['department_id' => $approvalRequest->requester->departments->first()->id ?? 0]) }}');
+                                const data = await response.json();
+                                this.capexItems = data.items || [];
+                            } catch (e) {
+                                console.error('Failed to fetch capex', e);
+                            } finally {
+                                this.isLoadingCapex = false;
+                            }
+                        },
+                        
+                        updateCapexInfo() {
+                            this.selectedCapex = this.capexItems.find(i => i.id == this.selectedCapexId) || null;
+                        },
+                        
+                        formatRupiah(amount) {
+                            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+                        }
+                    }" x-init="fetchCapex()">
+                        
+
+
+                        {{-- Price Source Toggle --}}
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Sumber Anggaran</label>
+                            <div class="flex space-x-4">
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="radio" name="price_source_dummy" value="capex" x-model="priceSource" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                                    <span class="ml-2 text-sm text-gray-700">Gunakan Capex</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="radio" name="price_source_dummy" value="manual" x-model="priceSource" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                                    <span class="ml-2 text-sm text-gray-700">Non-Capex / Manual</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {{-- Option A: Capex Selection --}}
+                        <div x-show="priceSource === 'capex'" class="space-y-3 bg-white p-3 rounded-lg border border-gray-200">
+                            <div x-data="{
+                                open: false,
+                                search: '',
+                                get filteredCapex() {
+                                    if (this.search === '') return this.capexItems;
+                                    return this.capexItems.filter(item => 
+                                        (item.capex_id_number + ' - ' + item.item_name).toLowerCase().includes(this.search.toLowerCase())
+                                    );
+                                },
+                                get selectedLabel() {
+                                    const item = this.capexItems.find(i => i.id == this.selectedCapexId);
+                                    return item ? (item.capex_id_number + ' - ' + item.item_name) : '-- Pilih Anggaran Capex --';
+                                }
+                            }" class="relative">
+                                <label class="block text-xs font-medium text-gray-900 mb-1">
+                                    Pilih Item Capex <span class="text-red-500">*</span>
+                                </label>
+                                
+                                <!-- Hidden Input for Form Submission -->
+                                <input type="hidden" name="capex_item_id" x-model="selectedCapexId">
+                                
+                                <!-- Trigger Button -->
+                                <button type="button" @click="open = !open; if(open) $nextTick(() => $refs.searchInput.focus())"
+                                    class="w-full text-left text-sm bg-white border border-black rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 flex justify-between items-center shadow-sm">
+                                    <span x-text="selectedLabel" :class="{'text-gray-500': !selectedCapexId, 'text-gray-900': selectedCapexId}"></span>
+                                    <i class="fas fa-chevron-down text-gray-400 transition-transform duration-200" :class="{'transform rotate-180': open}"></i>
+                                </button>
+                            
+                                <!-- Dropdown Menu -->
+                                <div x-show="open" @click.away="open = false" style="display: none;"
+                                    class="absolute z-20 mt-1 w-full bg-white border border-black rounded-md shadow-lg max-h-60 overflow-auto">
+                                    
+                                    <!-- Search Input -->
+                                    <div class="sticky top-0 bg-white p-2 border-b border-gray-200">
+                                        <input x-ref="searchInput" type="text" x-model="search" placeholder="Cari Capex..."
+                                            class="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500">
+                                    </div>
+                            
+                                    <!-- Options List -->
+                                    <div class="py-1">
+                                        <template x-for="capex in filteredCapex" :key="capex.id">
+                                            <div @click="selectedCapexId = capex.id; updateCapexInfo(); open = false; search = ''"
+                                                class="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer text-gray-900 border-b border-gray-50 last:border-0"
+                                                :class="{'bg-blue-100 font-medium': selectedCapexId == capex.id}">
+                                                <div class="flex justify-between items-center">
+                                                    <span x-text="capex.capex_id_number + ' - ' + capex.item_name"></span>
+                                                    <span x-show="selectedCapexId == capex.id" class="text-blue-600"><i class="fas fa-check"></i></span>
+                                                </div>
+                                                <div class="text-xs text-gray-500 flex justify-between mt-0.5">
+                                                    <span x-text="'Budget: ' + formatRupiah(capex.budget_amount)"></span>
+                                                    <span x-text="'Sisa: ' + formatRupiah(capex.remaining_amount)" :class="{'text-red-500': capex.remaining_amount < 0, 'text-green-600': capex.remaining_amount > 0}"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div x-show="filteredCapex.length === 0" class="px-3 py-2 text-sm text-gray-500 text-center">
+                                            Tidak ada data ditemukan
+                                        </div>
+                                    </div>
+                                </div>
+                                <p x-show="isLoadingCapex" class="text-xs text-blue-500 mt-1"><i class="fas fa-spinner fa-spin"></i> Memuat data capex...</p>
+                            </div>
+
+                            {{-- Capex Info Card --}}
+                            <div x-show="selectedCapex" class="bg-white p-2 rounded border border-blue-100 text-xs space-y-1">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Budget Awal:</span>
+                                    <span class="font-medium" x-text="formatRupiah(selectedCapex?.budget_amount || 0)"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Terpakai:</span>
+                                    <span class="font-medium text-yellow-600" x-text="formatRupiah(selectedCapex?.used_amount || 0)"></span>
+                                </div>
+                                <div class="flex justify-between border-t border-gray-100 pt-1 mt-1">
+                                    <span class="text-gray-600 font-semibold">Sisa:</span>
+                                    <span class="font-bold text-green-600" x-text="formatRupiah(selectedCapex?.remaining_amount || 0)"></span>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start gap-2 text-blue-700 text-xs">
+                                <i class="fas fa-info-circle mt-0.5"></i>
+                                <p>Pengadaan ini akan dicatat menggunakan anggaran Capex yang dipilih.</p>
+                            </div>
+                        </div>
+
+                        {{-- Option B: Manual Note --}}
+                        <div x-show="priceSource === 'manual'" class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-3">
+                            <div class="flex items-start gap-2 text-gray-700 text-xs">
+                                <i class="fas fa-exclamation-circle mt-0.5"></i>
+                                <p>Pengadaan ini <strong>TIDAK</strong> menggunakan anggaran Capex (Non-Budgeter/OpEx).</p>
+                            </div>
+                        </div>
+
+                        {{-- Price Input (Always Visible but Context Aware) --}}
+                        <div class="grid grid-cols-3 gap-3 mt-3">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1.5">
                                     Harga Satuan <span class="text-red-500">*</span>

@@ -24,7 +24,10 @@ class DatabaseSeeder extends Seeder
             ProcurementTypeSeeder::class,
             MasterItemSeeder::class,
             ItemTypeCodeSeeder::class,
-            ApprovalWorkflowSeeder::class,
+            WorkflowRoleUserSeeder::class,  // Create roles & users for workflow
+            DynamicWorkflowSeeder::class,
+            CapexSeeder::class,  // CapEx data per department
+            
         ]);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\PurchasingItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class ApprovalItemApprovalController extends Controller
 {
@@ -94,21 +95,49 @@ class ApprovalItemApprovalController extends Controller
             }
             Log::info('🟩 Authorization passed');
             
-            // Manager step: Save price input
-            if ($currentStep->step_number == 1 && $request->has('unit_price')) {
-                // Parse price: remove dots (thousand separator)
-                $unitPrice = (float) str_replace('.', '', $request->unit_price);
-                
+            // Manager step: Save price input (based on required_action)
+            if ($currentStep->required_action == 'input_price') {
+
+
+                $unitPrice = 0;
+                $capexItemId = null;
+
+                // Check price source: Capex or Manual
+                if ($request->has('capex_item_id') && $request->capex_item_id) {
+                    // Option A: From Capex
+                    $capexItemId = $request->capex_item_id;
+                    $capexItem = \App\Models\CapexItem::findOrFail($capexItemId);
+                    
+                    // If unit_price is provided (manual override or confirmation), use it. 
+                    // Otherwise could default to something else, but here we expect user to input price 
+                    // even if capex is selected (to confirm how much of the budget is used).
+                    // However, the requirement says "bisa memilih id item capex... atau menggunakan inputan harga manual".
+                    // Usually, selecting Capex means we are allocating THIS item to THAT budget. 
+                    // The price itself is still the price of the item.
+                    
+                    if ($request->has('unit_price')) {
+                        $unitPrice = (float) str_replace('.', '', $request->unit_price);
+                    }
+                    
+                    Log::info('🟦 Selected Capex Item: ' . $capexItemId);
+                } else {
+                    // Option B: Manual Input (Non-Capex)
+                    if ($request->has('unit_price')) {
+                        $unitPrice = (float) str_replace('.', '', $request->unit_price);
+                    }
+                }
+
                 if ($unitPrice <= 0) {
                     DB::rollBack();
                     Log::error('🟥 Price <= 0, rolling back transaction');
                     return back()->withErrors(['unit_price' => 'Harga harus lebih dari 0'])->withInput();
                 }
                 
-                Log::info('🟦 Updating item with price...');
+                Log::info('🟦 Updating item with price and capex...');
                 $item->update([
                     'unit_price' => $unitPrice,
                     'total_price' => $item->quantity * $unitPrice,
+                    'capex_item_id' => $capexItemId,
                     'approved_price_by' => auth()->id(),
                     'approved_price_at' => now(),
                 ]);
@@ -116,9 +145,11 @@ class ApprovalItemApprovalController extends Controller
                 Log::info('🟩 Manager approved with price:', [
                     'item_id' => $item->id,
                     'unit_price' => $unitPrice,
+                    'capex_item_id' => $capexItemId,
                     'total_price' => $item->quantity * $unitPrice,
-                    'raw_input' => $request->unit_price,
                 ]);
+
+
             }
             
             // Save FS document if step requires budget verification
@@ -161,6 +192,39 @@ class ApprovalItemApprovalController extends Controller
                 'step_name' => $currentStep->step_name,
                 'approver_id' => auth()->id(),
             ]);
+
+            // Re-evaluate workflow based on new price (if applicable)
+            // Must be done AFTER approval to ensure current step is marked approved and not deleted
+            if ($currentStep->required_action == 'input_price') {
+                try {
+                    $workflowService = app(\App\Services\WorkflowService::class);
+                    $workflowService->reevaluateWorkflow($item);
+                    // IMPORTANT:
+                    // Re-evaluation may regenerate steps (and can change step_number),
+                    // so don't blindly refresh (it can throw "No query results..." if row moved/deleted).
+                    // Re-fetch safely instead.
+                    try {
+                        $refetched = ApprovalItemStep::find($currentStep->id);
+                        if ($refetched) {
+                            $currentStep = $refetched;
+                        } else {
+                            $currentStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                                ->where('master_item_id', $item->master_item_id)
+                                ->where('status', 'approved')
+                                ->orderBy('step_number', 'desc')
+                                ->first() ?? $currentStep;
+                        }
+                    } catch (ModelNotFoundException $e) {
+                        // Keep using the in-memory $currentStep; flow below uses step_number primarily.
+                        Log::warning('⚠️ Step refresh skipped after workflow re-evaluation', [
+                            'step_id' => $currentStep->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('❌ Workflow re-evaluation failed', ['error' => $e->getMessage()]);
+                }
+            }
             
             // Handle quick insert step (if checkbox checked)
             if ($request->has('quick_insert_step') && $currentStep->insert_step_template) {

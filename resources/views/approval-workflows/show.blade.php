@@ -58,7 +58,11 @@
                             
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Total Steps</label>
-                                <p class="mt-1 text-sm text-gray-900">{{ count($approvalWorkflow->workflow_steps) }} steps</p>
+                                @php
+                                    $workflowSteps = $approvalWorkflow->steps ?? collect($approvalWorkflow->workflow_steps ?? []);
+                                    $stepCount = is_countable($workflowSteps) ? count($workflowSteps) : 0;
+                                @endphp
+                                <p class="mt-1 text-sm text-gray-900">{{ $stepCount }} steps</p>
                             </div>
                             
                             <div>
@@ -72,26 +76,29 @@
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Tipe Barang</label>
+                                <label class="block text-sm font-medium text-gray-700">Sifat Pengadaan</label>
                                 <p class="mt-1">
-                                    @if($approvalWorkflow->itemType)
+                                    @if($approvalWorkflow->procurementType)
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                            {{ $approvalWorkflow->itemType->name }}
+                                            {{ $approvalWorkflow->procurementType->name }} ({{ $approvalWorkflow->procurementType->code }})
                                         </span>
                                     @else
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                            Umum (Semua Tipe)
+                                            Umum (Semua Sifat)
                                         </span>
                                     @endif
                                 </p>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Jenis Workflow</label>
+                                <label class="block text-sm font-medium text-gray-700">Range Nominal</label>
                                 <p class="mt-1">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                        {{ $approvalWorkflow->is_specific_type ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800' }}">
-                                        {{ $approvalWorkflow->is_specific_type ? 'Khusus' : 'Umum' }}
+                                        {{ $approvalWorkflow->nominal_range == 'high' ? 'bg-red-100 text-red-800' : 
+                                           ($approvalWorkflow->nominal_range == 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">
+                                        Rp {{ number_format($approvalWorkflow->nominal_min ?? 0, 0, ',', '.') }}
+                                        - 
+                                        {{ $approvalWorkflow->nominal_max ? 'Rp ' . number_format($approvalWorkflow->nominal_max, 0, ',', '.') : '∞ (Tidak terbatas)' }}
                                     </span>
                                 </p>
                             </div>
@@ -112,7 +119,22 @@
                         </div>
                         <div class="p-6">
                             <div class="space-y-4">
-                                @foreach($approvalWorkflow->workflow_steps as $index => $step)
+                                @php
+                                    $displaySteps = $approvalWorkflow->steps ?? collect($approvalWorkflow->workflow_steps ?? []);
+                                @endphp
+                                @foreach($displaySteps as $index => $step)
+                                @php
+                                    $stepData = is_object($step) ? $step : (object) $step;
+                                    $stepName = $stepData->step_name ?? $stepData->name ?? 'Step ' . ($index + 1);
+                                    $stepDesc = $stepData->description ?? null;
+                                    $approverType = $stepData->approver_type ?? 'role';
+                                    $approverId = $stepData->approver_id ?? null;
+                                    $approverRoleId = $stepData->approver_role_id ?? null;
+                                    $approverDeptId = $stepData->approver_department_id ?? null;
+                                    $isConditional = $stepData->is_conditional ?? false;
+                                    $conditionType = $stepData->condition_type ?? null;
+                                    $conditionValue = $stepData->condition_value ?? null;
+                                @endphp
                                 <div class="flex items-center p-4 border border-gray-200 rounded-lg bg-gray-50">
                                     <div class="flex-shrink-0">
                                         <div class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
@@ -123,42 +145,42 @@
                                     <div class="ml-4 flex-1">
                                         <div class="flex items-center justify-between">
                                             <div class="flex-1">
-                                                <p class="text-sm font-medium text-gray-900">{{ $step['name'] }}</p>
+                                                <p class="text-sm font-medium text-gray-900">{{ $stepName }}</p>
                                                 
-                                                @if(isset($step['description']) && $step['description'])
-                                                <p class="text-xs text-gray-600 mt-1">{{ $step['description'] }}</p>
+                                                @if($stepDesc)
+                                                <p class="text-xs text-gray-600 mt-1">{{ $stepDesc }}</p>
                                                 @endif
                                                 
                                                 <p class="text-xs text-gray-500 mt-1">
-                                                    @if($step['approver_type'] == 'user' && isset($step['approver_id']))
+                                                    @if($approverType == 'user' && $approverId)
                                                         @php
-                                                            $user = \App\Models\User::find($step['approver_id']);
+                                                            $user = \App\Models\User::find($approverId);
                                                         @endphp
                                                         User: {{ $user ? $user->name : 'User not found' }}
-                                                    @elseif($step['approver_type'] == 'role' && isset($step['approver_role_id']))
+                                                    @elseif($approverType == 'role' && $approverRoleId)
                                                         @php
-                                                            $role = \App\Models\Role::find($step['approver_role_id']);
+                                                            $role = \App\Models\Role::find($approverRoleId);
                                                         @endphp
                                                         Role: {{ $role ? $role->display_name : 'Role not found' }}
-                                                    @elseif($step['approver_type'] == 'department_manager' && isset($step['approver_department_id']))
+                                                    @elseif($approverType == 'department_manager' && $approverDeptId)
                                                         @php
-                                                            $dept = \App\Models\Department::find($step['approver_department_id']);
+                                                            $dept = \App\Models\Department::find($approverDeptId);
                                                         @endphp
                                                         Department Manager: {{ $dept ? $dept->name : 'Department not found' }}
-                                                    @elseif($step['approver_type'] == 'any_department_manager')
+                                                    @elseif($approverType == 'any_department_manager')
                                                         Semua Manager (lintas departemen)
-                                                    @elseif($step['approver_type'] == 'requester_department_manager')
+                                                    @elseif($approverType == 'requester_department_manager')
                                                         Manager Departemen Requester
                                                     @else
                                                         Approver: Not configured
                                                     @endif
                                                 </p>
                                                 
-                                                @if(isset($step['is_conditional']) && $step['is_conditional'])
+                                                @if($isConditional)
                                                 <div class="mt-2">
                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                                                         <i class="fas fa-code-branch mr-1"></i>
-                                                        Conditional: {{ $step['condition_type'] == 'total_price' ? 'Total >= Rp ' . number_format($step['condition_value'], 0, ',', '.') : 'Unknown' }}
+                                                        Conditional: {{ $conditionType == 'total_price' ? 'Total >= Rp ' . number_format($conditionValue, 0, ',', '.') : 'Unknown' }}
                                                     </span>
                                                 </div>
                                                 @endif

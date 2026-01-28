@@ -59,24 +59,57 @@
                         @enderror
                     </div>
 
-                    <!-- Item Type Selection -->
+                    <!-- Sifat Pengadaan (Procurement Type) -->
                     <div>
-                        <label for="item_type_id" class="block text-sm font-medium text-gray-700 mb-2">
-                            Tipe Barang
+                        <label for="procurement_type_id" class="block text-sm font-medium text-gray-700 mb-2">
+                            Sifat Pengadaan <span class="text-red-500">*</span>
                         </label>
-                        <select id="item_type_id" name="item_type_id" 
-                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('item_type_id') border-red-500 @enderror">
-                            <option value="">Pilih Tipe Barang (Opsional)</option>
-                            @foreach(\App\Models\ItemType::where('is_active', true)->get() as $itemType)
-                                <option value="{{ $itemType->id }}" {{ old('item_type_id', $approvalWorkflow->item_type_id) == $itemType->id ? 'selected' : '' }}>
-                                    {{ $itemType->name }} - {{ $itemType->description }}
+                        <select id="procurement_type_id" name="procurement_type_id" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('procurement_type_id') border-red-500 @enderror">
+                            <option value="">Pilih Sifat Pengadaan</option>
+                            @foreach(\App\Models\ProcurementType::where('is_active', true)->get() as $procType)
+                                <option value="{{ $procType->id }}" {{ old('procurement_type_id', $approvalWorkflow->procurement_type_id) == $procType->id ? 'selected' : '' }}>
+                                    {{ $procType->name }}
                                 </option>
                             @endforeach
                         </select>
-                        @error('item_type_id')
+                        @error('procurement_type_id')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
-                        <p class="mt-1 text-xs text-gray-500">Kosongkan jika workflow untuk semua tipe barang</p>
+                    </div>
+
+                    <!-- Placeholder for grid alignment -->
+                    <div></div>
+
+                    <!-- Nominal Min -->
+                    <div>
+                        <label for="nominal_min" class="block text-sm font-medium text-gray-700 mb-2">
+                            Nominal Minimum (Rp) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="nominal_min" name="nominal_min" required
+                               value="{{ old('nominal_min', $approvalWorkflow->nominal_min ? number_format($approvalWorkflow->nominal_min, 0, ',', '.') : '0') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('nominal_min') border-red-500 @enderror"
+                               placeholder="0"
+                               oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                        @error('nominal_min')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <!-- Nominal Max -->
+                    <div>
+                        <label for="nominal_max" class="block text-sm font-medium text-gray-700 mb-2">
+                            Nominal Maksimum (Rp)
+                        </label>
+                        <input type="text" id="nominal_max" name="nominal_max" 
+                               value="{{ old('nominal_max', $approvalWorkflow->nominal_max ? number_format($approvalWorkflow->nominal_max, 0, ',', '.') : '') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('nominal_max') border-red-500 @enderror"
+                               placeholder="Kosongkan untuk tidak ada batas"
+                               oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                        @error('nominal_max')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                        <p class="mt-1 text-xs text-gray-500">Kosongkan jika tidak ada batas maksimum</p>
                     </div>
 
                     <!-- Status -->
@@ -104,7 +137,25 @@
 
                     <div id="stepsContainer">
                         <!-- Load existing steps -->
-                        @foreach($approvalWorkflow->workflow_steps as $index => $step)
+                        @php
+                            $editSteps = $approvalWorkflow->steps ?? collect($approvalWorkflow->workflow_steps ?? []);
+                        @endphp
+                        @foreach($editSteps as $index => $step)
+                        @php
+                            $stepData = is_object($step) ? $step : (object) $step;
+                            $stepName = $stepData->step_name ?? $stepData->name ?? 'Step ' . ($index + 1);
+                            $approverType = $stepData->approver_type ?? 'role';
+                            $description = $stepData->description ?? '';
+                            $requiredAction = $stepData->required_action ?? '';
+                            $isConditional = $stepData->is_conditional ?? false;
+                            $conditionType = $stepData->condition_type ?? '';
+                            $conditionValue = $stepData->condition_value ?? '';
+                            $canInsertStep = $stepData->can_insert_step ?? false;
+                            $approverId = $stepData->approver_id ?? null;
+                            $approverRoleId = $stepData->approver_role_id ?? null;
+                            $approverDeptId = $stepData->approver_department_id ?? null;
+                            $template = (array) ($stepData->insert_step_template ?? []);
+                        @endphp
                         <div class="border border-gray-200 rounded-lg p-6 mb-4 step-item bg-white shadow-sm" data-step-id="existing_step_{{ $index + 1 }}">
                             <div class="flex justify-between items-center mb-4">
                                 <h4 class="text-md font-medium text-gray-900 step-number">Step {{ $index + 1 }}</h4>
@@ -116,7 +167,7 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Nama Step</label>
-                                    <input type="text" name="workflow_steps[{{ $index + 1 }}][name]" value="{{ $step['name'] }}" required
+                                    <input type="text" name="workflow_steps[{{ $index + 1 }}][name]" value="{{ $stepName }}" required
                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                            placeholder="Unit Manager Approval">
                                 </div>
@@ -127,11 +178,11 @@
                                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                             onchange="toggleApproverFields(this, {{ $index + 1 }})">
                                         <option value="">Pilih Tipe Approver</option>
-                                        <option value="user" {{ $step['approver_type'] == 'user' ? 'selected' : '' }}>User Spesifik</option>
-                                        <option value="role" {{ $step['approver_type'] == 'role' ? 'selected' : '' }}>Role</option>
-                                        <option value="department_manager" {{ $step['approver_type'] == 'department_manager' ? 'selected' : '' }}>Manager Department</option>
-                                        <option value="requester_department_manager" {{ $step['approver_type'] == 'requester_department_manager' ? 'selected' : '' }}>Manager Departemen Requester</option>
-                                        <option value="any_department_manager" {{ $step['approver_type'] == 'any_department_manager' ? 'selected' : '' }}>Semua Manager</option>
+                                        <option value="user" {{ $approverType == 'user' ? 'selected' : '' }}>User Spesifik</option>
+                                        <option value="role" {{ $approverType == 'role' ? 'selected' : '' }}>Role</option>
+                                        <option value="department_manager" {{ $approverType == 'department_manager' ? 'selected' : '' }}>Manager Department</option>
+                                        <option value="requester_department_manager" {{ $approverType == 'requester_department_manager' ? 'selected' : '' }}>Manager Departemen Requester</option>
+                                        <option value="any_department_manager" {{ $approverType == 'any_department_manager' ? 'selected' : '' }}>Semua Manager</option>
                                     </select>
                                 </div>
                                 
@@ -139,7 +190,7 @@
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Deskripsi Step (opsional)</label>
                                     <textarea name="workflow_steps[{{ $index + 1 }}][description]" rows="2"
                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                           placeholder="Contoh: Manager unit input harga dan approve">{{ $step['description'] ?? '' }}</textarea>
+                                           placeholder="Contoh: Manager unit input harga dan approve">{{ $description }}</textarea>
                                 </div>
                                 
                                 <!-- Required Action (NEW) -->
@@ -151,10 +202,10 @@
                                     <select name="workflow_steps[{{ $index + 1 }}][required_action]"
                                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         <option value="">Tidak ada aksi khusus</option>
-                                        <option value="input_price" {{ isset($step['required_action']) && $step['required_action'] == 'input_price' ? 'selected' : '' }}>
+                                        <option value="input_price" {{ $requiredAction == 'input_price' ? 'selected' : '' }}>
                                             Input Harga (Manager)
                                         </option>
-                                        <option value="verify_budget" {{ isset($step['required_action']) && $step['required_action'] == 'verify_budget' ? 'selected' : '' }}>
+                                        <option value="verify_budget" {{ $requiredAction == 'verify_budget' ? 'selected' : '' }}>
                                             Verifikasi Budget + Upload FS (Keuangan)
                                         </option>
                                     </select>
@@ -168,25 +219,25 @@
                                 <div class="md:col-span-2 border-t pt-3 mt-2">
                                     <label class="flex items-center mb-3">
                                         <input type="checkbox" name="workflow_steps[{{ $index + 1 }}][is_conditional]" value="1"
-                                               {{ isset($step['is_conditional']) && $step['is_conditional'] ? 'checked' : '' }}
+                                               {{ $isConditional ? 'checked' : '' }}
                                                class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
                                                onchange="toggleConditionalFields(this, {{ $index + 1 }})">
                                         <span class="ml-2 text-sm font-medium text-gray-700">Step Conditional (skip jika kondisi tidak terpenuhi)</span>
                                     </label>
                                     
-                                    <div id="conditional_fields_{{ $index + 1 }}" class="grid grid-cols-2 gap-4 {{ isset($step['is_conditional']) && $step['is_conditional'] ? '' : 'hidden' }}">
+                                    <div id="conditional_fields_{{ $index + 1 }}" class="grid grid-cols-2 gap-4 {{ $isConditional ? '' : 'hidden' }}">
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 mb-2">Tipe Kondisi</label>
                                             <select name="workflow_steps[{{ $index + 1 }}][condition_type]"
                                                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                                 <option value="">Pilih Kondisi</option>
-                                                <option value="total_price" {{ isset($step['condition_type']) && $step['condition_type'] == 'total_price' ? 'selected' : '' }}>Total Harga</option>
+                                                <option value="total_price" {{ $conditionType == 'total_price' ? 'selected' : '' }}>Total Harga</option>
                                             </select>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 mb-2">Nilai Threshold (Rp)</label>
                                             <input type="text" name="workflow_steps[{{ $index + 1 }}][condition_value]"
-                                                   value="{{ isset($step['condition_value']) ? number_format($step['condition_value'], 0, ',', '.') : '' }}"
+                                                   value="{{ $conditionValue ? number_format($conditionValue, 0, ',', '.') : '' }}"
                                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                    placeholder="100000000"
                                                    oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
@@ -199,7 +250,7 @@
                                 <div class="md:col-span-2 border-t pt-3 mt-2">
                                     <label class="flex items-center mb-3">
                                         <input type="checkbox" name="workflow_steps[{{ $index + 1 }}][can_insert_step]" value="1"
-                                               {{ isset($step['can_insert_step']) && $step['can_insert_step'] ? 'checked' : '' }}
+                                               {{ $canInsertStep ? 'checked' : '' }}
                                                class="rounded border-gray-300 text-yellow-600 shadow-sm focus:border-yellow-300 focus:ring focus:ring-yellow-200 focus:ring-opacity-50"
                                                onchange="toggleInsertStepTemplate(this, {{ $index + 1 }})">
                                         <span class="ml-2 text-sm font-medium text-gray-700">
@@ -212,17 +263,14 @@
                                     </p>
                                     
                                     <!-- Insert Step Template Configuration -->
-                                    <div id="insert_step_template_{{ $index + 1 }}" class="{{ isset($step['can_insert_step']) && $step['can_insert_step'] ? '' : 'hidden' }} bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+                                    <div id="insert_step_template_{{ $index + 1 }}" class="{{ $canInsertStep ? '' : 'hidden' }} bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
                                         <h4 class="text-sm font-semibold text-gray-900 mb-2">
                                             <i class="fas fa-cog text-yellow-600 mr-1"></i>
                                             Konfigurasi Quick Insert Template
                                         </h4>
                                         <p class="text-xs text-gray-600 mb-3">Template step yang akan ditambahkan (user hanya perlu centang checkbox)</p>
                                         
-                                        @php
-                                            $template = $step['insert_step_template'] ?? [];
-                                        @endphp
-                                        
+
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div class="md:col-span-2">
                                                 <label class="block text-xs font-medium text-gray-700 mb-1">Nama Step Template</label>
@@ -323,39 +371,39 @@
                                     </div>
                                 </div>
                                 
-                                <div id="approver_user_{{ $index + 1 }}" class="approver-field" style="display: {{ $step['approver_type'] == 'user' ? 'block' : 'none' }};">
+                                <div id="approver_user_{{ $index + 1 }}" class="approver-field" style="display: {{ $approverType == 'user' ? 'block' : 'none' }};">
                                     <label class="block text-sm font-medium text-gray-700 mb-2">User</label>
                                     <select name="workflow_steps[{{ $index + 1 }}][approver_id]"
                                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         <option value="">Pilih User</option>
                                         @foreach($users as $user)
-                                            <option value="{{ $user->id }}" {{ isset($step['approver_id']) && $step['approver_id'] == $user->id ? 'selected' : '' }}>
+                                            <option value="{{ $user->id }}" {{ $approverId == $user->id ? 'selected' : '' }}>
                                                 {{ $user->name }} ({{ $user->role->display_name ?? 'No Role' }})
                                             </option>
                                         @endforeach
                                     </select>
                                 </div>
                                 
-                                <div id="approver_role_{{ $index + 1 }}" class="approver-field" style="display: {{ $step['approver_type'] == 'role' ? 'block' : 'none' }};">
+                                <div id="approver_role_{{ $index + 1 }}" class="approver-field" style="display: {{ $approverType == 'role' ? 'block' : 'none' }};">
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
                                     <select name="workflow_steps[{{ $index + 1 }}][approver_role_id]"
                                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         <option value="">Pilih Role</option>
                                         @foreach($roles as $role)
-                                            <option value="{{ $role->id }}" {{ isset($step['approver_role_id']) && $step['approver_role_id'] == $role->id ? 'selected' : '' }}>
+                                            <option value="{{ $role->id }}" {{ $approverRoleId == $role->id ? 'selected' : '' }}>
                                                 {{ $role->display_name }}
                                             </option>
                                         @endforeach
                                     </select>
                                 </div>
                                 
-                                <div id="approver_department_{{ $index + 1 }}" class="approver-field" style="display: {{ $step['approver_type'] == 'department_manager' ? 'block' : 'none' }};">
+                                <div id="approver_department_{{ $index + 1 }}" class="approver-field" style="display: {{ $approverType == 'department_manager' ? 'block' : 'none' }};">
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                                     <select name="workflow_steps[{{ $index + 1 }}][approver_department_id]"
                                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         <option value="">Pilih Department</option>
                                         @foreach($departments as $dept)
-                                            <option value="{{ $dept->id }}" {{ isset($step['approver_department_id']) && $step['approver_department_id'] == $dept->id ? 'selected' : '' }}>
+                                            <option value="{{ $dept->id }}" {{ $approverDeptId == $dept->id ? 'selected' : '' }}>
                                                 {{ $dept->name }} ({{ $dept->code }})
                                             </option>
                                         @endforeach
@@ -389,7 +437,7 @@
 </div>
 
 <script>
-let stepCounter = {{ count($approvalWorkflow->workflow_steps) }};
+let stepCounter = {{ count($approvalWorkflow->steps ?? $approvalWorkflow->workflow_steps ?? []) }};
 let steps = [];
 
 // Initialize existing steps

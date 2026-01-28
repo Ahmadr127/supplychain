@@ -22,7 +22,7 @@ use App\Http\Controllers\SupplierLookupController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\PurchasingItemController;
 use App\Http\Controllers\ApprovalRequestItemController;
-use App\Http\Controllers\CapexIdNumberController;
+
 use App\Http\Controllers\ReleaseRequestController;
 
 /*
@@ -155,9 +155,24 @@ Route::middleware('auth')->group(function () {
         Route::resource('suppliers', SupplierController::class);
     });
 
-    // CapEx ID Number Management routes (for managing budget IDs)
+    // CapEx Management routes (budget per department per year)
     Route::middleware('permission:manage_capex')->group(function () {
-        Route::resource('capex', CapexIdNumberController::class);
+        Route::get('capex', [\App\Http\Controllers\CapexController::class, 'index'])->name('capex.index');
+        Route::get('capex/create', [\App\Http\Controllers\CapexController::class, 'create'])->name('capex.create');
+        Route::post('capex', [\App\Http\Controllers\CapexController::class, 'store'])->name('capex.store');
+        Route::get('capex/{capex}', [\App\Http\Controllers\CapexController::class, 'show'])->name('capex.show');
+        Route::get('capex/{capex}/edit', [\App\Http\Controllers\CapexController::class, 'edit'])->name('capex.edit');
+        Route::put('capex/{capex}', [\App\Http\Controllers\CapexController::class, 'update'])->name('capex.update');
+        Route::delete('capex/{capex}', [\App\Http\Controllers\CapexController::class, 'destroy'])->name('capex.destroy');
+        
+        // CapEx Items
+        Route::post('capex/{capex}/items', [\App\Http\Controllers\CapexController::class, 'storeItem'])->name('capex.items.store');
+        Route::put('capex/items/{item}', [\App\Http\Controllers\CapexController::class, 'updateItem'])->name('capex.items.update');
+        Route::delete('capex/items/{item}', [\App\Http\Controllers\CapexController::class, 'destroyItem'])->name('capex.items.destroy');
+        
+        // API: Get available capex items for department
+        Route::get('api/capex/available-items', [\App\Http\Controllers\CapexController::class, 'getAvailableItems'])->name('api.capex.available-items');
+        Route::get('api/capex/items/available', [\App\Http\Controllers\CapexController::class, 'getAvailableItems'])->name('api.capex.items.available');
     });
 
     // Release Requests routes (for viewing items in release phase)

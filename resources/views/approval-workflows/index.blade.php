@@ -64,7 +64,7 @@
                         Nama & Tipe
                     </th>
                     <th class="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tipe Barang
+                        Sifat Pengadaan
                     </th>
                     <th class="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Steps
@@ -97,29 +97,35 @@
                             </div>
                         </div>
                     </td>
-                    <td class="w-1/6 px-6 py-4">
-                        <div class="min-w-0">
-                            @if($workflow->itemType)
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                    {{ $workflow->itemType->name }}
-                                </span>
-                            @else
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                    Umum
-                                </span>
-                            @endif
-                        </div>
+                    <td class="px-6 py-4">
+                        @if($workflow->procurementType)
+                            <span class="inline-block px-3 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 whitespace-nowrap">
+                                {{ $workflow->procurementType->code }}
+                            </span>
+                        @else
+                            <span class="inline-block px-3 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                                -
+                            </span>
+                        @endif
                     </td>
                     <td class="w-1/6 px-6 py-4">
                         <div class="min-w-0">
                             <div class="flex items-center">
+                                @php
+                                    $steps = $workflow->steps ?? collect($workflow->workflow_steps ?? []);
+                                    $stepCount = is_countable($steps) ? count($steps) : 0;
+                                @endphp
                                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
-                                    {{ count($workflow->workflow_steps) }} steps
+                                    {{ $stepCount }} steps
                                 </span>
                             </div>
                             <div class="text-xs text-gray-500 mt-1 truncate">
-                                @foreach($workflow->workflow_steps as $index => $step)
-                                    {{ $index + 1 }}. {{ $step['name'] }}@if(!$loop->last), @endif
+                                @foreach($steps as $index => $step)
+                                    @php
+                                        $stepData = is_object($step) ? $step : (object) $step;
+                                        $stepName = $stepData->step_name ?? $stepData->name ?? 'Step ' . ($index + 1);
+                                    @endphp
+                                    {{ $index + 1 }}. {{ $stepName }}@if(!$loop->last), @endif
                                 @endforeach
                             </div>
                         </div>

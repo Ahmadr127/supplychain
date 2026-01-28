@@ -35,7 +35,7 @@ class ApprovalWorkflowController extends Controller
             $query->where('is_active', $request->status === 'active');
         }
 
-        $workflows = $query->with('itemType')->latest()->paginate(10)->withQueryString();
+        $workflows = $query->with('procurementType')->latest()->paginate(10)->withQueryString();
         
         return view('approval-workflows.index', compact('workflows'));
     }
@@ -45,9 +45,9 @@ class ApprovalWorkflowController extends Controller
         $roles = Role::all();
         $departments = Department::where('is_active', true)->get();
         $users = User::with('role')->get();
-        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        $procurementTypes = \App\Models\ProcurementType::where('is_active', true)->get();
         
-        return view('approval-workflows.create', compact('roles', 'departments', 'users', 'itemTypes'));
+        return view('approval-workflows.create', compact('roles', 'departments', 'users', 'procurementTypes'));
     }
 
     public function store(Request $request)
@@ -56,7 +56,9 @@ class ApprovalWorkflowController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'item_type_id' => 'nullable|exists:item_types,id',
+            'procurement_type_id' => 'required|exists:procurement_types,id',
+            'nominal_min' => 'required|string',
+            'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
@@ -72,13 +74,23 @@ class ApprovalWorkflowController extends Controller
 
         // Process and clean workflow steps
         $workflowSteps = $this->processWorkflowSteps($request->workflow_steps);
+        
+        // Parse nominal values (remove dots from formatted numbers)
+        $nominalMin = (float) str_replace('.', '', $request->nominal_min);
+        $nominalMax = $request->nominal_max ? (float) str_replace('.', '', $request->nominal_max) : null;
+        
+        // Auto-calculate nominal_range based on nominal_max value
+        $nominalRange = $this->calculateNominalRange($nominalMax);
 
         $workflow = ApprovalWorkflow::create([
             'name' => $request->name,
             'type' => $request->type,
             'description' => $request->description,
-            'item_type_id' => $request->item_type_id ?: null,
-            'is_specific_type' => !empty($request->item_type_id),
+            'procurement_type_id' => $request->procurement_type_id,
+            'nominal_range' => $nominalRange,
+            'nominal_min' => $nominalMin,
+            'nominal_max' => $nominalMax,
+            'priority' => $this->calculatePriority($nominalMax),
             'workflow_steps' => $workflowSteps,
             'is_active' => $request->has('is_active')
         ]);
@@ -88,7 +100,7 @@ class ApprovalWorkflowController extends Controller
 
     public function show(ApprovalWorkflow $approvalWorkflow)
     {
-        $approvalWorkflow->load('requests.requester', 'itemType');
+        $approvalWorkflow->load('requests.requester', 'procurementType');
         
         return view('approval-workflows.show', compact('approvalWorkflow'));
     }
@@ -98,9 +110,9 @@ class ApprovalWorkflowController extends Controller
         $roles = Role::all();
         $departments = Department::where('is_active', true)->get();
         $users = User::with('role')->get();
-        $itemTypes = \App\Models\ItemType::where('is_active', true)->get();
+        $procurementTypes = \App\Models\ProcurementType::where('is_active', true)->get();
         
-        return view('approval-workflows.edit', compact('approvalWorkflow', 'roles', 'departments', 'users', 'itemTypes'));
+        return view('approval-workflows.edit', compact('approvalWorkflow', 'roles', 'departments', 'users', 'procurementTypes'));
     }
 
     public function update(Request $request, ApprovalWorkflow $approvalWorkflow)
@@ -109,7 +121,9 @@ class ApprovalWorkflowController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'item_type_id' => 'nullable|exists:item_types,id',
+            'procurement_type_id' => 'required|exists:procurement_types,id',
+            'nominal_min' => 'required|string',
+            'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
@@ -125,13 +139,23 @@ class ApprovalWorkflowController extends Controller
 
         // Process and clean workflow steps
         $workflowSteps = $this->processWorkflowSteps($request->workflow_steps);
+        
+        // Parse nominal values (remove dots from formatted numbers)
+        $nominalMin = (float) str_replace('.', '', $request->nominal_min);
+        $nominalMax = $request->nominal_max ? (float) str_replace('.', '', $request->nominal_max) : null;
+        
+        // Auto-calculate nominal_range based on nominal_max value
+        $nominalRange = $this->calculateNominalRange($nominalMax);
 
         $approvalWorkflow->update([
             'name' => $request->name,
             'type' => $request->type,
             'description' => $request->description,
-            'item_type_id' => $request->item_type_id ?: null,
-            'is_specific_type' => !empty($request->item_type_id),
+            'procurement_type_id' => $request->procurement_type_id,
+            'nominal_range' => $nominalRange,
+            'nominal_min' => $nominalMin,
+            'nominal_max' => $nominalMax,
+            'priority' => $this->calculatePriority($nominalMax),
             'workflow_steps' => $workflowSteps,
             'is_active' => $request->has('is_active')
         ]);
@@ -156,6 +180,47 @@ class ApprovalWorkflowController extends Controller
         
         $status = $approvalWorkflow->is_active ? 'diaktifkan' : 'dinonaktifkan';
         return redirect()->back()->with('success', "Workflow berhasil {$status}!");
+    }
+
+    /**
+     * Calculate nominal range based on nominal_max value
+     */
+    private function calculateNominalRange(?float $nominalMax): string
+    {
+        if ($nominalMax === null) {
+            return 'high';  // No upper limit = high
+        }
+        
+        if ($nominalMax <= 10000000) {
+            return 'low';   // <= 10 juta
+        }
+        
+        if ($nominalMax <= 50000000) {
+            return 'medium'; // 10-50 juta
+        }
+        
+        return 'high';  // > 50 juta
+    }
+
+    /**
+     * Calculate priority based on nominal_max value
+     * Higher nominal = higher priority
+     */
+    private function calculatePriority(?float $nominalMax): int
+    {
+        if ($nominalMax === null) {
+            return 30;  // No upper limit = highest priority
+        }
+        
+        if ($nominalMax <= 10000000) {
+            return 10;  // <= 10 juta
+        }
+        
+        if ($nominalMax <= 50000000) {
+            return 20;  // 10-50 juta
+        }
+        
+        return 30;  // > 50 juta
     }
 
     /**

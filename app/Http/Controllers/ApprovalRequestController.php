@@ -151,11 +151,18 @@ class ApprovalRequestController extends Controller
         // Get submission types
         $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
-        // Get default general workflow (not specific to any item type)
+        // Get default initial workflow
         $defaultWorkflow = ApprovalWorkflow::where('is_active', true)
-            ->where('is_specific_type', false)
-            ->where('type', 'standard')
+            ->where('type', 'default_initial')
             ->first();
+
+        if (!$defaultWorkflow) {
+            // Fallback: Get default general workflow (not specific to any item type)
+            $defaultWorkflow = ApprovalWorkflow::where('is_active', true)
+                ->where('is_specific_type', false)
+                ->where('type', 'standard')
+                ->first();
+        }
             
         if (!$defaultWorkflow) {
             // If no general workflow exists, get the first active workflow
@@ -1551,6 +1558,8 @@ class ApprovalRequestController extends Controller
             'master_item_id' => 'required',
             'action' => 'required|in:approve,reject',
             'comments' => 'nullable|string|max:500',
+            'unit_price' => 'nullable|string', // Input as string with dots
+            'procurement_type_id' => 'nullable|exists:procurement_types,id',
         ]);
 
         $step = \App\Models\ApprovalItemStep::findOrFail($validated['step_id']);
@@ -1577,12 +1586,37 @@ class ApprovalRequestController extends Controller
             'comments' => $validated['comments'],
         ]);
 
-        // Update the item status
+        // Update the item status and data
         $approvalRequestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $validated['approval_request_id'])
             ->where('master_item_id', $validated['master_item_id'])
             ->first();
 
         if ($approvalRequestItem) {
+            // Handle Price Update (if provided)
+            if ($request->filled('unit_price')) {
+                $cleanPrice = (float) str_replace('.', '', $request->unit_price);
+                $approvalRequestItem->update([
+                    'unit_price' => $cleanPrice,
+                    'total_price' => $cleanPrice * $approvalRequestItem->quantity,
+                ]);
+            }
+
+            // Handle Procurement Type Update (if provided)
+            if ($request->filled('procurement_type_id')) {
+                $approvalRequest = $approvalRequestItem->approvalRequest;
+                if ($approvalRequest) {
+                    $approvalRequest->update([
+                        'procurement_type_id' => $request->procurement_type_id
+                    ]);
+                }
+            }
+
+            // Re-evaluate workflow if approved (check for workflow switch)
+            if ($newStatus === 'approved') {
+                $workflowService = app(\App\Services\WorkflowService::class);
+                $workflowService->reevaluateWorkflow($approvalRequestItem);
+            }
+
             if ($newStatus === 'rejected') {
                 // If rejected, mark item as rejected
                 $approvalRequestItem->update(['status' => 'rejected']);
