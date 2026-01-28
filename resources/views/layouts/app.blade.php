@@ -89,7 +89,9 @@
             </div>
 
             <!-- Sidebar Navigation -->
-            <nav class="flex-1 overflow-y-auto sidebar-scroll px-4 py-6">
+            <nav class="flex-1 overflow-y-auto sidebar-scroll px-4 py-6"
+                 x-init="$el.scrollTop = localStorage.getItem('sidebarScroll') || 0"
+                 @scroll.debounce.100ms="localStorage.setItem('sidebarScroll', $el.scrollTop)">
                 <div class="mb-6">
                     <h3 x-show="!sidebarCollapsed" class="text-xs font-semibold text-green-200 uppercase tracking-wider mb-3">MENU UTAMA</h3>
                 </div>

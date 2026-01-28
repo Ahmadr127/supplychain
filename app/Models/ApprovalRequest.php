@@ -19,7 +19,7 @@ class ApprovalRequest extends Model
         'description',
         'priority',
         'is_cto_request',
-        'status',
+        'status', // Restored for aggregation
         'purchasing_status',
         // 'current_step', // REMOVED: per-item approval system
         // 'total_steps', // REMOVED: per-item approval system
@@ -62,32 +62,7 @@ class ApprovalRequest extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
-    // DEPRECATED: Old request-level approval system
-    // Replaced by per-item approval (approval_item_steps)
-    // Kept for backward compatibility - DO NOT USE
-    /*
-    public function steps()
-    {
-        return $this->hasMany(ApprovalStep::class, 'request_id');
-    }
 
-    public function currentStep()
-    {
-        return $this->hasOne(ApprovalStep::class, 'request_id')
-                    ->where('step_number', $this->current_step);
-    }
-    */
-
-    // DEPRECATED: Old pivot table relationship (approval_request_master_items dropped)
-    // Use items() relation instead which uses approval_request_items table
-    /*
-    public function masterItems()
-    {
-        return $this->belongsToMany(MasterItem::class, 'approval_request_master_items')
-                    ->withPivot(['quantity', 'unit_price', 'total_price', 'notes', 'specification', 'brand', 'supplier_id', 'alternative_vendor', 'allocation_department_id', 'letter_number', 'fs_document'])
-                    ->withTimestamps();
-    }
-    */
 
     // Relasi purchasing items (per item purchasing process)
     public function purchasingItems()
@@ -140,141 +115,7 @@ class ApprovalRequest extends Model
         return $query->where('requester_id', $userId);
     }
 
-    // Method untuk approve request
-    public function approve($userId, $comments = null)
-    {
-        $currentStep = $this->currentStep;
-        
-        if (!$currentStep || $currentStep->status !== 'pending') {
-            return false;
-        }
 
-        // Check if user can approve this step
-        if (!$currentStep->canApprove($userId)) {
-            return false;
-        }
-
-        // Update current step
-        $currentStep->update([
-            'status' => 'approved',
-            'approved_by' => $userId,
-            'approved_at' => now(),
-            'comments' => $comments
-        ]);
-
-        // DEPRECATED: Old request-level approval logic
-        // In per-item approval system, check if ALL items are approved
-        // For now, simplified: mark as approved immediately
-        // TODO: Implement proper per-item approval aggregation
-        if (true) { // Placeholder - should check all item statuses
-            $this->update([
-                'status' => 'approved',
-                'approved_by' => $userId,
-                'approved_at' => now()
-            ]);
-            
-            // Update stock for all items in this request
-            $this->updateStockForApprovedRequest();
-
-            // Initialize purchasing items per approved item (idempotent)
-            $this->load('items');
-            foreach ($this->items as $item) {
-                $exists = $this->purchasingItems()
-                    ->where('master_item_id', $item->master_item_id)
-                    ->exists();
-                if (!$exists) {
-                    $this->purchasingItems()->create([
-                        'master_item_id' => $item->master_item_id,
-                        'quantity' => (int)($item->quantity ?? 1),
-                        'status' => 'unprocessed',
-                    ]);
-                }
-            }
-
-            // Refresh aggregated purchasing_status at request level (unprocessed|done)
-            $this->refreshPurchasingStatus();
-        }
-        // Note: 'current_step' removed in per-item approval system
-
-        return true;
-    }
-
-    // Method untuk reject request
-    public function reject($userId, $reason, $comments = null)
-    {
-        $currentStep = $this->currentStep;
-        
-        if (!$currentStep || $currentStep->status !== 'pending') {
-            return false;
-        }
-
-        // Check if user can approve this step
-        if (!$currentStep->canApprove($userId)) {
-            return false;
-        }
-
-        // Update current step
-        $currentStep->update([
-            'status' => 'rejected',
-            'approved_by' => $userId,
-            'approved_at' => now(),
-            'comments' => $comments
-        ]);
-
-        // Update request status
-        $this->update([
-            'status' => 'rejected',
-            'approved_by' => $userId,
-            'approved_at' => now(),
-            'rejection_reason' => $reason
-        ]);
-
-        return true;
-    }
-
-    // Method untuk cancel request
-    public function cancel($userId)
-    {
-        if ($this->status !== 'pending') {
-            return false;
-        }
-
-        $this->update([
-            'status' => 'cancelled',
-            'approved_by' => $userId,
-            'approved_at' => now()
-        ]);
-
-        return true;
-    }
-
-    // Method untuk mendapatkan approver untuk current step
-    public function getCurrentApprover()
-    {
-        $currentStep = $this->currentStep;
-        
-        if (!$currentStep) {
-            return null;
-        }
-
-        switch ($currentStep->approver_type) {
-            case 'user':
-                return User::find($currentStep->approver_id);
-            case 'role':
-                $role = Role::find($currentStep->approver_role_id);
-                return $role ? $role->users->first() : null;
-            case 'department_manager':
-                $department = Department::find($currentStep->approver_department_id);
-                return $department ? $department->manager : null;
-            case 'any_department_manager':
-                // Display-safe: return one manager (not authoritative). Authorization handled elsewhere.
-                return \App\Models\User::whereHas('departments', function($q){
-                    $q->where('user_departments.is_manager', true);
-                })->first();
-            default:
-                return null;
-        }
-    }
 
     // Aggregate purchasing status from purchasing_items to approval_requests.purchasing_status
     public function refreshPurchasingStatus(): void
@@ -305,6 +146,33 @@ class ApprovalRequest extends Model
 
         if ($this->purchasing_status !== $status) {
             $this->update(['purchasing_status' => $status]);
+        }
+    }
+
+    /**
+     * Refresh request status based on items status
+     */
+    public function refreshStatus()
+    {
+        $items = $this->items;
+        
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        $allApproved = $items->every(fn($item) => $item->status === 'approved');
+        $anyRejected = $items->contains(fn($item) => $item->status === 'rejected');
+        
+        $newStatus = 'on progress';
+
+        if ($anyRejected) {
+            $newStatus = 'rejected';
+        } elseif ($allApproved) {
+            $newStatus = 'approved';
+        }
+        
+        if ($this->status !== $newStatus) {
+            $this->update(['status' => $newStatus]);
         }
     }
 
@@ -356,17 +224,7 @@ class ApprovalRequest extends Model
         return $this->items()->where('master_item_id', $masterItemId)->delete();
     }
 
-    // Method untuk check apakah user bisa approve request ini
-    public function canApprove($userId)
-    {
-        $currentStep = $this->currentStep;
-        
-        if (!$currentStep || $currentStep->status !== 'pending') {
-            return false;
-        }
 
-        return $currentStep->canApprove($userId);
-    }
 
     // Method untuk update stock ketika request di-approve (UPDATED for new per-item system)
     public function updateStockForApprovedRequest()
@@ -395,5 +253,35 @@ class ApprovalRequest extends Model
             
             $masterItem->update(['stock' => $newStock]);
         }
+    }
+    /**
+     * Cancel the request and all its pending items
+     */
+    public function cancel($userId)
+    {
+        // Cancel all pending items
+        $this->items()
+            ->whereIn('status', ['pending', 'on progress'])
+            ->update([
+                'status' => 'cancelled',
+                'rejected_reason' => 'Request cancelled by requester',
+                'approved_by' => $userId,
+                'approved_at' => now(),
+            ]);
+            
+        // Also cancel pending steps
+        $this->itemSteps()
+            ->where('status', 'pending')
+            ->update([
+                'status' => 'skipped',
+                'skip_reason' => 'Request cancelled',
+                'skipped_by' => $userId,
+                'skipped_at' => now(),
+            ]);
+
+        // Update request status (legacy/aggregate)
+        $this->update(['status' => 'cancelled']);
+
+        return true;
     }
 }

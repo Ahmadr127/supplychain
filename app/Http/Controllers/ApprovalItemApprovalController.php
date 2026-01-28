@@ -195,7 +195,15 @@ class ApprovalItemApprovalController extends Controller
 
             // Re-evaluate workflow based on new price (if applicable)
             // Must be done AFTER approval to ensure current step is marked approved and not deleted
+            
+            Log::info('🔍 Checking if workflow re-evaluation is needed', [
+                'step_id' => $currentStep->id,
+                'required_action' => $currentStep->required_action,
+                'item_total_price' => $item->total_price
+            ]);
+
             if ($currentStep->required_action == 'input_price') {
+                Log::info('🚀 Triggering workflow re-evaluation...');
                 try {
                     $workflowService = app(\App\Services\WorkflowService::class);
                     $workflowService->reevaluateWorkflow($item);
@@ -209,7 +217,7 @@ class ApprovalItemApprovalController extends Controller
                             $currentStep = $refetched;
                         } else {
                             $currentStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                                ->where('master_item_id', $item->master_item_id)
+                                ->where('approval_request_item_id', $item->id)
                                 ->where('status', 'approved')
                                 ->orderBy('step_number', 'desc')
                                 ->first() ?? $currentStep;
@@ -223,7 +231,10 @@ class ApprovalItemApprovalController extends Controller
                     }
                 } catch (\Exception $e) {
                     Log::error('❌ Workflow re-evaluation failed', ['error' => $e->getMessage()]);
+                    throw $e; // Re-throw to rollback transaction
                 }
+            } else {
+                Log::info('⏭️ Skipping workflow re-evaluation (action not input_price)');
             }
             
             // Handle quick insert step (if checkbox checked)
@@ -240,7 +251,7 @@ class ApprovalItemApprovalController extends Controller
                 Log::info('🟦 Current step is RELEASE PHASE - checking for next release steps...');
                 
                 $nextReleaseStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                    ->where('master_item_id', $item->master_item_id)
+                    ->where('approval_request_item_id', $item->id)
                     ->where('step_number', '>', $currentStep->step_number)
                     ->where('step_phase', 'release')
                     ->whereIn('status', ['pending', 'pending_purchase'])
@@ -283,7 +294,7 @@ class ApprovalItemApprovalController extends Controller
                 
                 // Get next pending step in approval phase
                 $nextApprovalStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                    ->where('master_item_id', $item->master_item_id)
+                    ->where('approval_request_item_id', $item->id)
                     ->where('step_number', '>', $currentStep->step_number)
                     ->where('status', 'pending')
                     ->where(function($q) {
@@ -297,7 +308,7 @@ class ApprovalItemApprovalController extends Controller
                     // All APPROVAL PHASE steps are complete
                     // Check if there are RELEASE PHASE steps waiting
                     $hasReleaseSteps = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                        ->where('master_item_id', $item->master_item_id)
+                        ->where('approval_request_item_id', $item->id)
                         ->where('step_phase', 'release')
                         ->exists();
 
@@ -354,7 +365,7 @@ class ApprovalItemApprovalController extends Controller
 
             // Aggregate request status
             Log::info('🟦 Aggregating request status...');
-            $this->aggregateRequestStatus($approvalRequest);
+            $approvalRequest->refreshStatus();
             
             $approvalRequest->refresh();
             Log::info('🟩 Request status: ' . $approvalRequest->status);
@@ -429,7 +440,7 @@ class ApprovalItemApprovalController extends Controller
             ]);
 
             // Aggregate request status (will mark request as rejected if any item rejected)
-            $this->aggregateRequestStatus($approvalRequest);
+            $approvalRequest->refreshStatus();
 
             DB::commit();
 
@@ -520,7 +531,7 @@ class ApprovalItemApprovalController extends Controller
             ]);
 
             // Aggregate request status
-            $this->aggregateRequestStatus($approvalRequest);
+            $approvalRequest->refreshStatus();
 
             DB::commit();
 
@@ -538,40 +549,7 @@ class ApprovalItemApprovalController extends Controller
         }
     }
 
-    /**
-     * Aggregate item statuses to update request status
-     */
-    private function aggregateRequestStatus(ApprovalRequest $approvalRequest): void
-    {
-        $items = $approvalRequest->items;
 
-        // If ANY item is rejected, mark request as rejected
-        if ($items->contains('status', 'rejected')) {
-            $approvalRequest->update(['status' => 'rejected']);
-            Log::info('Request marked as rejected', ['request_id' => $approvalRequest->id]);
-            return;
-        }
-
-        // If ALL items are approved, mark request as approved
-        if ($items->every(fn($i) => $i->status === 'approved')) {
-            $approvalRequest->update([
-                'status' => 'approved',
-                'approved_by' => auth()->id(),
-                'approved_at' => now(),
-            ]);
-            Log::info('Request fully approved', ['request_id' => $approvalRequest->id]);
-            return;
-        }
-
-        // If ANY item is pending or on progress, keep request as on progress
-        if ($items->some(fn($i) => in_array($i->status, ['pending', 'on progress']))) {
-            $approvalRequest->update(['status' => 'on progress']);
-            return;
-        }
-
-        // Default: pending
-        $approvalRequest->update(['status' => 'pending']);
-    }
     
     /**
      * Handle quick insert step using template
@@ -583,13 +561,14 @@ class ApprovalItemApprovalController extends Controller
             
             // Renumber existing steps after current step
             ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
-                ->where('master_item_id', $item->master_item_id)
+                ->where('approval_request_item_id', $item->id)
                 ->where('step_number', '>', $currentStep->step_number)
                 ->increment('step_number');
             
             // Create new step from template
             ApprovalItemStep::create([
                 'approval_request_id' => $item->approval_request_id,
+                'approval_request_item_id' => $item->id,
                 'master_item_id' => $item->master_item_id,
                 'step_number' => $currentStep->step_number + 1,
                 'step_name' => $template['name'],

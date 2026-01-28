@@ -35,40 +35,7 @@
     <x-slot name="filters">
         <div class="space-y-3">
             {{-- Phase Tabs --}}
-            <div class="border-b border-gray-200">
-                <nav class="-mb-px flex space-x-4" aria-label="Tabs">
-                    <a href="{{ route('approval-requests.pending-approvals', array_merge(request()->except(['phase', 'page']), ['phase' => 'approval'])) }}" 
-                       class="whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-colors
-                              {{ (request('phase', 'approval') === 'approval') ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
-                        <i class="fas fa-check-circle mr-1.5"></i>
-                        Approval Phase
-                        @if(isset($approvalPhasePendingCount))
-                            <span class="ml-2 py-0.5 px-2 rounded-full text-xs font-medium
-                                {{ (request('phase', 'approval') === 'approval') ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600' }}">
-                                {{ $approvalPhasePendingCount }}
-                            </span>
-                        @endif
-                    </a>
-                    <a href="{{ route('approval-requests.pending-approvals', array_merge(request()->except(['phase', 'page']), ['phase' => 'release'])) }}" 
-                       class="whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-colors
-                              {{ (request('phase') === 'release') ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
-                        <i class="fas fa-paper-plane mr-1.5"></i>
-                        Release Phase
-                        @if(isset($releasePhasePendingCount))
-                            <span class="ml-2 py-0.5 px-2 rounded-full text-xs font-medium
-                                {{ (request('phase') === 'release') ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600' }}">
-                                {{ $releasePhasePendingCount }}
-                            </span>
-                        @endif
-                    </a>
-                    <a href="{{ route('approval-requests.pending-approvals', request()->except(['phase', 'page'])) }}" 
-                       class="whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-colors
-                              {{ (!request()->has('phase')) ? 'border-gray-500 text-gray-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
-                        <i class="fas fa-list mr-1.5"></i>
-                        All
-                    </a>
-                </nav>
-            </div>
+
 
             {{-- Main Filter Bar with Action Buttons --}}
             <div class="flex flex-col lg:flex-row gap-2">
@@ -85,7 +52,7 @@
                         </div>
                     </div>
                     <select name="status" class="h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Semua Status</option>
+                        <option value="all" {{ !request('status') || request('status') === 'all' ? 'selected' : '' }}>Semua Status</option>
                         <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
                         <option value="on progress" {{ request('status') === 'on progress' ? 'selected' : '' }}>On Progress</option>
                         <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>

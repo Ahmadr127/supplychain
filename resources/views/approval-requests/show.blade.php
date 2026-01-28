@@ -179,7 +179,7 @@
                                     <div class="flex-1">
                                         <h4 class="text-sm font-semibold text-gray-900">{{ $masterItem->name }}</h4>
                                     </div>
-                                    <x-approval-status-badge :status="$item->status" :requestStatus="$approvalRequest->status" />
+                                    <x-approval-status-badge :status="$item->status" />
                                 </div>
                                 
                                 <!-- Item Details (Horizontal Label-Value, 3 Columns) -->
@@ -208,7 +208,7 @@
                                     <div class="space-y-1.5">
                                         <div class="flex items-center gap-2">
                                             <span class="text-gray-600 w-32 flex-shrink-0">Merk:</span>
-                                            <span class="font-medium text-gray-900">{{ $item->brand ?? '-' }}</span>
+                                            <span class="font-medium text-gray-900 break-words min-w-0">{{ $item->brand ?? '-' }}</span>
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="text-gray-600 w-32 flex-shrink-0">Vendor Alt:</span>
@@ -216,24 +216,24 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="text-gray-600 w-32 flex-shrink-0">No Surat:</span>
-                                            <span class="font-medium text-gray-900">{{ $item->letter_number ?? '-' }}</span>
+                                            <span class="font-medium text-gray-900 break-words min-w-0">{{ $item->letter_number ?? '-' }}</span>
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="text-gray-600 w-32 flex-shrink-0">Unit Peruntukan:</span>
                                             @php $allocDeptName = $departmentsMap[$item->allocation_department_id ?? null] ?? '-'; @endphp
-                                            <span class="font-medium text-gray-900">{{ $allocDeptName }}</span>
+                                            <span class="font-medium text-gray-900 break-words min-w-0">{{ $allocDeptName }}</span>
                                         </div>
                                     </div>
                                     
                                     <!-- Column 3 -->
                                     <div class="space-y-1.5">
                                         <div class="flex items-start gap-2">
-                                            <span class="text-gray-600 w-20">Spesifikasi:</span>
-                                            <span class="font-medium text-gray-900 flex-1">{{ $item->specification ?? '-' }}</span>
+                                            <span class="text-gray-600 w-20 flex-shrink-0">Spesifikasi:</span>
+                                            <span class="font-medium text-gray-900 flex-1 break-words min-w-0">{{ $item->specification ?? '-' }}</span>
                                         </div>
                                         <div class="flex items-start gap-2">
-                                            <span class="text-gray-600 w-20">Catatan:</span>
-                                            <span class="font-medium text-gray-900 flex-1">{{ $item->notes ?? '-' }}</span>
+                                            <span class="text-gray-600 w-20 flex-shrink-0">Catatan:</span>
+                                            <span class="font-medium text-gray-900 flex-1 break-words min-w-0">{{ $item->notes ?? '-' }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -407,9 +407,7 @@
                                 
                                 <!-- Approval Steps History -->
                                 @php
-                                    $itemSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                                        ->where('master_item_id', $masterItem->id)
-                                        ->orderBy('step_number')
+                                    $itemSteps = $item->steps()
                                         ->with('approver')
                                         ->get();
                                     

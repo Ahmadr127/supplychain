@@ -161,7 +161,7 @@
                         <div class="flex space-x-1">
                             <a href="{{ route('approval-requests.show', ['approvalRequest' => $row->request->id, 'item_id' => $row->itemData->id]) }}" 
                                class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Lihat">👁</a>
-                            @if($row->request->status == 'pending' && $row->request->requester_id == auth()->id())
+                            @if($row->itemData->status == 'pending' && $row->request->requester_id == auth()->id())
                                 <a href="{{ route('approval-requests.edit', $row->request) }}" 
                                    class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150" title="Edit">✏️</a>
                             @endif

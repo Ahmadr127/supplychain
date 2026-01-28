@@ -17,6 +17,7 @@ class WorkflowService
      */
     public function reevaluateWorkflow(ApprovalRequestItem $item): void
     {
+        Log::info('🔄 WorkflowService::reevaluateWorkflow CALLED', ['item_id' => $item->id, 'total_price' => $item->total_price]);
         Log::info('🔄 Re-evaluating workflow for item', ['item_id' => $item->id, 'total_price' => $item->total_price]);
 
         $request = $item->approvalRequest;
@@ -49,9 +50,6 @@ class WorkflowService
         // Check if workflow needs to change
         if ($request->workflow_id !== $targetWorkflow->id) {
             $oldWorkflowId = $request->workflow_id;
-            $request->update(['workflow_id' => $targetWorkflow->id]);
-            Log::info('✅ Updated request workflow_id', ['old' => $oldWorkflowId, 'new' => $targetWorkflow->id]);
-
             // WORKFLOW SWITCH LOGIC
             // IMPORTANT:
             // When switching from the default initial workflow, the Manager/Requester-Dept-Manager step
@@ -65,7 +63,11 @@ class WorkflowService
                 ->first();
 
             // To be safe, do the step regeneration atomically.
-            DB::transaction(function () use ($request, $item, $targetWorkflow, $lastApprovedStep) {
+            DB::transaction(function () use ($request, $item, $targetWorkflow, $lastApprovedStep, $oldWorkflowId) {
+                // Update request workflow_id inside transaction
+                $request->update(['workflow_id' => $targetWorkflow->id]);
+                Log::info('✅ Updated request workflow_id', ['old' => $oldWorkflowId, 'new' => $targetWorkflow->id]);
+
                 // 1) Ensure the approved manager step becomes step 1 (kept as the same DB row / same ID)
                 if ($lastApprovedStep) {
                     // Try to align name/scope with the new workflow's step 1 (if present),
@@ -112,6 +114,7 @@ class WorkflowService
 
                     ApprovalItemStep::create([
                         'approval_request_id' => $request->id,
+                        'approval_request_item_id' => $item->id,
                         'master_item_id' => $item->master_item_id,
                         'step_number' => $step->step_number,
                         'step_name' => $step->step_name,
@@ -174,6 +177,7 @@ class WorkflowService
 
                 ApprovalItemStep::create([
                     'approval_request_id' => $request->id,
+                    'approval_request_item_id' => $item->id,
                     'master_item_id' => $item->master_item_id,
                     'step_number' => $step->step_number,
                     'step_name' => $step->step_name,

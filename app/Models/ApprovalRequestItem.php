@@ -72,15 +72,13 @@ class ApprovalRequestItem extends Model
     // Per-item workflow steps
     public function steps()
     {
-        return $this->hasMany(ApprovalItemStep::class, 'master_item_id', 'master_item_id')
-                    ->where('approval_request_id', $this->approval_request_id)
+        return $this->hasMany(ApprovalItemStep::class, 'approval_request_item_id')
                     ->orderBy('step_number');
     }
 
     public function currentStep()
     {
-        return $this->hasOne(ApprovalItemStep::class, 'master_item_id', 'master_item_id')
-                    ->where('approval_request_id', $this->approval_request_id)
+        return $this->hasOne(ApprovalItemStep::class, 'approval_request_item_id')
                     ->where('status', 'pending')
                     ->orderBy('step_number');
     }
@@ -89,10 +87,7 @@ class ApprovalRequestItem extends Model
     public function getStepsAttribute()
     {
         if (!isset($this->relations['steps'])) {
-            return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
-                ->where('master_item_id', $this->master_item_id)
-                ->orderBy('step_number')
-                ->get();
+            return $this->steps()->get();
         }
         return $this->relations['steps'];
     }
@@ -161,10 +156,8 @@ class ApprovalRequestItem extends Model
      */
     public function getCurrentPendingStep()
     {
-        return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
-            ->where('master_item_id', $this->master_item_id)
+        return $this->steps()
             ->where('status', 'pending')
-            ->orderBy('step_number')
             ->first();
     }
 
@@ -173,13 +166,11 @@ class ApprovalRequestItem extends Model
      */
     public function getApprovalPhaseSteps()
     {
-        return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
-            ->where('master_item_id', $this->master_item_id)
+        return $this->steps()
             ->where(function($q) {
                 $q->where('step_phase', 'approval')
                   ->orWhereNull('step_phase');
             })
-            ->orderBy('step_number')
             ->get();
     }
 
@@ -188,10 +179,8 @@ class ApprovalRequestItem extends Model
      */
     public function getReleasePhaseSteps()
     {
-        return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
-            ->where('master_item_id', $this->master_item_id)
+        return $this->steps()
             ->where('step_phase', 'release')
-            ->orderBy('step_number')
             ->get();
     }
 
@@ -200,8 +189,7 @@ class ApprovalRequestItem extends Model
      */
     public function isApprovalPhaseComplete(): bool
     {
-        $pendingApprovalSteps = ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
-            ->where('master_item_id', $this->master_item_id)
+        $pendingApprovalSteps = $this->steps()
             ->where('status', 'pending')
             ->where(function($q) {
                 $q->where('step_phase', 'approval')
@@ -217,8 +205,7 @@ class ApprovalRequestItem extends Model
      */
     public function isReleasePhaseComplete(): bool
     {
-        $pendingReleaseSteps = ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
-            ->where('master_item_id', $this->master_item_id)
+        $pendingReleaseSteps = $this->steps()
             ->where('step_phase', 'release')
             ->whereIn('status', ['pending', 'pending_purchase'])
             ->count();
@@ -231,8 +218,7 @@ class ApprovalRequestItem extends Model
      */
     public function hasReleasePhase(): bool
     {
-        return ApprovalItemStep::where('approval_request_id', $this->approval_request_id)
-            ->where('master_item_id', $this->master_item_id)
+        return $this->steps()
             ->where('step_phase', 'release')
             ->exists();
     }

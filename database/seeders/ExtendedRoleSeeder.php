@@ -66,7 +66,7 @@ class ExtendedRoleSeeder extends Seeder
                 'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports],
             ],
             [
-                'name' => 'manager_pembelian',
+                'name' => 'purchasing',
                 'display_name' => 'Manager Pembelian',
                 'description' => 'Manager Pembelian/Purchasing - Approver dan Releaser',
                 'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $managePurchasing, $viewReports],

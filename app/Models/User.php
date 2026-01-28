@@ -101,10 +101,10 @@ class User extends Authenticatable
         return $this->hasMany(ApprovalRequest::class, 'requester_id');
     }
 
-    // Relasi dengan approval steps sebagai approver
-    public function approvalSteps()
+    // Relasi dengan approval item steps sebagai approver
+    public function approvalItemSteps()
     {
-        return $this->hasMany(ApprovalStep::class, 'approved_by');
+        return $this->hasMany(ApprovalItemStep::class, 'approved_by');
     }
 
     // Method untuk check apakah user adalah manager di department tertentu
@@ -114,19 +114,21 @@ class User extends Authenticatable
                     ->wherePivot('is_manager', true)->exists();
     }
 
-    // Method untuk mendapatkan approval requests yang perlu di-approve
+    /**
+     * @deprecated Use ApprovalItemStep queries directly or via controller
+     */
     public function getPendingApprovals()
     {
         $userDepartments = $this->departments()->pluck('departments.id');
         $userRoles = $this->role ? [$this->role->id] : [];
 
-        return \App\Models\ApprovalStep::where('status', 'pending')
+        return \App\Models\ApprovalItemStep::where('status', 'pending')
             ->where(function($query) use ($userDepartments, $userRoles) {
                 $query->where('approver_id', $this->id)
                       ->orWhereIn('approver_role_id', $userRoles)
                       ->orWhereIn('approver_department_id', $userDepartments);
             })
-            ->with(['request', 'request.requester'])
+            ->with(['request', 'request.requester', 'item'])
             ->get();
     }
 

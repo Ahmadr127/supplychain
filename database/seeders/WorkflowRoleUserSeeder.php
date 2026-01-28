@@ -18,7 +18,7 @@ class WorkflowRoleUserSeeder extends Seeder
      * - manager_unit: Approver 1 - Pemilihan ID Number CapEx
      * - hospital_director (direktur): Approver - Hospital Director
      * - manager_pt: Approver - Manager PT
-     * - manager_pembelian (purchasing): Approver/Releaser - Manager Pembelian
+     * - purchasing: Approver/Releaser - Manager Pembelian
      * - manager_keuangan: Approver - Manager Keuangan (FS) - High workflows only
      * - direktur_pt: Releaser - Direktur PT - High workflows only
      */
@@ -86,7 +86,7 @@ class WorkflowRoleUserSeeder extends Seeder
                 'display_name' => 'Manager PT',
                 'description' => 'Manager level PT - Approver dan Releaser dalam workflow'
             ],
-            'manager_pembelian' => [
+            'purchasing' => [
                 'display_name' => 'Manager Pembelian',
                 'description' => 'Manager Pembelian/Purchasing - Approver dan Releaser dalam workflow'
             ],
@@ -167,7 +167,7 @@ class WorkflowRoleUserSeeder extends Seeder
             'manager_unit' => $approvalPermissions,
             'hospital_director' => $directorPermissions,
             'manager_pt' => $directorPermissions,
-            'manager_pembelian' => $purchasingPermissions,
+            'purchasing' => $purchasingPermissions,
             'manager_keuangan' => $financePermissions,
             'direktur_pt' => $directorPermissions,
         ];
@@ -203,7 +203,7 @@ class WorkflowRoleUserSeeder extends Seeder
                 'name' => 'Manager PT Demo',
                 'email' => 'manager_pt@example.com',
             ],
-            'manager_pembelian' => [
+            'purchasing' => [
                 'name' => 'Manager Pembelian Demo',
                 'email' => 'manager_pembelian@example.com',
             ],
@@ -231,7 +231,7 @@ class WorkflowRoleUserSeeder extends Seeder
                     'name' => $data['name'],
                     'username' => $username,
                     'email' => $data['email'],
-                    'password' => Hash::make('password123'),
+                    'password' => Hash::make('password'),
                     'role_id' => $roles[$username]->id,
                 ]
             );

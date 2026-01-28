@@ -2,9 +2,7 @@
 
 @php
     // Load steps directly from database to ensure they're available
-$itemSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
-    ->where('master_item_id', $item->master_item_id)
-    ->orderBy('step_number')
+$itemSteps = $item->steps()
     ->with('approver')
     ->get();
 

@@ -11,6 +11,7 @@ class ApprovalItemStep extends Model
 
     protected $fillable = [
         'approval_request_id',
+        'approval_request_item_id',
         'master_item_id',
         'step_number',
         'step_name',
@@ -68,6 +69,11 @@ class ApprovalItemStep extends Model
     public function item()
     {
         return $this->belongsTo(MasterItem::class, 'master_item_id');
+    }
+
+    public function requestItem()
+    {
+        return $this->belongsTo(ApprovalRequestItem::class, 'approval_request_item_id');
     }
 
     public function approver()
@@ -232,6 +238,15 @@ class ApprovalItemStep extends Model
                 if (!$this->request || !$this->request->requester) return false;
                 $primary = $this->request->requester->departments()->wherePivot('is_primary', true)->first();
                 return $primary && (int)$primary->manager_id === (int)$userId;
+            case 'allocation_department_manager':
+                // Find the item related to this step
+                $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $this->approval_request_id)
+                   ->where('master_item_id', $this->master_item_id)
+                   ->first();
+                
+                if (!$requestItem || !$requestItem->allocationDepartment) return false;
+                
+                return (int)$requestItem->allocationDepartment->manager_id === (int)$userId;
             case 'any_department_manager':
                 return $user->departments()->wherePivot('is_manager', true)->exists();
             default:

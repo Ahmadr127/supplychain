@@ -42,9 +42,11 @@ class ApprovalRequestController extends Controller
                   });
             });
         }
-        // Status filter (request-level)
+        // Status filter (per-item)
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->whereHas('items', function($q) use ($request) {
+                $q->where('status', $request->status);
+            });
         }
 
         // Workflow filter
@@ -367,7 +369,7 @@ class ApprovalRequestController extends Controller
                 ]);
 
                 // Initialize per-item approval steps from workflow (NEW)
-                $this->initializeItemSteps($approvalRequest, $masterItemId);
+                $this->initializeItemSteps($approvalRequest, $item);
 
                 // Handle form extra data if provided
                 if (isset($itemData['form_extra']) && is_array($itemData['form_extra'])) {
@@ -551,17 +553,23 @@ class ApprovalRequestController extends Controller
             'auth_id' => auth()->id(),
         ]);
 
-        // Only allow edit if status is pending or on progress and user is the requester
-        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || (int)$approvalRequest->requester_id !== (int)auth()->id()) {
+        // Only allow edit if user is the requester
+        // And at least one item is pending or on progress (or the request is generally active)
+        // We relax the check to allow editing as long as it's not fully finalized (though individual items might be locked)
+        if ((int)$approvalRequest->requester_id !== (int)auth()->id()) {
             Log::warning('ApprovalRequest.edit.denied', [
                 'request_id' => $approvalRequest->id,
-                'status' => $approvalRequest->status,
                 'requester_id' => $approvalRequest->requester_id,
                 'auth_id' => auth()->id(),
-                'reason' => 'status_or_owner_mismatch',
+                'reason' => 'owner_mismatch',
             ]);
             abort(403, 'Anda tidak memiliki akses untuk mengedit request ini.');
         }
+
+        // Check if any item is editable (pending or on progress)
+        // If all items are approved/rejected, editing might be restricted, but let's allow viewing the edit form
+        // and handle item-level restrictions in the view or update method.
+        // For now, we just check ownership.
 
         Log::info('ApprovalRequest.edit.allowed', [
             'request_id' => $approvalRequest->id,
@@ -637,14 +645,13 @@ class ApprovalRequestController extends Controller
             'items_count' => is_array($request->items) ? count($request->items) : 0,
         ]);
 
-        // Only allow update if status is pending or on progress and user is the requester
-        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || (int)$approvalRequest->requester_id !== (int)auth()->id()) {
+        // Only allow update if user is the requester
+        if ((int)$approvalRequest->requester_id !== (int)auth()->id()) {
             Log::warning('ApprovalRequest.update.denied', [
                 'request_id' => $approvalRequest->id,
-                'status' => $approvalRequest->status,
                 'requester_id' => $approvalRequest->requester_id,
                 'auth_id' => auth()->id(),
-                'reason' => 'status_or_owner_mismatch',
+                'reason' => 'owner_mismatch',
             ]);
             abort(403, 'Anda tidak memiliki akses untuk mengedit request ini.');
         }
@@ -705,18 +712,12 @@ class ApprovalRequestController extends Controller
             'is_specific_type' => $isSpecificType,
         ]);
 
-        // Handle items update (NEW: use items table instead of pivot)
+        // Handle items update (NEW: Smart Update for Per-Item Status)
         if ($request->has('items') && is_array($request->items)) {
-            // Snapshot existing fs_document before delete
-            $existingFsByItem = $approvalRequest->items()
-                ->pluck('fs_document', 'master_item_id')
-                ->toArray();
+            // Snapshot existing items
+            $existingItems = $approvalRequest->items()->with('masterItem')->get()->keyBy('master_item_id');
+            $submittedMasterItemIds = [];
 
-            // Remove existing items and their steps
-            $approvalRequest->items()->delete();
-            $approvalRequest->itemSteps()->delete();
-            
-            // Add new items
             foreach ($request->items as $itemData) {
                 $hasId = !empty($itemData['master_item_id']);
                 $hasName = !empty($itemData['name']);
@@ -726,56 +727,76 @@ class ApprovalRequestController extends Controller
                     ? (int) $itemData['master_item_id']
                     : $this->resolveOrCreateMasterItem($itemData['name'], (int) $request->item_type_id);
 
-                $masterItem = MasterItem::findOrFail($masterItemId);
-                // Do not fallback to master item price; keep unit_price nullable if not provided
+                $submittedMasterItemIds[] = $masterItemId;
+                $existingItem = $existingItems->get($masterItemId);
+
+                // Prepare data
                 $unitPrice = isset($itemData['unit_price']) && $itemData['unit_price'] !== ''
                     ? (float) $itemData['unit_price']
                     : null;
                 $quantity = (int) ($itemData['quantity'] ?? 1);
                 $totalPrice = $unitPrice !== null ? ($quantity * $unitPrice) : null;
 
-                // Resolve supplier if only name provided
+                // Resolve supplier
                 $supplierId = isset($itemData['supplier_id']) ? (int) $itemData['supplier_id'] : null;
                 if (!$supplierId && !empty($itemData['supplier_name'])) {
                     $supplierId = $this->resolveOrCreateSupplierByName($itemData['supplier_name']);
                 }
 
-                // Get existing FS document (from snapshot) if any
-                $existingFsDocument = $existingFsByItem[$masterItemId] ?? null;
-
-                // Handle per-item FS document
+                // Handle FS document
                 $fsDocumentPath = null;
                 if (isset($itemData['fs_document']) && $itemData['fs_document'] instanceof \Illuminate\Http\UploadedFile) {
                     $fsDocumentPath = $itemData['fs_document']->store('fs_documents', 'public');
                 } elseif (isset($itemData['existing_fs_document'])) {
-                    // Keep existing FS document if no new file uploaded
                     $fsDocumentPath = $itemData['existing_fs_document'];
-                } elseif ($existingFsDocument) {
-                    // Keep existing FS document from database if no new file and no hidden field
-                    $fsDocumentPath = $existingFsDocument;
+                } elseif ($existingItem) {
+                    $fsDocumentPath = $existingItem->fs_document;
                 }
 
-                // Create item in approval_request_items table (NEW)
-                $item = $approvalRequest->items()->create([
-                    'master_item_id' => $masterItemId,
-                    'quantity' => $quantity,
-                    'unit_price' => $unitPrice,
-                    'total_price' => $totalPrice,
-                    'notes' => $itemData['notes'] ?? null,
-                    'specification' => $itemData['specification'] ?? null,
-                    'brand' => $itemData['brand'] ?? null,
-                    'supplier_id' => $supplierId,
-                    'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
-                    'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
-                    'letter_number' => $itemData['letter_number'] ?? null,
-                    'fs_document' => $fsDocumentPath,
-                    'status' => 'pending',
-                ]);
+                if ($existingItem) {
+                    // Update existing item ONLY if pending
+                    if ($existingItem->status === 'pending') {
+                        $existingItem->update([
+                            'quantity' => $quantity,
+                            'unit_price' => $unitPrice,
+                            'total_price' => $totalPrice,
+                            'notes' => $itemData['notes'] ?? null,
+                            'specification' => $itemData['specification'] ?? null,
+                            'brand' => $itemData['brand'] ?? null,
+                            'supplier_id' => $supplierId,
+                            'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
+                            'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
+                            'letter_number' => $itemData['letter_number'] ?? null,
+                            'fs_document' => $fsDocumentPath,
+                        ]);
 
-                // Initialize per-item approval steps from workflow (NEW)
-                $this->initializeItemSteps($approvalRequest, $masterItemId);
+                        // Steps reset removed to preserve approval history
+                        // $existingItem->steps()->delete();
+                        // $this->initializeItemSteps($approvalRequest, $existingItem);
+                    }
+                    // If not pending, we skip update to preserve approval state
+                } else {
+                    // Create new item
+                    $item = $approvalRequest->items()->create([
+                        'master_item_id' => $masterItemId,
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                        'total_price' => $totalPrice,
+                        'notes' => $itemData['notes'] ?? null,
+                        'specification' => $itemData['specification'] ?? null,
+                        'brand' => $itemData['brand'] ?? null,
+                        'supplier_id' => $supplierId,
+                        'alternative_vendor' => $itemData['alternative_vendor'] ?? null,
+                        'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
+                        'letter_number' => $itemData['letter_number'] ?? null,
+                        'fs_document' => $fsDocumentPath,
+                        'status' => 'pending',
+                    ]);
 
-                // Store per-item files if any (dokumen pendukung)
+                    $this->initializeItemSteps($approvalRequest, $item);
+                }
+
+                // Handle files (always allow adding files)
                 if (isset($itemData['files']) && is_array($itemData['files'])) {
                     foreach ($itemData['files'] as $uploaded) {
                         if (!$uploaded || !($uploaded instanceof \Illuminate\Http\UploadedFile)) continue;
@@ -793,11 +814,9 @@ class ApprovalRequestController extends Controller
                     }
                 }
 
-                // Handle form extra data if provided (for update)
+                // Handle form extra
                 if (isset($itemData['form_extra']) && is_array($itemData['form_extra'])) {
                     $extraData = $this->normalizeFormExtra($itemData['form_extra']);
-                    
-                    // Check if extra data already exists
                     $itemExtra = ApprovalRequestItemExtra::where('approval_request_id', $approvalRequest->id)
                         ->where('master_item_id', $masterItemId)
                         ->first();
@@ -809,12 +828,29 @@ class ApprovalRequestController extends Controller
                     }
                     
                     $itemExtra->fill($extraData);
-                    // Auto-fill from main form data
                     $itemExtra->autoFillFromMainForm();
                     $itemExtra->save();
                 }
             }
+
+            // Handle deletions (items in DB but not in form)
+            foreach ($existingItems as $mid => $item) {
+                if (!in_array($mid, $submittedMasterItemIds)) {
+                    if ($item->status === 'pending') {
+                        $item->steps()->delete();
+                        $item->delete();
+                        // Also delete extras
+                        ApprovalRequestItemExtra::where('approval_request_id', $approvalRequest->id)
+                            ->where('master_item_id', $mid)
+                            ->delete();
+                    } else {
+                        // Cannot delete processed items
+                        return back()->with('error', "Item {$item->masterItem->name} sudah diproses dan tidak dapat dihapus.");
+                    }
+                }
+            }
         }
+
 
         // Upload dan penghapusan lampiran dinonaktifkan
 
@@ -829,9 +865,15 @@ class ApprovalRequestController extends Controller
 
     public function destroy(ApprovalRequest $approvalRequest)
     {
-        // Only allow delete if status is pending or on progress and user is the requester
-        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || (int)$approvalRequest->requester_id !== (int)auth()->id()) {
+        // Only allow delete if user is the requester
+        if ((int)$approvalRequest->requester_id !== (int)auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk menghapus request ini.');
+        }
+
+        // Check if any item is approved or in purchasing/release
+        $hasProcessedItems = $approvalRequest->items()->whereIn('status', ['approved', 'in_purchasing', 'in_release', 'done'])->exists();
+        if ($hasProcessedItems) {
+            return back()->with('error', 'Request tidak dapat dihapus karena terdapat item yang sudah disetujui atau diproses.');
         }
 
         $approvalRequest->delete();
@@ -848,137 +890,109 @@ class ApprovalRequestController extends Controller
 
     public function approve(Request $request, ApprovalRequest $approvalRequest)
     {
-        // Per-item approval if master_item_id provided (non-breaking enhancement)
-        if ($request->filled('master_item_id')) {
-            $data = $request->validate([
-                'master_item_id' => 'required|integer|exists:master_items,id',
-                'comments' => 'nullable|string|max:1000',
-            ]);
-
-            // Authorization remains step-based at request level
-            if (!in_array($approvalRequest->status, ['pending', 'on progress'])) {
-                return redirect()->back()->with('error', 'Request ini sudah tidak dalam status yang dapat di-approve.');
-            }
-            $currentStep = $approvalRequest->currentStep;
-            if (!$currentStep || !$currentStep->canApprove(auth()->id())) {
-                return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk approve item pada request ini.');
-            }
-
-            $item = ApprovalRequestItem::where('approval_request_id', $approvalRequest->id)
-                ->where('master_item_id', (int)$data['master_item_id'])
-                ->first();
-            if (!$item) {
-                return redirect()->back()->with('error', 'Item tidak ditemukan pada request ini.');
-            }
-
-            $item->update([
-                'status' => 'approved',
-                'approved_by' => auth()->id(),
-                'approved_at' => now(),
-            ]);
-
-            return redirect()->back()->with('success', 'Item berhasil di-approve.');
+        // Enforce per-item approval
+        if (!$request->filled('master_item_id')) {
+            return redirect()->back()->with('error', 'Approval per request tidak lagi didukung. Silakan approve per item.');
         }
 
-        $validator = Validator::make($request->all(), [
-            'comments' => 'nullable|string|max:1000'
+        $data = $request->validate([
+            'master_item_id' => 'required|integer|exists:master_items,id',
+            'comments' => 'nullable|string|max:1000',
         ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();
+        // Check item status instead of request status
+        // if (!in_array($approvalRequest->status, ['pending', 'on progress'])) { ... } // REMOVED
+        
+        $item = ApprovalRequestItem::where('approval_request_id', $approvalRequest->id)
+            ->where('master_item_id', (int)$data['master_item_id'])
+            ->first();
+            
+        if (!$item) {
+            return redirect()->back()->with('error', 'Item tidak ditemukan pada request ini.');
         }
-
-        // Check if request is still pending or on progress
-        if (!in_array($approvalRequest->status, ['pending', 'on progress'])) {
-            return redirect()->back()->with('error', 'Request ini sudah tidak dalam status yang dapat di-approve.');
-        }
-
-        // Check if user can approve
-        $currentStep = $approvalRequest->currentStep;
+        
+        // Use item-based step logic
+        $currentStep = $item->getCurrentPendingStep();
+        
         if (!$currentStep || !$currentStep->canApprove(auth()->id())) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk approve request ini.');
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk approve item pada request ini.');
         }
 
-        $success = $approvalRequest->approve(auth()->id(), $request->comments);
+        // Update item status
+        $item->update([
+            'status' => 'approved',
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+        ]);
+        
+        // Update step status
+        $currentStep->update([
+            'status' => 'approved',
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+            'comments' => $request->comments
+        ]);
+        
+        // $approvalRequest->refreshStatus(); // REMOVED: Status is per-item
 
-        if ($success) {
-            $message = $approvalRequest->status === 'approved' 
-                ? 'Request berhasil di-approve sepenuhnya!' 
-                : 'Request berhasil di-approve untuk step ini!';
-            return redirect()->back()->with('success', $message);
-        } else {
-            return redirect()->back()->with('error', 'Gagal approve request. Silakan coba lagi.');
-        }
+        return redirect()->back()->with('success', 'Item berhasil di-approve.');
     }
 
     public function reject(Request $request, ApprovalRequest $approvalRequest)
     {
-        // Per-item rejection if master_item_id provided (non-breaking enhancement)
-        if ($request->filled('master_item_id')) {
-            $data = $request->validate([
-                'master_item_id' => 'required|integer|exists:master_items,id',
-                'reason' => 'required|string|max:1000',
-                'comments' => 'nullable|string|max:1000',
-            ]);
-
-            if (!in_array($approvalRequest->status, ['pending', 'on progress'])) {
-                return redirect()->back()->with('error', 'Request ini sudah tidak dalam status yang dapat di-reject.');
-            }
-            $currentStep = $approvalRequest->currentStep;
-            if (!$currentStep || !$currentStep->canApprove(auth()->id())) {
-                return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk reject item pada request ini.');
-            }
-
-            $item = ApprovalRequestItem::where('approval_request_id', $approvalRequest->id)
-                ->where('master_item_id', (int)$data['master_item_id'])
-                ->first();
-            if (!$item) {
-                return redirect()->back()->with('error', 'Item tidak ditemukan pada request ini.');
-            }
-
-            $item->update([
-                'status' => 'rejected',
-                'rejected_reason' => $data['reason'],
-                'approved_by' => null,
-                'approved_at' => null,
-            ]);
-
-            return redirect()->back()->with('success', 'Item berhasil di-reject.');
+        // Enforce per-item rejection
+        if (!$request->filled('master_item_id')) {
+            return redirect()->back()->with('error', 'Reject per request tidak lagi didukung. Silakan reject per item.');
         }
 
-        $validator = Validator::make($request->all(), [
+        $data = $request->validate([
+            'master_item_id' => 'required|integer|exists:master_items,id',
             'reason' => 'required|string|max:1000',
-            'comments' => 'nullable|string|max:1000'
+            'comments' => 'nullable|string|max:1000',
         ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();
+        // Check item status instead of request status
+        // if (!in_array($approvalRequest->status, ['pending', 'on progress'])) { ... } // REMOVED
+        
+        $item = ApprovalRequestItem::where('approval_request_id', $approvalRequest->id)
+            ->where('master_item_id', (int)$data['master_item_id'])
+            ->first();
+            
+        if (!$item) {
+            return redirect()->back()->with('error', 'Item tidak ditemukan pada request ini.');
         }
-
-        // Check if request is still pending or on progress
-        if (!in_array($approvalRequest->status, ['pending', 'on progress'])) {
-            return redirect()->back()->with('error', 'Request ini sudah tidak dalam status yang dapat di-reject.');
-        }
-
-        // Check if user can approve
-        $currentStep = $approvalRequest->currentStep;
+        
+        $currentStep = $item->getCurrentPendingStep();
         if (!$currentStep || !$currentStep->canApprove(auth()->id())) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk reject request ini.');
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk reject item pada request ini.');
         }
 
-        $success = $approvalRequest->reject(auth()->id(), $request->reason, $request->comments);
+        // Update item status
+        $item->update([
+            'status' => 'rejected',
+            'rejected_reason' => $data['reason'],
+            'approved_by' => null, // Reset approved_by if rejected? Or keep it? Usually rejected items don't have approved_by.
+            'approved_at' => null,
+        ]);
+        
+        // Update step status
+        $currentStep->update([
+            'status' => 'rejected',
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+            'rejected_reason' => $data['reason'],
+            'comments' => $request->comments
+        ]);
+        
+        // $approvalRequest->refreshStatus(); // REMOVED: Status is per-item
 
-        if ($success) {
-            return redirect()->back()->with('success', 'Request berhasil di-reject!');
-        } else {
-            return redirect()->back()->with('error', 'Gagal reject request. Silakan coba lagi.');
-        }
+        return redirect()->back()->with('success', 'Item berhasil di-reject.');
     }
 
     public function cancel(ApprovalRequest $approvalRequest)
     {
-        // Only allow cancel if status is pending or on progress and user is the requester
-        if (($approvalRequest->status !== 'pending' && $approvalRequest->status !== 'on progress') || (int)$approvalRequest->requester_id !== (int)auth()->id()) {
+        // Only allow cancel if user is the requester
+        if ((int)$approvalRequest->requester_id !== (int)auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk membatalkan request ini.');
         }
 
@@ -1027,9 +1041,11 @@ class ApprovalRequestController extends Controller
             });
         }
 
-        // Status filter (request-level)
+        // Status filter (per-item)
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->whereHas('items', function($q) use ($request) {
+                $q->where('status', $request->status);
+            });
         }
 
         // Eager load
@@ -1116,6 +1132,26 @@ class ApprovalRequestController extends Controller
                             ->whereHas('request', function($q) {
                                 // Show all active requests (not cancelled)
                                 $q->whereIn('status', ['pending', 'on progress', 'approved', 'rejected']);
+                            })
+                            // Enforce sequential workflow visibility
+                            // A step is visible if:
+                            // 1. It is NOT pending (history: approved/rejected/skipped)
+                            // 2. OR It IS pending AND all previous steps are approved/skipped AND item is not rejected
+                            ->where(function($q) {
+                                $q->where('status', '!=', 'pending')
+                                  ->orWhere(function($pendingQ) {
+                                      $pendingQ->where('status', 'pending')
+                                               ->whereNotExists(function($sub) {
+                                                   $sub->select(\DB::raw(1))
+                                                       ->from('approval_item_steps as prev')
+                                                       ->whereColumn('prev.approval_request_item_id', 'approval_item_steps.approval_request_item_id')
+                                                       ->whereColumn('prev.step_number', '<', 'approval_item_steps.step_number')
+                                                       ->whereNotIn('prev.status', ['approved', 'skipped']);
+                                               })
+                                               ->whereHas('requestItem', function($ri) {
+                                                   $ri->where('status', '!=', 'rejected');
+                                               });
+                                  });
                             });
 
         // Phase filter - NEW: Filter by step_phase (approval vs release)
@@ -1129,9 +1165,11 @@ class ApprovalRequestController extends Controller
             // If 'all' or invalid, don't filter by phase
         }
 
-        // Status filter - can filter by step status OR request status
-        if ($request->filled('status')) {
-            $statusFilter = $request->status;
+        // Status filter - default to showing 'pending' if not specified
+        // User requested: "bukannya step yg sedang ada di giliran dia periksa" (show only current pending steps)
+        $statusFilter = $request->get('status', 'pending');
+        
+        if ($statusFilter && $statusFilter !== 'all') {
             // If filtering by step status (pending, approved, rejected)
             if (in_array($statusFilter, ['pending', 'approved', 'rejected'])) {
                 $query->where('status', $statusFilter);
@@ -1253,6 +1291,17 @@ class ApprovalRequestController extends Controller
                     ->where('status', 'pending')
                     ->whereHas('request', function($q) {
                         $q->whereIn('status', ['pending', 'on progress']);
+                    })
+                    // Enforce sequential workflow for counts
+                    ->whereNotExists(function($sub) {
+                        $sub->select(\DB::raw(1))
+                            ->from('approval_item_steps as prev')
+                            ->whereColumn('prev.approval_request_item_id', 'approval_item_steps.approval_request_item_id')
+                            ->whereColumn('prev.step_number', '<', 'approval_item_steps.step_number')
+                            ->whereNotIn('prev.status', ['approved', 'skipped']);
+                    })
+                    ->whereHas('requestItem', function($ri) {
+                        $ri->where('status', '!=', 'rejected');
                     });
         
         $approvalPhasePendingCount = (clone $baseQuery)->where('step_phase', 'approval')->count();
@@ -1399,15 +1448,18 @@ class ApprovalRequestController extends Controller
      */
     public function getStepStatus(ApprovalRequest $approvalRequest, $stepNumber)
     {
-        // Get master_item_id from request query parameter
+        // Get master_item_id or item_id from request query parameter
         $masterItemId = request()->query('master_item_id');
+        $itemId = request()->query('item_id');
         
         // Find the approval action for this specific step and item
         $query = $approvalRequest->itemSteps()
             ->where('step_number', $stepNumber);
         
-        // Filter by master_item_id if provided
-        if ($masterItemId) {
+        // Filter by item_id (preferred) or master_item_id
+        if ($itemId) {
+            $query->where('approval_request_item_id', $itemId);
+        } elseif ($masterItemId) {
             $query->where('master_item_id', $masterItemId);
         }
         
@@ -1488,11 +1540,28 @@ class ApprovalRequestController extends Controller
      * - Phase 2 (purchasing): Handled by PurchasingItem (existing)
      * - Phase 3 (release): Releasers → status = 'pending_purchase' (activated after purchasing)
      */
-    private function initializeItemSteps(ApprovalRequest $approvalRequest, int $masterItemId): void
+    private function initializeItemSteps(ApprovalRequest $approvalRequest, ApprovalRequestItem $item): void
     {
-        $workflow = $approvalRequest->workflow;
+        // Resolve workflow per item
+        $masterItemId = $item->master_item_id;
+        $masterItem = MasterItem::find($masterItemId);
+        $workflow = null;
+
+        // 1. Try to find specific workflow for this item's type
+        if ($masterItem && $masterItem->item_type_id) {
+             $workflow = ApprovalWorkflow::where('is_active', true)
+                ->where('item_type_id', $masterItem->item_type_id)
+                ->where('is_specific_type', true)
+                ->first();
+        }
+
+        // 2. Fallback to request's workflow
         if (!$workflow) {
-            Log::warning('No workflow found for request', ['request_id' => $approvalRequest->id]);
+            $workflow = $approvalRequest->workflow;
+        }
+
+        if (!$workflow) {
+            Log::warning('No workflow found for item', ['request_id' => $approvalRequest->id, 'item_id' => $masterItemId]);
             return;
         }
 
@@ -1511,6 +1580,7 @@ class ApprovalRequestController extends Controller
             
             \App\Models\ApprovalItemStep::create([
                 'approval_request_id' => $approvalRequest->id,
+                'approval_request_item_id' => $item->id,
                 'master_item_id' => $masterItemId,
                 'step_number' => $step->step_number,
                 'step_name' => $step->step_name,
@@ -1541,6 +1611,8 @@ class ApprovalRequestController extends Controller
         Log::info('Item steps initialized with 3-phase workflow', [
             'request_id' => $approvalRequest->id,
             'master_item_id' => $masterItemId,
+            'workflow_id' => $workflow->id,
+            'workflow_name' => $workflow->name,
             'total_steps' => count($workflowSteps),
             'approval_steps' => $approvalStepCount,
             'release_steps' => $releaseStepCount,

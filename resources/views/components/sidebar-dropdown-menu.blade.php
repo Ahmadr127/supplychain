@@ -26,16 +26,19 @@
 
 @if(!$permission || auth()->user()->hasPermission($permission))
 <li x-data="{ 
-    open: false,
+    open: {{ $isActive || $defaultOpen ? 'true' : 'false' }},
     init() {
-        // Check localStorage for this specific menu
-        const stored = localStorage.getItem('{{ $menuId }}');
-        if (stored !== null) {
-            this.open = stored === '1';
-        } else {
-            // Default: open if active or defaultOpen
-            this.open = {{ $defaultOpen || $isActive ? 'true' : 'false' }};
-        }
+            // Check localStorage for this specific menu
+            const stored = localStorage.getItem('{{ $menuId }}');
+            const isActive = {{ $isActive ? 'true' : 'false' }};
+            
+            if (isActive) {
+                this.open = true;
+            } else if (stored !== null) {
+                this.open = stored === '1';
+            } else {
+                this.open = {{ $defaultOpen ? 'true' : 'false' }};
+            }
     },
     toggle() {
         this.open = !this.open;

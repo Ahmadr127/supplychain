@@ -8,10 +8,7 @@
     // This allows dynamic inserted steps to be displayed
     if ($stepData) {
         // stepData is ApprovalRequestItem - get actual steps from database
-        $itemSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $stepData->approval_request_id)
-            ->where('master_item_id', $stepData->master_item_id)
-            ->orderBy('step_number')
-            ->get();
+        $itemSteps = $stepData->steps;
         
         // Use actual steps (includes dynamic inserted steps)
         $workflowSteps = $itemSteps;
@@ -100,7 +97,8 @@
                     <div class="mt-0.5 text-[11px] text-gray-600 step-meta" 
                          data-request-id="{{ $requestId }}" 
                          data-step-number="{{ $step->step_number }}"
-                         data-master-item-id="{{ $stepData ? $stepData->master_item_id : '' }}">
+                         data-master-item-id="{{ $stepData ? $stepData->master_item_id : '' }}"
+                         data-item-id="{{ $stepData ? $stepData->id : '' }}">
                         <!-- info disisipkan via JS: status, oleh, pada -->
                     </div>
                 @endif
