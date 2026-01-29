@@ -44,7 +44,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            @if(auth()->user()->hasPermission('manage_purchasing'))
+            @if(auth()->user()->hasPermission('manage_purchasing') || auth()->user()->hasPermission('process_purchasing_item'))
             <form method="POST" action="{{ route('approval-requests.set-received-date', $item->approvalRequest) }}" class="flex items-center gap-2">
                 @csrf
                 <span class="text-xs text-gray-500">Tgl dokumen diterima</span>
@@ -68,7 +68,7 @@
             </div>
         </div>
         <div class="p-2">
-            @if(auth()->user()->hasPermission('manage_purchasing'))
+            @if(auth()->user()->hasPermission('manage_purchasing') || auth()->user()->hasPermission('process_purchasing_item'))
             <form method="POST" action="{{ route('purchasing.items.benchmarking', $item) }}" class="space-y-3" id="benchmarking-form">
                 @csrf
                 
@@ -131,7 +131,7 @@
             <h3 class="text-sm font-semibold text-gray-900">Preferred Vendor</h3>
         </div>
         <div class="p-2">
-            @if(auth()->user()->hasPermission('manage_purchasing'))
+            @if(auth()->user()->hasPermission('manage_purchasing') || auth()->user()->hasPermission('process_purchasing_item'))
             <form method="POST" action="{{ route('purchasing.items.preferred', $item) }}" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end opacity-60" id="preferred-form">
                 @csrf
                 <div class="md:col-span-2 relative">
@@ -167,7 +167,7 @@
             <h3 class="text-sm font-semibold text-gray-900">PO & GRN</h3>
         </div>
         <div class="p-2 grid grid-cols-1 md:grid-cols-3 gap-3">
-            @if(auth()->user()->hasPermission('manage_purchasing'))
+            @if(auth()->user()->hasPermission('manage_purchasing') || auth()->user()->hasPermission('process_purchasing_item'))
             <form method="POST" action="{{ route('purchasing.items.po', $item) }}" class="space-y-2">
                 @csrf
                 <label class="block text-xs text-gray-600 mb-0.5">PO Number</label>
@@ -201,7 +201,8 @@
     </div>
 
     <!-- Action Buttons -->
-    @if(auth()->user()->hasPermission('manage_purchasing'))
+    <!-- Action Buttons -->
+    @if(auth()->user()->hasPermission('manage_purchasing') || auth()->user()->hasPermission('process_purchasing_item'))
     <div class="flex items-center justify-between gap-4 flex-wrap">
         <!-- Delete button -->
         <form method="POST" action="{{ route('purchasing.items.delete', $item) }}" onsubmit="return confirm('Hapus purchasing item ini? Data benchmarking dan semua data terkait akan dihapus.');">

@@ -1,7 +1,7 @@
 // Common JavaScript functions for approval requests
 
 // Step Status Modal Functions
-async function showStepStatus(stepName, stepStatus, stepNumber, requestId) {
+async function showStepStatus(stepName, stepStatus, stepNumber, requestId, masterItemId = null) {
     // Create modal if it doesn't exist
     let modal = document.getElementById('stepStatusModal');
     if (!modal) {
@@ -34,7 +34,10 @@ async function showStepStatus(stepName, stepStatus, stepNumber, requestId) {
 
     try {
         const baseUrl = window.location.origin;
-        const url = `${baseUrl}/api/approval-requests/${requestId}/step-status/${stepNumber}`;
+        let url = `${baseUrl}/api/approval-requests/${requestId}/step-status/${stepNumber}`;
+        if (masterItemId) {
+            url += `?master_item_id=${masterItemId}`;
+        }
         const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         const data = await res.json();
         

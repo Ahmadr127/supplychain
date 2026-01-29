@@ -296,6 +296,19 @@
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                        placeholder="Unit Manager Approval">
             </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Fase Step</label>
+                <select name="workflow_steps[${stepNumber}][step_type]" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="approver">Approver (Sebelum Purchasing)</option>
+                    <option value="releaser">Releaser (Setelah Purchasing)</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">
+                    Approver: Menyetujui pengadaan.<br>
+                    Releaser: final release.
+                </p>
+            </div>
             
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Tipe approver</label>

@@ -130,8 +130,31 @@ class ReportController extends Controller
                 $piStatus = $pi?->status ?? 'unprocessed';
                 $piLabel = trim(($req->request_number ?: '-') . ' • ' . ($m->name ?: '-') . ' • QTY ' . $qty . ' • ' . strtoupper($piStatus));
 
+                // Determine purchasing status code for THIS item
+                if ($pi) {
+                    $itemPurchasingStatusCode = $pi->status;
+                } else {
+                    // If no purchasing item, check approval status
+                    if (in_array($item->status, ['in_purchasing', 'approved', 'in_release'])) {
+                        $itemPurchasingStatusCode = 'unprocessed'; // Ready for purchasing but no PI yet
+                    } else {
+                        $itemPurchasingStatusCode = 'pending_approval'; // Not ready yet
+                    }
+                }
+
+                $itemPurchasingStatusText = match($itemPurchasingStatusCode) {
+                    'unprocessed' => 'Belum diproses',
+                    'benchmarking' => 'Pemilihan vendor',
+                    'selected' => 'Proses PR & PO',
+                    'po_issued' => 'Proses di vendor',
+                    'grn_received' => 'Barang sudah diterima',
+                    'done' => 'Selesai',
+                    'pending_approval' => 'Menunggu Approval',
+                    default => strtoupper($itemPurchasingStatusCode),
+                };
+
                 // Process text: show purchasing status only
-                $processText = $purchasingStatus;
+                $processText = $itemPurchasingStatusText;
 
                 // Benchmarking vendors (up to 3) for display
                 $bench = [null, null, null];
@@ -184,7 +207,7 @@ class ReportController extends Controller
                     'no_input' => $req->request_number ?? '-',
                     'process' => $processText,
                     // also include raw code for color mapping in view
-                    'process_code' => $purchasingStatusCode,
+                    'process_code' => $itemPurchasingStatusCode,
                     // Jenis diisi nama item (bukan submission type)
                     'jenis' => $m->name ?? '-',
                     'unit_pengaju' => $primaryDept ?? '-',
@@ -230,67 +253,71 @@ class ReportController extends Controller
                 // Add action buttons based on status
                 $actions = [];
                 $user = auth()->user();
-                $canManagePurchasing = $user && $user->hasPermission('manage_purchasing');
+                $canManagePurchasing = $user && ($user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item'));
                 $canManageVendor = $user && $user->hasPermission('manage_vendor');
 
-                if ($req->status === 'approved') {
-                    // Show process action only if user has manage_purchasing
-                    if ($canManagePurchasing) {
-                        if ($piId) {
-                            // If purchasing item exists, direct link to process page
-                            $actions[] = [
-                                'type' => 'link',
-                                'label' => 'Proses',
-                                'color' => 'green',
-                                'url' => route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId])
-                            ];
-                        } else {
-                            // If no purchasing item, create it first then redirect to process page
-                            $actions[] = [
-                                'type' => 'button',
-                                'label' => 'Proses',
-                                'color' => 'green',
-                                'onclick' => "(async function(){try{const res=await fetch('" . route('api.purchasing.items.resolve') . "',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]')?.getAttribute('content')||''},body:JSON.stringify({approval_request_id:'{$req->id}',master_item_id:'{$m->id}'})});if(!res.ok){const err=await res.json();alert(err.error||'Request belum approved atau ada kesalahan.');return;}const data=await res.json();if(data&&data.id){window.location.href='" . route('reports.approval-requests.process-purchasing') . "?purchasing_item_id='+data.id;}}catch(e){alert('Gagal membuka halaman purchasing.');}})()"
-                            ];
-                        }
-                    }
+                // Check if item is ready for purchasing (per-item workflow)
+                // It is ready if:
+                // 1. Purchasing Item exists ($piId)
+                // 2. OR Item status is 'in_purchasing'
+                // 3. OR Item status is 'approved' (legacy/simple workflow)
+                // 4. OR Item status is 'in_release' (purchasing done/skipped)
+                $isReadyForPurchasing = $piId || in_array($item->status, ['in_purchasing', 'approved', 'in_release']);
 
-                    // Vendor page button (only if user can manage vendor)
-                    if ($piId && $canManageVendor) {
+                // Show process action only if user has manage_purchasing AND item is ready
+                if ($canManagePurchasing && $isReadyForPurchasing) {
+                    if ($piId) {
+                        // If purchasing item exists, direct link to process page
                         $actions[] = [
                             'type' => 'link',
-                            'label' => 'Vendor',
-                            'color' => 'blue',
-                            'url' => route('purchasing.items.vendor', $piId)
+                            'label' => 'Proses',
+                            'color' => 'green',
+                            'url' => route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId])
+                        ];
+                    } else {
+                        // If no purchasing item, create it first then redirect to process page
+                        $actions[] = [
+                            'type' => 'button',
+                            'label' => 'Proses',
+                            'color' => 'green',
+                            'onclick' => "(async function(){try{const res=await fetch('" . route('api.purchasing.items.resolve') . "',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]')?.getAttribute('content')||''},body:JSON.stringify({approval_request_id:'{$req->id}',master_item_id:'{$m->id}'})});if(!res.ok){const err=await res.json();alert(err.error||'Gagal memproses item.');return;}const data=await res.json();if(data&&data.id){window.location.href='" . route('reports.approval-requests.process-purchasing') . "?purchasing_item_id='+data.id;}}catch(e){alert('Gagal membuka halaman purchasing.');}})()"
                         ];
                     }
+                }
 
-                    // View approval request button
+                // Vendor page button (only if user can manage vendor AND purchasing item exists)
+                if ($piId && $canManageVendor) {
                     $actions[] = [
                         'type' => 'link',
-                        'label' => 'Lihat Request',
+                        'label' => 'Vendor',
                         'color' => 'blue',
-                        'url' => route('approval-requests.show', $req->id)
+                        'url' => route('purchasing.items.vendor', $piId)
                     ];
-                } else {
-                    // For non-approved requests, show view request button
-                    $actions[] = [
-                        'type' => 'link',
-                        'label' => 'Lihat',
-                        'color' => 'blue',
-                        'url' => route('approval-requests.show', $req->id)
-                    ];
-                    
-                    // Show status badge
-                    $statusColor = match($req->status) {
+                }
+
+                // View approval request button (ALWAYS SHOW)
+                $actions[] = [
+                    'type' => 'link',
+                    'label' => 'Lihat Request',
+                    'color' => 'blue',
+                    'url' => route('approval-requests.show', $req->id)
+                ];
+
+                // Show status badge if NOT ready for purchasing (or just as info)
+                if (!$isReadyForPurchasing) {
+                    $statusColor = match($item->status) {
                         'pending' => 'yellow',
+                        'on progress' => 'blue',
                         'rejected' => 'red',
                         'cancelled' => 'gray',
                         default => 'gray'
                     };
+                    // Fallback to request status if item status is ambiguous or request is rejected
+                    if ($req->status === 'rejected') $statusColor = 'red';
+                    
                     $actions[] = [
                         'type' => 'text',
-                        'label' => ucfirst($req->status),
+                        'label' => ucfirst($item->status ?? $req->status),
                         'color' => $statusColor
                     ];
                 }
@@ -303,6 +330,32 @@ class ReportController extends Controller
         $submissionTypes = SubmissionType::orderBy('name')->get(['id','name']);
         $departments = Department::orderBy('name')->get(['id','name']);
         $categories = ItemCategory::orderBy('name')->get(['id','name']);
+
+        // Calculate status counts based on current filters (except status filter itself)
+        // We clone the query $q but we need to remove the status filter if it was applied
+        // Since $q is already built with filters, we can't easily remove one.
+        // So we'll just count based on the *current* result set + grouping?
+        // Or better, we build a fresh query for counts with same filters except status.
+        // For simplicity and performance, let's just count the *global* statuses for reports page
+        // or maybe just the statuses of the items visible?
+        // The user asked for "jumlah status yg ada di user login".
+        // For reports, it's usually all items.
+        
+        $statusCounts = \App\Models\ApprovalRequestItem::select('status', \DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+            
+        $statusCounts = [
+            'pending' => $statusCounts['pending'] ?? 0,
+            'on_progress' => $statusCounts['on progress'] ?? 0,
+            'approved' => $statusCounts['approved'] ?? 0,
+            'rejected' => $statusCounts['rejected'] ?? 0,
+            'cancelled' => $statusCounts['cancelled'] ?? 0,
+            'in_purchasing' => $statusCounts['in_purchasing'] ?? 0,
+            'in_release' => $statusCounts['in_release'] ?? 0,
+            'done' => $statusCounts['done'] ?? 0,
+        ];
 
         return view('reports.approval-requests.index', [
             'columns' => [
@@ -321,6 +374,7 @@ class ReportController extends Controller
                             'grn_received' => 'bg-green-600 text-white',
                             'done' => 'bg-green-700 text-white',
                             'unprocessed' => 'bg-gray-200 text-gray-800',
+                            'pending_approval' => 'bg-blue-100 text-blue-800',
                             default => 'bg-gray-200 text-gray-800',
                         };
                         return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium '.$cls.'">'.e($text).'</span>';
@@ -364,13 +418,14 @@ class ReportController extends Controller
             'submissionTypes' => $submissionTypes,
             'departments' => $departments,
             'categories' => $categories,
+            'statusCounts' => $statusCounts,
         ]);
     }
 
     public function processPurchasing(Request $request)
     {
-        // Authorization: only users with manage_purchasing may access
-        if (!(auth()->user()?->hasPermission('manage_purchasing'))) {
+        // Authorization: only users with manage_purchasing or process_purchasing_item may access
+        if (!(auth()->user()?->hasPermission('manage_purchasing') || auth()->user()?->hasPermission('process_purchasing_item'))) {
             abort(403, 'Unauthorized action.');
         }
         $id = (int) $request->query('purchasing_item_id');
@@ -388,8 +443,25 @@ class ReportController extends Controller
         if (!$item) {
             return redirect()->route('reports.approval-requests')->with('error', 'Purchasing Item tidak ditemukan.');
         }
+        
+        // Add status counts for consistency
+        $statusCounts = \App\Models\ApprovalRequestItem::select('status', \DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+            
+        $statusCounts = [
+            'pending' => $statusCounts['pending'] ?? 0,
+            'on_progress' => $statusCounts['on progress'] ?? 0,
+            'approved' => $statusCounts['approved'] ?? 0,
+            'rejected' => $statusCounts['rejected'] ?? 0,
+            'cancelled' => $statusCounts['cancelled'] ?? 0,
+            'in_purchasing' => $statusCounts['in_purchasing'] ?? 0,
+            'in_release' => $statusCounts['in_release'] ?? 0,
+            'done' => $statusCounts['done'] ?? 0,
+        ];
 
-        return view('reports.approval-requests.process-purchasing', compact('item'));
+        return view('reports.approval-requests.process-purchasing', compact('item', 'statusCounts'));
     }
 
     public function vendorForm(PurchasingItem $purchasingItem)
@@ -458,8 +530,22 @@ class ReportController extends Controller
         ]);
         
         $approvalRequest = ApprovalRequest::find($data['approval_request_id']);
-        if ($approvalRequest->status !== 'approved') {
-            return response()->json(['error' => 'Request belum approved'], 400);
+        
+        // Find the specific item to check its status
+        $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $data['approval_request_id'])
+            ->where('master_item_id', $data['master_item_id'])
+            ->first();
+
+        // Allow if item is in purchasing phase OR request is approved (legacy)
+        $isReady = false;
+        if ($approvalRequest->status === 'approved') {
+            $isReady = true;
+        } elseif ($requestItem && in_array($requestItem->status, ['in_purchasing', 'approved', 'in_release'])) {
+            $isReady = true;
+        }
+
+        if (!$isReady) {
+            return response()->json(['error' => 'Item belum siap untuk purchasing (Status: '.($requestItem->status ?? 'unknown').')'], 400);
         }
         
         $item = PurchasingItem::firstOrCreate(

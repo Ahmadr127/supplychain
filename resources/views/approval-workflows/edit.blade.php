@@ -155,6 +155,7 @@
                             $approverRoleId = $stepData->approver_role_id ?? null;
                             $approverDeptId = $stepData->approver_department_id ?? null;
                             $template = (array) ($stepData->insert_step_template ?? []);
+                            $stepType = $stepData->step_type ?? 'approver';
                         @endphp
                         <div class="border border-gray-200 rounded-lg p-6 mb-4 step-item bg-white shadow-sm" data-step-id="existing_step_{{ $index + 1 }}">
                             <div class="flex justify-between items-center mb-4">
@@ -170,6 +171,19 @@
                                     <input type="text" name="workflow_steps[{{ $index + 1 }}][name]" value="{{ $stepName }}" required
                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                            placeholder="Unit Manager Approval">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Fase Step</label>
+                                    <select name="workflow_steps[{{ $index + 1 }}][step_type]" required
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="approver" {{ $stepType == 'approver' ? 'selected' : '' }}>Approver (Sebelum Purchasing)</option>
+                                        <option value="releaser" {{ $stepType == 'releaser' ? 'selected' : '' }}>Releaser (Setelah Purchasing)</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        Approver: Menyetujui pengadaan.<br>
+                                        Releaser: final release.
+                                    </p>
                                 </div>
                                 
                                 <div>
@@ -553,6 +567,19 @@ function createStepHTML(stepId, stepNumber) {
                 <input type="text" name="workflow_steps[${stepNumber}][name]" required
                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                        placeholder="Unit Manager Approval">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Fase Step</label>
+                <select name="workflow_steps[${stepNumber}][step_type]" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="approver">Approver (Sebelum Purchasing)</option>
+                    <option value="releaser">Releaser (Setelah Purchasing)</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">
+                    Approver: Menyetujui pengadaan.<br>
+                    Releaser: Final release.
+                </p>
             </div>
             
             <div>

@@ -61,6 +61,7 @@ class ApprovalWorkflowController extends Controller
             'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
+            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
             'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
@@ -126,6 +127,7 @@ class ApprovalWorkflowController extends Controller
             'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
+            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
             'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
@@ -296,7 +298,7 @@ class ApprovalWorkflowController extends Controller
                 }
             }
             
-            // Add dynamic step insertion support (NEW)
+        // Add dynamic step insertion support (NEW)
             if (isset($step['can_insert_step']) && $step['can_insert_step']) {
                 $processedStep['can_insert_step'] = true;
                 
@@ -339,6 +341,25 @@ class ApprovalWorkflowController extends Controller
                 }
             } else {
                 $processedStep['can_insert_step'] = false;
+            }
+
+            // Add step type and phase (NEW)
+            if (!empty($step['step_type'])) {
+                $processedStep['step_type'] = $step['step_type'];
+                // Auto-set phase based on type
+                if ($step['step_type'] === 'releaser') {
+                    $processedStep['step_phase'] = 'release';
+                    // Releasers usually have 'release' action, but let's keep what user selected if any
+                    if (empty($processedStep['required_action'])) {
+                        $processedStep['required_action'] = 'release';
+                    }
+                } else {
+                    $processedStep['step_phase'] = 'approval';
+                }
+            } else {
+                // Default to approver
+                $processedStep['step_type'] = 'approver';
+                $processedStep['step_phase'] = 'approval';
             }
 
             $processedSteps[] = $processedStep;

@@ -3,7 +3,8 @@
     'data' => [],
     'actions' => true,
     'showCheckbox' => false,
-    'selectable' => false
+    'selectable' => false,
+    'rowClass' => null
 ])
 
 <div class="responsive-table-container">
@@ -37,7 +38,7 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
             @forelse($data as $index => $item)
-                <tr class="hover:bg-gray-50 transition-colors duration-150">
+                <tr class="hover:bg-gray-50 transition-colors duration-150 {{ $rowClass ? $rowClass($item, $index) : '' }}">
                     @if($showCheckbox && $selectable)
                         <td class="px-6 py-4 whitespace-nowrap">
                             <input type="checkbox" 

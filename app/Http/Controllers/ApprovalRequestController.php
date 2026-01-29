@@ -428,7 +428,8 @@ class ApprovalRequestController extends Controller
             'purchasingItems.vendors',
             'purchasingItems.preferredVendor',
             'purchasingItems.statusChanger', // Load user who changed status
-            'itemExtras' // Load form extra data
+            'itemExtras', // Load form extra data
+            'items.capexItem' // Load Capex data
         ]);
 
         // Load item files grouped by master_item_id to show per item
@@ -1080,7 +1081,29 @@ class ApprovalRequestController extends Controller
 
         $departmentsMap = Department::pluck('name', 'id');
         
-        return view('approval-requests.my-requests', compact('items', 'departmentsMap'));
+        // Calculate status counts for My Requests
+        // Count items by status where requester is current user
+        $statusCounts = \App\Models\ApprovalRequestItem::whereHas('approvalRequest', function($q) {
+                $q->where('requester_id', auth()->id());
+            })
+            ->select('status', \DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+            
+        // Normalize keys
+        $statusCounts = [
+            'pending' => $statusCounts['pending'] ?? 0,
+            'on_progress' => $statusCounts['on progress'] ?? 0,
+            'approved' => $statusCounts['approved'] ?? 0,
+            'rejected' => $statusCounts['rejected'] ?? 0,
+            'cancelled' => $statusCounts['cancelled'] ?? 0,
+            'in_purchasing' => $statusCounts['in_purchasing'] ?? 0,
+            'in_release' => $statusCounts['in_release'] ?? 0,
+            'done' => $statusCounts['done'] ?? 0,
+        ];
+
+        return view('approval-requests.my-requests', compact('items', 'departmentsMap', 'statusCounts'));
     }
 
     public function pendingApprovals(Request $request)
@@ -1095,7 +1118,6 @@ class ApprovalRequestController extends Controller
         $query = \App\Models\ApprovalItemStep::where(function($q) use ($userDepartments, $userRoles, $user) {
                                 $q->where('approver_id', $user->id)
                                   ->orWhereIn('approver_role_id', $userRoles)
-                                  ->orWhereIn('approver_department_id', $userDepartments)
                                   ->orWhere(function($anyMgrQuery) use ($user) {
                                       $anyMgrQuery->where('approver_type', 'any_department_manager')
                                                   ->whereExists(function($exists) use ($user) {
@@ -1129,7 +1151,7 @@ class ApprovalRequestController extends Controller
                                                    });
                                   });
                             })
-                            ->whereHas('request', function($q) {
+                            ->whereHas('approvalRequest', function($q) {
                                 // Show all active requests (not cancelled)
                                 $q->whereIn('status', ['pending', 'on progress', 'approved', 'rejected']);
                             })
@@ -1138,9 +1160,12 @@ class ApprovalRequestController extends Controller
                             // 1. It is NOT pending (history: approved/rejected/skipped)
                             // 2. OR It IS pending AND all previous steps are approved/skipped AND item is not rejected
                             ->where(function($q) {
-                                $q->where('status', '!=', 'pending')
+                                // Condition 1: History (already processed steps)
+                                $q->whereIn('status', ['approved', 'rejected', 'skipped'])
+                                  // Condition 2: Current actionable step
                                   ->orWhere(function($pendingQ) {
                                       $pendingQ->where('status', 'pending')
+                                               // Ensure no previous steps are unapproved (must be approved or skipped)
                                                ->whereNotExists(function($sub) {
                                                    $sub->select(\DB::raw(1))
                                                        ->from('approval_item_steps as prev')
@@ -1148,6 +1173,7 @@ class ApprovalRequestController extends Controller
                                                        ->whereColumn('prev.step_number', '<', 'approval_item_steps.step_number')
                                                        ->whereNotIn('prev.status', ['approved', 'skipped']);
                                                })
+                                               // Ensure the item itself is not rejected
                                                ->whereHas('requestItem', function($ri) {
                                                    $ri->where('status', '!=', 'rejected');
                                                });
@@ -1165,9 +1191,9 @@ class ApprovalRequestController extends Controller
             // If 'all' or invalid, don't filter by phase
         }
 
-        // Status filter - default to showing 'pending' if not specified
-        // User requested: "bukannya step yg sedang ada di giliran dia periksa" (show only current pending steps)
-        $statusFilter = $request->get('status', 'pending');
+        // Status filter - default to showing 'all' to include history (approved items)
+        // User requested: "jangan perna menghilangkan pengajuan yg sudah di approve"
+        $statusFilter = $request->get('status', 'all');
         
         if ($statusFilter && $statusFilter !== 'all') {
             // If filtering by step status (pending, approved, rejected)
@@ -1175,7 +1201,7 @@ class ApprovalRequestController extends Controller
                 $query->where('status', $statusFilter);
             } else {
                 // Otherwise filter by request status
-                $query->whereHas('request', function($q) use ($statusFilter) {
+                $query->whereHas('approvalRequest', function($q) use ($statusFilter) {
                     $q->where('status', $statusFilter);
                 });
             }
@@ -1184,7 +1210,7 @@ class ApprovalRequestController extends Controller
         // Search filter (request fields)
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('request', function($q) use ($search) {
+            $query->whereHas('approvalRequest', function($q) use ($search) {
                 $q->where('request_number', 'like', "%{$search}%")
                   ->orWhereHas('submissionType', function($st) use ($search) {
                       $st->where('name', 'like', "%{$search}%");
@@ -1197,11 +1223,11 @@ class ApprovalRequestController extends Controller
 
         // Eager load for per-item approval
         $itemSteps = $query->with([
-                'request.requester',
-                'request.submissionType',
-                'request.items', // Load all items to find matching itemData
-                'item', // The specific master item for this step
-                'request.purchasingItems',
+                'approvalRequest.requester',
+                'approvalRequest.submissionType',
+                'approvalRequest.items', // Load all items to find matching itemData
+                'masterItem', // The specific master item for this step
+                'approvalRequest.purchasingItems',
             ])
             ->latest()
             ->get();
@@ -1210,7 +1236,7 @@ class ApprovalRequestController extends Controller
         // Group by request_id + master_item_id
         $grouped = [];
         foreach ($itemSteps as $itemStep) {
-            $req = $itemStep->request;
+            $req = $itemStep->approvalRequest;
             if (!$req) continue;
             
             $key = $req->id . '_' . $itemStep->master_item_id;
@@ -1230,7 +1256,7 @@ class ApprovalRequestController extends Controller
         // Build final rows from grouped data
         $rows = [];
         foreach ($grouped as $itemStep) {
-            $req = $itemStep->request;
+            $req = $itemStep->approvalRequest;
             $piByItem = ($req->purchasingItems ?? collect())->keyBy('master_item_id');
             
             // Find the corresponding ApprovalRequestItem for this step
@@ -1239,7 +1265,7 @@ class ApprovalRequestController extends Controller
             $row = new \stdClass();
             $row->request = $req;
             $row->step = $itemStep; // Current user's step - shows their actual status
-            $row->item = $itemStep->item; // Direct relation to the MasterItem
+            $row->item = $itemStep->masterItem; // Direct relation to the MasterItem
             $row->itemData = $itemData; // ApprovalRequestItem with quantity, price, allocation_department_id, etc.
             $row->purchasingItem = $piByItem->get($itemStep->master_item_id);
             $row->sort_ts = $req->created_at?->timestamp ?? 0;
@@ -1289,7 +1315,7 @@ class ApprovalRequestController extends Controller
                           });
                     })
                     ->where('status', 'pending')
-                    ->whereHas('request', function($q) {
+                    ->whereHas('approvalRequest', function($q) {
                         $q->whereIn('status', ['pending', 'on progress']);
                     })
                     // Enforce sequential workflow for counts
@@ -1306,12 +1332,89 @@ class ApprovalRequestController extends Controller
         
         $approvalPhasePendingCount = (clone $baseQuery)->where('step_phase', 'approval')->count();
         $releasePhasePendingCount = (clone $baseQuery)->where('step_phase', 'release')->count();
+
+        // Calculate status counts for the summary cards
+        // We use a simplified version of the query to get counts for all relevant statuses
+        // Note: The baseQuery above is specifically for 'pending' items. We need a broader query for other statuses.
+        
+        $countQuery = \App\Models\ApprovalItemStep::where(function($q) use ($userDepartments, $userRoles, $user) {
+            $q->where('approver_id', $user->id)
+              ->orWhereIn('approver_role_id', $userRoles)
+              ->orWhereIn('approver_department_id', $userDepartments)
+              ->orWhere(function($anyMgrQuery) use ($user) {
+                  $anyMgrQuery->where('approver_type', 'any_department_manager')
+                              ->whereExists(function($exists) use ($user) {
+                                  $exists->select(\DB::raw(1))
+                                        ->from('user_departments')
+                                        ->whereColumn('user_departments.user_id', \DB::raw((int)$user->id))
+                                        ->where('user_departments.is_manager', true);
+                              });
+              })
+              ->orWhere(function($reqMgrQuery) use ($user) {
+                  $reqMgrQuery->where('approver_type', 'requester_department_manager')
+                              ->whereExists(function($exists) use ($user) {
+                                  $exists->select(\DB::raw(1))
+                                        ->from('approval_requests')
+                                        ->join('user_departments', function($join) {
+                                            $join->on('user_departments.user_id', '=', 'approval_requests.requester_id')
+                                                 ->where('user_departments.is_primary', true);
+                                        })
+                                        ->join('departments', 'departments.id', '=', 'user_departments.department_id')
+                                        ->whereColumn('approval_requests.id', 'approval_item_steps.approval_request_id')
+                                        ->where('departments.manager_id', $user->id);
+                              });
+              })
+              ->orWhere(function($deptMgrQuery) use ($user) {
+                  $deptMgrQuery->where('approver_type', 'department_manager')
+                              ->whereExists(function($exists) use ($user) {
+                                  $exists->select(\DB::raw(1))
+                                        ->from('departments')
+                                        ->whereColumn('departments.id', 'approval_item_steps.approver_department_id')
+                                        ->where('departments.manager_id', $user->id);
+                              });
+              });
+        });
+
+        // Get counts by step status
+        $stepCounts = (clone $countQuery)
+            ->select('status', \DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        // For "On Progress" and "Cancelled", we often look at the Item status for steps we've approved
+        // But to keep it simple and consistent with the "Status" column which now shows Step Status,
+        // we will primarily use the step statuses.
+        // However, users often want to know how many of "their" items are currently On Progress (globally).
+        // Let's add a count for items where user has approved and item is on progress.
+        
+        $onProgressCount = (clone $countQuery)
+            ->where('status', 'approved')
+            ->whereHas('requestItem', function($q) {
+                $q->where('status', 'on progress');
+            })
+            ->count();
+            
+        $cancelledCount = (clone $countQuery)
+            ->whereHas('requestItem', function($q) {
+                $q->where('status', 'cancelled');
+            })
+            ->count();
+
+        $statusCounts = [
+            'pending' => $stepCounts['pending'] ?? 0,
+            'approved' => $stepCounts['approved'] ?? 0,
+            'rejected' => $stepCounts['rejected'] ?? 0,
+            'on_progress' => $onProgressCount,
+            'cancelled' => $cancelledCount,
+        ];
         
         return view('approval-requests.pending-approvals', compact(
             'pendingItems', 
             'departmentsMap',
             'approvalPhasePendingCount',
-            'releasePhasePendingCount'
+            'releasePhasePendingCount',
+            'statusCounts'
         ));
     }
 
@@ -1475,12 +1578,12 @@ class ApprovalRequestController extends Controller
         }
 
         // Only return action data if step has been approved or rejected
-        if ($itemStep->status === 'pending') {
+        if (in_array($itemStep->status, ['pending', 'pending_purchase'])) {
             return response()->json([
                 'action_time' => null,
                 'action_by' => null,
                 'notes' => null,
-                'status' => 'pending'
+                'status' => $itemStep->status
             ]);
         }
 

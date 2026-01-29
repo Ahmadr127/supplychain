@@ -202,6 +202,10 @@
                                             <span class="text-gray-600 w-24">Harga Satuan:</span>
                                             <span class="font-medium text-gray-900">{{ $unitPrice !== null ? 'Rp '.number_format((float)$unitPrice, 0, ',', '.') : '-' }}</span>
                                         </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-gray-600 w-24">Sub Total:</span>
+                                            <span class="font-medium text-gray-900">{{ $totalPrice !== null ? 'Rp '.number_format((float)$totalPrice, 0, ',', '.') : '-' }}</span>
+                                        </div>
                                     </div>
                                     
                                     <!-- Column 2 -->
@@ -237,6 +241,50 @@
                                         </div>
                                     </div>
                                 </div>
+                                
+                                <!-- Informasi Anggaran (Capex) -->
+                                @if($item->capexItem)
+                                <div class="mt-3 pt-3 border-t border-gray-200">
+                                    <div class="text-xs font-semibold text-gray-700 mb-2">
+                                        <i class="fas fa-coins mr-1 text-yellow-600"></i>Sumber Anggaran (Capex)
+                                    </div>
+                                    <div class="bg-yellow-50 rounded-md p-2 border border-yellow-100">
+                                        <div class="flex justify-between items-start mb-1">
+                                            <div class="font-medium text-gray-900 text-xs">{{ $item->capexItem->capex_id_number }} - {{ $item->capexItem->item_name }}</div>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-2 text-[10px]">
+                                            <div>
+                                                <div class="text-gray-500">Budget Awal</div>
+                                                <div class="font-medium text-gray-900">Rp {{ number_format($item->capexItem->budget_amount, 0, ',', '.') }}</div>
+                                            </div>
+                                            <div>
+                                                <div class="text-gray-500">Terpakai</div>
+                                                <div class="font-medium text-yellow-600">Rp {{ number_format($item->capexItem->used_amount, 0, ',', '.') }}</div>
+                                            </div>
+                                            <div>
+                                                <div class="text-gray-500">Sisa</div>
+                                                <div class="font-bold {{ $item->capexItem->remaining_amount < 0 ? 'text-red-600' : 'text-green-600' }}">
+                                                    Rp {{ number_format($item->capexItem->remaining_amount, 0, ',', '.') }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                @elseif($item->unit_price > 0)
+                                <div class="mt-3 pt-3 border-t border-gray-200">
+                                    <div class="text-xs font-semibold text-gray-700 mb-2">
+                                        <i class="fas fa-coins mr-1 text-gray-400"></i>Sumber Anggaran
+                                    </div>
+                                    <div class="bg-gray-50 rounded-md p-2 border border-gray-200">
+                                        <div class="flex items-start gap-2">
+                                            <i class="fas fa-info-circle text-gray-400 text-xs mt-0.5"></i>
+                                            <div class="text-[10px] text-gray-600">
+                                                Pengadaan ini <strong>TIDAK</strong> menggunakan anggaran Capex (Non-Budgeter/OpEx).
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                @endif
                                 
                                 <!-- Dokumen Pendukung (Full Width) -->
                                 @php
@@ -412,8 +460,9 @@
                                         ->get();
                                     
                                     // Show all steps that have been actioned (approved or rejected)
+                                    // AND have a valid approver (hide system auto-rejects or unknown states)
                                     $actionedSteps = $itemSteps->filter(function($step) {
-                                        return $step->status !== 'pending';
+                                        return $step->status !== 'pending' && $step->approver;
                                     });
                                 @endphp
                                 @if($actionedSteps->count() > 0)
@@ -451,12 +500,6 @@
                                                     <div class="text-xs {{ $step->status == 'rejected' ? 'text-gray-700' : 'text-gray-600' }} {{ $step->rejected_reason ? 'mt-1' : '' }}">
                                                         <strong>Komentar:</strong> {{ $step->comments }}
                                                     </div>
-                                                @else
-                                                    @if(!$step->rejected_reason)
-                                                        <div class="text-[10px] text-gray-400 italic">
-                                                            Tidak ada komentar
-                                                        </div>
-                                                    @endif
                                                 @endif
                                             </div>
                                         @endforeach
@@ -474,15 +517,7 @@
                             </div>
                             @endforeach
                             
-                            <!-- Total -->
-                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-sm font-medium text-gray-900">Total Keseluruhan:</span>
-                                    <span class="text-sm font-bold text-blue-900">
-                                        Rp {{ number_format($approvalRequest->getTotalItemsPrice(), 0, ',', '.') }}
-                                    </span>
-                                </div>
-                            </div>
+
                         </div>
                     </div>
                     @endif

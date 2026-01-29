@@ -14,6 +14,8 @@
     
     <x-slot name="filters">
         <div class="space-y-2">
+
+
             <!-- Main Filter Bar with Action Buttons -->
             <div class="flex flex-col lg:flex-row gap-2">
                 <!-- Search and Filter Section -->
@@ -52,8 +54,18 @@
                 </div>
             </div>
             
-            <!-- Info Status -->
-            <x-info-status class="py-1" variant="status" size="sm" />
+            <!-- Status Legend with Counts -->
+            <div class="flex flex-wrap gap-2 py-1">
+                @if(isset($statusCounts))
+                    <x-approval-status-badge status="on progress" :count="$statusCounts['on_progress'] ?? 0" variant="solid" />
+                    <x-approval-status-badge status="pending" :count="$statusCounts['pending'] ?? 0" variant="solid" />
+                    <x-approval-status-badge status="approved" :count="$statusCounts['approved'] ?? 0" variant="solid" />
+                    <x-approval-status-badge status="rejected" :count="$statusCounts['rejected'] ?? 0" variant="solid" />
+                    <x-approval-status-badge status="cancelled" :count="$statusCounts['cancelled'] ?? 0" variant="solid" />
+                @else
+                    <x-info-status class="py-1" variant="status" size="sm" />
+                @endif
+            </div>
         </div>
     </x-slot>
     <div class="overflow-x-auto">
@@ -104,7 +116,7 @@
                         <x-approval-status-badge :status="$row->itemData->status" />
                     </td>
                     <td class="w-40">
-                        <x-purchasing-status-badge :status="$row->request->purchasing_status" :request-id="$row->request->id" />
+                        <x-purchasing-status-badge :item="$row->itemData" :request="$row->request" />
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">

@@ -30,6 +30,10 @@
                 // Check if this is an actual step (from database) or template step
                 $isActualStep = isset($step->status);
                 
+                // Initialize variables to prevent leaking from previous iteration
+                $stepColor = 'bg-gray-200 text-gray-800';
+                $stepStatusText = 'Unknown';
+                
                 if ($isActualStep) {
                     // Actual step from database - use its status directly
                     $actualStatus = $step->status;
@@ -48,7 +52,15 @@
                             $stepColor = 'bg-yellow-500 text-white';
                             $stepStatusText = 'Pending';
                         }
+                    } elseif ($actualStatus === 'pending_purchase') {
+                        // Waiting for purchasing phase
+                        $stepColor = 'bg-yellow-500 text-white';
+                        $stepStatusText = 'Pending (Purchasing)';
+                    } elseif ($actualStatus === 'skipped') {
+                        $stepColor = 'bg-gray-400 text-white';
+                        $stepStatusText = 'Skipped';
                     }
+
                     
                     // Add dynamic indicator if step was inserted
                     $stepName = $step->step_name;
@@ -89,7 +101,7 @@
                       data-step-status="{{ $stepStatusText }}" 
                       data-step-number="{{ $step->step_number }}" 
                       data-request-id="{{ $requestId }}"
-                      onclick="showStepStatus('{{ $stepName }}', '{{ $stepStatusText }}', '{{ $step->step_number }}', '{{ $requestId }}')"
+                      onclick="showStepStatus('{{ $stepName }}', '{{ $stepStatusText }}', '{{ $step->step_number }}', '{{ $requestId }}', '{{ $stepData ? $stepData->master_item_id : '' }}')"
                       title="Klik untuk melihat detail status{{ $isActualStep && $step->is_dynamic ? ' (Step dinamis)' : '' }}">
                     {{ $stepName }}
                 </span>

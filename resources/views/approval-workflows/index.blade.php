@@ -124,8 +124,9 @@
                                     @php
                                         $stepData = is_object($step) ? $step : (object) $step;
                                         $stepName = $stepData->step_name ?? $stepData->name ?? 'Step ' . ($index + 1);
+                                        $stepType = $stepData->step_type ?? 'approver';
                                     @endphp
-                                    {{ $index + 1 }}. {{ $stepName }}@if(!$loop->last), @endif
+                                    {{ $index + 1 }}. {{ $stepName }} <span class="{{ $stepType === 'releaser' ? 'text-purple-600 font-bold' : 'text-blue-600' }}" title="{{ $stepType === 'releaser' ? 'Releaser Phase' : 'Approval Phase' }}">{{ $stepType === 'releaser' ? '(R)' : '(A)' }}</span>@if(!$loop->last), @endif
                                 @endforeach
                             </div>
                         </div>

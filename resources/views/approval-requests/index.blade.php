@@ -155,7 +155,7 @@
                         <x-approval-status-badge :status="$row->itemData->status" />
                     </td>
                     <td class="w-40">
-                        <x-purchasing-status-badge :status="$row->request->purchasing_status" :request-id="$row->request->id" />
+                        <x-purchasing-status-badge :item="$row->itemData" :request="$row->request" />
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">

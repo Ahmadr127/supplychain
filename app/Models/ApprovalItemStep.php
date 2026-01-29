@@ -61,12 +61,12 @@ class ApprovalItemStep extends Model
     // RELATIONSHIPS
     // ═══════════════════════════════════════════════════════════════════════════
 
-    public function request()
+    public function approvalRequest()
     {
         return $this->belongsTo(ApprovalRequest::class, 'approval_request_id');
     }
 
-    public function item()
+    public function masterItem()
     {
         return $this->belongsTo(MasterItem::class, 'master_item_id');
     }
@@ -235,8 +235,8 @@ class ApprovalItemStep extends Model
                 $dept = Department::find($this->approver_department_id);
                 return $dept && (int)$dept->manager_id === (int)$userId;
             case 'requester_department_manager':
-                if (!$this->request || !$this->request->requester) return false;
-                $primary = $this->request->requester->departments()->wherePivot('is_primary', true)->first();
+                if (!$this->approvalRequest || !$this->approvalRequest->requester) return false;
+                $primary = $this->approvalRequest->requester->departments()->wherePivot('is_primary', true)->first();
                 return $primary && (int)$primary->manager_id === (int)$userId;
             case 'allocation_department_manager':
                 // Find the item related to this step

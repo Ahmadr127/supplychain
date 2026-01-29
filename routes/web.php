@@ -176,8 +176,12 @@ Route::middleware('auth')->group(function () {
     });
 
     // Release Requests routes (for viewing items in release phase)
-    Route::middleware('permission:manage_purchasing')->group(function () {
+    // Release Requests routes (for viewing items in release phase)
+    Route::middleware('permission:view_release_requests')->group(function () {
         Route::get('release-requests', [ReleaseRequestController::class, 'index'])->name('release-requests.index');
+    });
+    
+    Route::middleware('permission:view_pending_release')->group(function () {
         Route::get('release-requests/my-pending', [ReleaseRequestController::class, 'myPendingReleases'])->name('release-requests.my-pending');
         Route::post('release-requests/{item}/approve', [ReleaseRequestController::class, 'approve'])->name('release-requests.approve');
         Route::post('release-requests/{item}/reject', [ReleaseRequestController::class, 'reject'])->name('release-requests.reject');
@@ -191,12 +195,13 @@ Route::middleware('auth')->group(function () {
     // API endpoint for getting settings (accessible to all authenticated users)
     Route::get('api/settings', [SettingController::class, 'getSettings'])->name('api.settings.get');
     
-    // Reports
-    Route::middleware('permission:view_reports')->group(function () {
+    // Reports (Process Purchasing)
+    // Reports (Process Purchasing)
+    Route::middleware('permission:view_process_purchasing')->group(function () {
         Route::get('reports/approval-requests', [ReportController::class, 'approvalRequests'])->name('reports.approval-requests');
     });
 
-    Route::middleware('permission:manage_purchasing')->group(function () {
+    Route::middleware('permission:process_purchasing_item')->group(function () {
         // Report Purchasing process page (server-rendered)
         Route::get('reports/approval-requests/process-purchasing', [\App\Http\Controllers\ReportController::class, 'processPurchasing'])
             ->name('reports.approval-requests.process-purchasing');
@@ -226,7 +231,7 @@ Route::middleware('auth')->group(function () {
         ->name('purchasing.items.vendor');
     
     // Export route for reports
-    Route::middleware('permission:view_reports')->group(function () {
+    Route::middleware('permission:view_process_purchasing')->group(function () {
         Route::get('reports/approval-requests/export', [\App\Http\Controllers\ReportController::class, 'exportApprovalRequests'])
             ->name('reports.approval-requests.export');
     });

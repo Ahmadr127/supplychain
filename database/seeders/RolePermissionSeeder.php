@@ -25,10 +25,16 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_items', 'display_name' => 'Kelola Master Barang', 'description' => 'Mengelola master barang dan data pendukungnya'],
             ['name' => 'manage_suppliers', 'display_name' => 'Kelola Supplier', 'description' => 'Mengelola data vendor/supplier'],
             ['name' => 'manage_submission_types', 'display_name' => 'Kelola Jenis Pengajuan', 'description' => 'Mengelola jenis pengajuan (Barang/Jasa/Program Kerja)'],
-            ['name' => 'view_reports', 'display_name' => 'Lihat Reports', 'description' => 'Mengakses halaman laporan'],
+
             ['name' => 'manage_purchasing', 'display_name' => 'Kelola Purchasing', 'description' => 'Mengelola proses purchasing per item'],
             ['name' => 'manage_capex', 'display_name' => 'Kelola CapEx', 'description' => 'Mengelola CapEx ID Numbers dan budget'],
             ['name' => 'manage_settings', 'display_name' => 'Kelola Pengaturan', 'description' => 'Mengelola pengaturan aplikasi'],
+            
+            // New Permissions for Release and Purchasing separation
+            ['name' => 'view_release_requests', 'display_name' => 'Lihat Release Requests', 'description' => 'Melihat daftar release requests'],
+            ['name' => 'view_pending_release', 'display_name' => 'Lihat Pending Release', 'description' => 'Melihat daftar pending release'],
+            ['name' => 'view_process_purchasing', 'display_name' => 'Lihat Process Purchasing', 'description' => 'Melihat menu process purchasing'],
+            ['name' => 'process_purchasing_item', 'display_name' => 'Proses Item Purchasing', 'description' => 'Melakukan proses purchasing pada item'],
         ];
 
         foreach ($permissions as $permission) {
@@ -117,7 +123,9 @@ class RolePermissionSeeder extends Seeder
                 'approval',
                 'manage_approvals',
                 'manage_vendor',
-                'view_reports'
+                'view_release_requests',
+                'view_pending_release',
+                'view_process_purchasing',
             ])->get()
         );
         
@@ -141,9 +149,13 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'view_reports',
+
                 'manage_purchasing',
-                'manage_capex'
+                'manage_capex',
+                'view_release_requests',
+                'view_pending_release',
+                'view_process_purchasing',
+                'process_purchasing_item',
             ])->get()
         );
     }

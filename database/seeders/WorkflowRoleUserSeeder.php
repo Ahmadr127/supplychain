@@ -205,7 +205,7 @@ class WorkflowRoleUserSeeder extends Seeder
             ],
             'purchasing' => [
                 'name' => 'Manager Pembelian Demo',
-                'email' => 'manager_pembelian@example.com',
+                'email' => 'purchasing@example.com',
             ],
             'manager_keuangan' => [
                 'name' => 'Manager Keuangan Demo',

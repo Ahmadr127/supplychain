@@ -34,6 +34,8 @@
     
     <x-slot name="filters">
         <div class="space-y-3">
+
+
             {{-- Phase Tabs --}}
 
 
@@ -75,8 +77,18 @@
                 </div>
             </div>
             
-            <!-- Info Status -->
-            <x-info-status class="py-1" variant="status" size="sm" />
+            <!-- Status Legend with Counts -->
+            <div class="flex flex-wrap gap-2 py-1">
+                @if(isset($statusCounts))
+                    <x-approval-status-badge status="on progress" :count="$statusCounts['on_progress'] ?? 0" variant="solid" />
+                    <x-approval-status-badge status="pending" :count="$statusCounts['pending'] ?? 0" variant="solid" />
+                    <x-approval-status-badge status="approved" :count="$statusCounts['approved'] ?? 0" variant="solid" />
+                    <x-approval-status-badge status="rejected" :count="$statusCounts['rejected'] ?? 0" variant="solid" />
+                    <x-approval-status-badge status="cancelled" :count="$statusCounts['cancelled'] ?? 0" variant="solid" />
+                @else
+                    <x-info-status class="py-1" variant="status" size="sm" />
+                @endif
+            </div>
         </div>
     </x-slot>
     <div class="overflow-x-auto">
@@ -146,43 +158,13 @@
                     @endif
                     <td class="w-20">
                         @php
-                            // Match the logic from approval-progress-steps component
-                            // If step is pending but it's the current step, show as "on progress"
+                            // Use user's step status as requested
                             $displayStatus = $row->step->status;
-                            
-                            if ($displayStatus === 'pending') {
-                                // Check if this is the current pending step (first pending step for this item)
-                                $currentPendingStep = \App\Models\ApprovalItemStep::where('approval_request_id', $row->request->id)
-                                    ->where('master_item_id', $row->step->master_item_id)
-                                    ->where('status', 'pending')
-                                    ->orderBy('step_number')
-                                    ->first();
-                                
-                                // If this is the current pending step, show as "on progress"
-                                if ($currentPendingStep && $currentPendingStep->id === $row->step->id) {
-                                    $displayStatus = 'on progress';
-                                }
-                            }
                         @endphp
                         <x-approval-status-badge :status="$displayStatus" />
                     </td>
                     <td class="w-40">
-                        @php
-                            // Aggregate benchmarking notes per request for modal usage
-                            $ps = $row->request->purchasing_status ?? 'unprocessed';
-                            $bmNotesLine = '';
-                            if($ps === 'benchmarking'){
-                                $bmNotesColl = collect($row->request->purchasingItems ?? [])->filter(fn($pi) => !empty($pi->benchmark_notes));
-                                if($bmNotesColl->count()){
-                                    $bmNotesLine = $bmNotesColl->map(function($pi){
-                                        $name = $pi->masterItem->name ?? 'Item';
-                                        $note = trim(preg_replace('/\s+/', ' ', (string)$pi->benchmark_notes));
-                                        return $name.': '.$note;
-                                    })->implode(' • ');
-                                }
-                            }
-                        @endphp
-                        <x-purchasing-status-badge :status="$row->request->purchasing_status" :request-id="$row->request->id" :benchmark-notes="$bmNotesLine" />
+                        <x-purchasing-status-badge :item="$row->itemData" :request="$row->request" />
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">

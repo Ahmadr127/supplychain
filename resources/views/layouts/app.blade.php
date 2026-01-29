@@ -249,20 +249,7 @@
                         </x-sidebar-dropdown-menu>
                     @endif
 
-                    {{-- Reports Dropdown --}}
-                    @if(auth()->user()->hasPermission('view_reports'))
-                        <x-sidebar-dropdown-menu 
-                            title="Reports" 
-                            icon="fa-chart-bar" 
-                            routePrefix="reports.*"
-                            defaultOpen="false">
-                            <x-sidebar-menu-item 
-                                route="reports.approval-requests" 
-                                icon="fa-clipboard-list" 
-                                label="Laporan Pengajuan" 
-                            />
-                        </x-sidebar-dropdown-menu>
-                    @endif
+
                 </ul>
 
                 {{-- My Approvals Dropdown --}}
@@ -289,31 +276,47 @@
                     </x-sidebar-dropdown-menu>
                 @endif
 
-                {{-- Purchasing Dropdown --}}
-                @if(auth()->user()->hasPermission('manage_purchasing'))
-                    <x-sidebar-dropdown-menu 
-                        title="Purchasing" 
-                        icon="fa-shopping-cart" 
-                        routePrefix="release-requests.*,reports.approval-requests*"
-                        defaultOpen="false">
-                        <x-sidebar-menu-item 
-                            route="release-requests.index" 
+                    {{-- Release Dropdown --}}
+                    @if(auth()->user()->hasPermission('manage_purchasing') || auth()->user()->hasPermission('view_release_requests') || auth()->user()->hasPermission('view_pending_release'))
+                        <x-sidebar-dropdown-menu 
+                            title="Release" 
                             icon="fa-paper-plane" 
-                            label="Release Requests" 
-                        />
-                        <x-sidebar-menu-item 
-                            route="release-requests.my-pending" 
-                            icon="fa-clock" 
-                            label="My Pending" 
-                        />
-                        <x-sidebar-menu-item 
-                            route="reports.approval-requests" 
-                            icon="fa-shopping-bag" 
-                            label="Process Purchasing" 
-                            routeMatch="reports.approval-requests*"
-                        />
-                    </x-sidebar-dropdown-menu>
-                @endif
+                            routePrefix="release-requests.*"
+                            defaultOpen="false">
+                            @if(auth()->user()->hasPermission('view_release_requests'))
+                                <x-sidebar-menu-item 
+                                    route="release-requests.index" 
+                                    icon="fa-list" 
+                                    label="Release Requests" 
+                                />
+                            @endif
+                            @if(auth()->user()->hasPermission('view_pending_release'))
+                                <x-sidebar-menu-item 
+                                    route="release-requests.my-pending" 
+                                    icon="fa-clock" 
+                                    label="Pending Release" 
+                                />
+                            @endif
+                        </x-sidebar-dropdown-menu>
+                    @endif
+
+                    {{-- Purchasing Dropdown --}}
+                    @if(auth()->user()->hasPermission('manage_purchasing') || auth()->user()->hasPermission('view_process_purchasing'))
+                        <x-sidebar-dropdown-menu 
+                            title="Purchasing" 
+                            icon="fa-shopping-cart" 
+                            routePrefix="reports.approval-requests*"
+                            defaultOpen="false">
+                            @if(auth()->user()->hasPermission('view_process_purchasing'))
+                                <x-sidebar-menu-item 
+                                    route="reports.approval-requests" 
+                                    icon="fa-shopping-bag" 
+                                    label="Process Purchasing" 
+                                    routeMatch="reports.approval-requests*"
+                                />
+                            @endif
+                        </x-sidebar-dropdown-menu>
+                    @endif
 
                 {{-- CapEx Dropdown --}}
                 @if(auth()->user()->hasPermission('manage_capex'))

@@ -138,35 +138,7 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
             </div>
         </div>
 
-        {{-- Purchasing Info for Release Phase --}}
-        @if($isReleaseStep && $purchasingItem)
-        <div class="bg-indigo-50 rounded-md p-2 mb-3 border border-indigo-100">
-            <h5 class="text-[10px] font-semibold text-indigo-800 uppercase mb-1">
-                <i class="fas fa-shopping-cart mr-1"></i>Info Purchasing
-            </h5>
-            <div class="grid grid-cols-2 gap-2 text-[10px]">
-                @if($purchasingItem->preferredVendor)
-                <div>
-                    <span class="text-indigo-600">Vendor:</span>
-                    <span class="font-medium text-indigo-900 ml-1">{{ $purchasingItem->preferredVendor->name }}</span>
-                </div>
-                @endif
-                @if($purchasingItem->preferred_total_price)
-                <div>
-                    <span class="text-indigo-600">Total:</span>
-                    <span class="font-semibold text-green-700 ml-1">Rp {{ number_format($purchasingItem->preferred_total_price, 0, ',', '.') }}</span>
-                </div>
-                @endif
-                @if($purchasingItem->po_number)
-                <div class="col-span-2">
-                    <span class="text-indigo-600">No. PO:</span>
-                    <span class="font-medium text-indigo-900 ml-1">{{ $purchasingItem->po_number }}</span>
-                </div>
-                @endif
-            </div>
-        </div>
-        @endif
-
+        
         {{-- Hybrid Action Form --}}
         <div x-data="{
             action: 'approve',

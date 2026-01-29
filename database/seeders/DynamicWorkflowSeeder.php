@@ -42,7 +42,7 @@ class DynamicWorkflowSeeder extends Seeder
             'manager_unit' => Role::where('name', 'manager_unit')->first(),
             'hospital_director' => Role::where('name', 'hospital_director')->orWhere('name', 'direktur')->first(),
             'manager_pt' => Role::where('name', 'manager_pt')->first(),
-            'purchasing' => Role::where('name', 'purchasing')->orWhere('name', 'manager_pembelian')->first(),
+            'purchasing' => Role::where('name', 'purchasing')->first(),
             'manager_keuangan' => Role::where('name', 'manager_keuangan')->first(),
             'direktur_pt' => Role::where('name', 'direktur_pt')->first(),
         ];
