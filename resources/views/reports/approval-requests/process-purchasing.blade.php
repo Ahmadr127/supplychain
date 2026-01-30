@@ -59,6 +59,11 @@
         </div>
     </div>
 
+    <!-- Status Legend -->
+    <div class="mb-3">
+        <x-info-status variant="purchasing" size="sm" :counts="$purchasingCounts ?? []" />
+    </div>
+
     <!-- Vendor Benchmarking & Notes -->
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">

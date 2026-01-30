@@ -1,10 +1,12 @@
 <?php
 
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Role;
 use App\Models\Permission;
+
 
 class ExtendedRoleSeeder extends Seeder
 {
@@ -24,58 +26,33 @@ class ExtendedRoleSeeder extends Seeder
         $manageApprovals = Permission::where('name', 'manage_approvals')->first();
         $viewReports = Permission::where('name', 'view_reports')->first();
         $managePurchasing = Permission::where('name', 'manage_purchasing')->first();
+        $manageCapex = Permission::where('name', 'manage_capex')->first();
+        $viewPendingRelease = Permission::where('name', 'view_pending_release')->first();
+        $viewDashboard = Permission::where('name', 'view_dashboard')->first();
 
         $newRoles = [
-            // Maker roles
-            [
-                'name' => 'koordinator',
-                'display_name' => 'Koordinator',
-                'description' => 'Koordinator unit - dapat membuat request dan menjadi Maker',
-                'permissions' => [$viewMyApprovals, $manageApprovals],
-            ],
-            [
-                'name' => 'kepala',
-                'display_name' => 'Kepala',
-                'description' => 'Kepala unit/bagian - dapat membuat request dan menjadi Maker',
-                'permissions' => [$viewMyApprovals, $manageApprovals],
-            ],
-            [
-                'name' => 'supervisor',
-                'display_name' => 'Supervisor',
-                'description' => 'Supervisor - dapat membuat request dan menjadi Maker',
-                'permissions' => [$viewMyApprovals, $manageApprovals],
-            ],
+
             
             // Approver roles
-            [
-                'name' => 'manager_unit',
-                'display_name' => 'Manager Unit',
-                'description' => 'Manager Unit - Approver 1, bertanggung jawab memilih CapEx ID Number',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm],
-            ],
-            [
-                'name' => 'hospital_director',
-                'display_name' => 'Hospital Director',
-                'description' => 'Direktur Rumah Sakit - Approver level senior',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports],
-            ],
+
+
             [
                 'name' => 'manager_pt',
                 'display_name' => 'Manager PT',
                 'description' => 'Manager PT - Approver dan Releaser',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports],
+                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports, $manageCapex, $viewPendingRelease, $viewDashboard],
             ],
             [
                 'name' => 'purchasing',
                 'display_name' => 'Manager Pembelian',
                 'description' => 'Manager Pembelian/Purchasing - Approver dan Releaser',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $managePurchasing, $viewReports],
+                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $managePurchasing, $viewReports, $viewDashboard],
             ],
             [
                 'name' => 'direktur_pt',
                 'display_name' => 'Direktur PT',
                 'description' => 'Direktur PT - Final Releaser untuk nominal tinggi (> 50 Juta)',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports],
+                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports, $viewDashboard],
             ],
             
             // Note: SPH role is part of Purchasing flow, not approval workflow
@@ -107,5 +84,6 @@ class ExtendedRoleSeeder extends Seeder
         $this->command->info('   - Releaser roles: manager_pembelian, manager_pt, direktur_pt');
         $this->command->info('');
         $this->command->info('   Note: SPH/Procurement uses existing "purchasing" role');
+
     }
 }

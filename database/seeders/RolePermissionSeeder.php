@@ -35,6 +35,7 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'view_pending_release', 'display_name' => 'Lihat Pending Release', 'description' => 'Melihat daftar pending release'],
             ['name' => 'view_process_purchasing', 'display_name' => 'Lihat Process Purchasing', 'description' => 'Melihat menu process purchasing'],
             ['name' => 'process_purchasing_item', 'display_name' => 'Proses Item Purchasing', 'description' => 'Melakukan proses purchasing pada item'],
+            ['name' => 'manage_vendor', 'display_name' => 'Kelola Vendor Purchasing', 'description' => 'Mengelola benchmarking dan preferred vendor pada item purchasing'],
         ];
 
         foreach ($permissions as $permission) {
@@ -97,7 +98,8 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals'
+                'manage_approvals',
+                'view_dashboard',
             ])->get()
         );
         
@@ -105,7 +107,10 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals'
+                'manage_approvals',
+                'manage_capex',
+                'view_pending_release',
+                'view_dashboard',
             ])->get()
         );
         
@@ -113,7 +118,10 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals'
+                'manage_approvals',
+                'manage_capex',
+                'view_pending_release',
+                'view_dashboard',
             ])->get()
         );
         
@@ -123,9 +131,11 @@ class RolePermissionSeeder extends Seeder
                 'approval',
                 'manage_approvals',
                 'manage_vendor',
+                'manage_capex',
                 'view_release_requests',
                 'view_pending_release',
                 'view_process_purchasing',
+                'view_dashboard',
             ])->get()
         );
         
@@ -133,14 +143,16 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals'
+                'manage_approvals',
+                'view_dashboard',
             ])->get()
         );
         
         $userRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_my_approvals',
-                'manage_approvals'
+                'manage_approvals',
+                'view_dashboard',
             ])->get()
         );
         
@@ -149,10 +161,10 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-
+                'view_dashboard',
+ 
                 'manage_purchasing',
                 'manage_capex',
-                'view_release_requests',
                 'view_pending_release',
                 'view_process_purchasing',
                 'process_purchasing_item',

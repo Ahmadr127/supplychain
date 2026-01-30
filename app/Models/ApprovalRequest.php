@@ -201,7 +201,7 @@ class ApprovalRequest extends Model
             'unit_price' => $unitPrice,
             'total_price' => $totalPrice,
             'notes' => $notes,
-            'status' => 'pending',
+            'status' => 'on progress',
         ]);
     }
 

@@ -116,14 +116,7 @@
                 
                 <!-- Status Legend with Counts -->
                 <div class="flex flex-wrap gap-2 py-1">
-                    @if(isset($statusCounts))
-                        <x-approval-status-badge status="on progress" :count="$statusCounts['on_progress'] ?? 0" variant="solid" />
-                        <x-approval-status-badge status="pending" :count="$statusCounts['pending'] ?? 0" variant="solid" />
-                        <x-approval-status-badge status="approved" :count="$statusCounts['approved'] ?? 0" variant="solid" />
-                        <x-approval-status-badge status="rejected" :count="$statusCounts['rejected'] ?? 0" variant="solid" />
-                        <x-approval-status-badge status="cancelled" :count="$statusCounts['cancelled'] ?? 0" variant="solid" />
-                    @endif
-                    <x-info-status class="py-1" variant="purchasing" size="sm" />
+                    <x-info-status class="py-1" variant="purchasing" size="sm" :counts="$purchasingCounts ?? []" />
                 </div>
             </div>
         </form>

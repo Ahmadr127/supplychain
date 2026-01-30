@@ -365,7 +365,7 @@ class ApprovalRequestController extends Controller
                     'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
                     'letter_number' => $itemData['letter_number'] ?? null,
                     'fs_document' => $fsDocumentPath,
-                    'status' => 'pending',
+                    'status' => 'on progress',
                 ]);
 
                 // Initialize per-item approval steps from workflow (NEW)
@@ -755,8 +755,8 @@ class ApprovalRequestController extends Controller
                 }
 
                 if ($existingItem) {
-                    // Update existing item ONLY if pending
-                    if ($existingItem->status === 'pending') {
+                    // Update existing item ONLY if pending or on progress
+                    if (in_array($existingItem->status, ['pending', 'on progress'])) {
                         $existingItem->update([
                             'quantity' => $quantity,
                             'unit_price' => $unitPrice,
@@ -791,7 +791,7 @@ class ApprovalRequestController extends Controller
                         'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
                         'letter_number' => $itemData['letter_number'] ?? null,
                         'fs_document' => $fsDocumentPath,
-                        'status' => 'pending',
+                        'status' => 'on progress',
                     ]);
 
                     $this->initializeItemSteps($approvalRequest, $item);
@@ -837,7 +837,7 @@ class ApprovalRequestController extends Controller
             // Handle deletions (items in DB but not in form)
             foreach ($existingItems as $mid => $item) {
                 if (!in_array($mid, $submittedMasterItemIds)) {
-                    if ($item->status === 'pending') {
+                    if (in_array($item->status, ['pending', 'on progress'])) {
                         $item->steps()->delete();
                         $item->delete();
                         // Also delete extras
@@ -1262,9 +1262,30 @@ class ApprovalRequestController extends Controller
             // Find the corresponding ApprovalRequestItem for this step
             $itemData = $req->items->firstWhere('master_item_id', $itemStep->master_item_id);
             
+            // Transform step status for display:
+            // If step is 'pending' and it's the current actionable step (no unapproved steps before it),
+            // change display status to 'on progress' to indicate it's actively waiting for approval
+            $displayStatus = $itemStep->status;
+            if ($itemStep->status === 'pending') {
+                // Check if there are any unapproved steps BEFORE this one
+                $hasUnapprovedBefore = \App\Models\ApprovalItemStep::where('approval_request_item_id', $itemStep->approval_request_item_id)
+                    ->where('step_number', '<', $itemStep->step_number)
+                    ->whereNotIn('status', ['approved', 'skipped'])
+                    ->exists();
+                
+                // If no unapproved steps before = this is the current actionable step
+                if (!$hasUnapprovedBefore) {
+                    $displayStatus = 'on progress';
+                }
+            }
+            
+            // Create a clone of the step with modified status for display
+            $displayStep = clone $itemStep;
+            $displayStep->status = $displayStatus;
+            
             $row = new \stdClass();
             $row->request = $req;
-            $row->step = $itemStep; // Current user's step - shows their actual status
+            $row->step = $displayStep; // Use modified step with display status
             $row->item = $itemStep->masterItem; // Direct relation to the MasterItem
             $row->itemData = $itemData; // ApprovalRequestItem with quantity, price, allocation_department_id, etc.
             $row->purchasingItem = $piByItem->get($itemStep->master_item_id);
@@ -1334,13 +1355,12 @@ class ApprovalRequestController extends Controller
         $releasePhasePendingCount = (clone $baseQuery)->where('step_phase', 'release')->count();
 
         // Calculate status counts for the summary cards
-        // We use a simplified version of the query to get counts for all relevant statuses
-        // Note: The baseQuery above is specifically for 'pending' items. We need a broader query for other statuses.
+        // We need to count steps with their DISPLAY status (pending actionable steps = on progress)
         
+        // Base query for counting all user's steps (not just pending)
         $countQuery = \App\Models\ApprovalItemStep::where(function($q) use ($userDepartments, $userRoles, $user) {
             $q->where('approver_id', $user->id)
               ->orWhereIn('approver_role_id', $userRoles)
-              ->orWhereIn('approver_department_id', $userDepartments)
               ->orWhere(function($anyMgrQuery) use ($user) {
                   $anyMgrQuery->where('approver_type', 'any_department_manager')
                               ->whereExists(function($exists) use ($user) {
@@ -1374,25 +1394,39 @@ class ApprovalRequestController extends Controller
                               });
               });
         });
-
-        // Get counts by step status
-        $stepCounts = (clone $countQuery)
-            ->select('status', \DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-
-        // For "On Progress" and "Cancelled", we often look at the Item status for steps we've approved
-        // But to keep it simple and consistent with the "Status" column which now shows Step Status,
-        // we will primarily use the step statuses.
-        // However, users often want to know how many of "their" items are currently On Progress (globally).
-        // Let's add a count for items where user has approved and item is on progress.
         
+        // Count current actionable pending steps (will be shown as "on progress")
         $onProgressCount = (clone $countQuery)
-            ->where('status', 'approved')
-            ->whereHas('requestItem', function($q) {
-                $q->where('status', 'on progress');
+            ->where('status', 'pending')
+            ->whereNotExists(function($sub) {
+                $sub->select(\DB::raw(1))
+                    ->from('approval_item_steps as prev')
+                    ->whereColumn('prev.approval_request_item_id', 'approval_item_steps.approval_request_item_id')
+                    ->whereColumn('prev.step_number', '<', 'approval_item_steps.step_number')
+                    ->whereNotIn('prev.status', ['approved', 'skipped']);
             })
+            ->count();
+        
+        // Count blocked pending steps (will be shown as "pending")
+        $pendingCount = (clone $countQuery)
+            ->where('status', 'pending')
+            ->whereExists(function($sub) {
+                $sub->select(\DB::raw(1))
+                    ->from('approval_item_steps as prev')
+                    ->whereColumn('prev.approval_request_item_id', 'approval_item_steps.approval_request_item_id')
+                    ->whereColumn('prev.step_number', '<', 'approval_item_steps.step_number')
+                    ->whereNotIn('prev.status', ['approved', 'skipped']);
+            })
+            ->count();
+        
+        // Count already approved steps
+        $approvedCount = (clone $countQuery)
+            ->where('status', 'approved')
+            ->count();
+        
+        // Count rejected steps
+        $rejectedCount = (clone $countQuery)
+            ->where('status', 'rejected')
             ->count();
             
         $cancelledCount = (clone $countQuery)
@@ -1402,9 +1436,9 @@ class ApprovalRequestController extends Controller
             ->count();
 
         $statusCounts = [
-            'pending' => $stepCounts['pending'] ?? 0,
-            'approved' => $stepCounts['approved'] ?? 0,
-            'rejected' => $stepCounts['rejected'] ?? 0,
+            'pending' => $pendingCount,
+            'approved' => $approvedCount,
+            'rejected' => $rejectedCount,
             'on_progress' => $onProgressCount,
             'cancelled' => $cancelledCount,
         ];

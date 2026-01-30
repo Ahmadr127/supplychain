@@ -113,7 +113,7 @@ class ReportController extends Controller
                 'benchmarking' => 'Pemilihan vendor',
                 'selected' => 'Proses PR & PO',
                 'po_issued' => 'Proses di vendor',
-                'grn_received' => 'Barang sudah diterima',
+                'grn_received' => 'Barang diterima',
                 'done' => 'Selesai',
                 default => strtoupper($purchasingStatusCode),
             };
@@ -143,13 +143,13 @@ class ReportController extends Controller
                 }
 
                 $itemPurchasingStatusText = match($itemPurchasingStatusCode) {
+                    'pending_approval' => 'Menunggu Approval',
                     'unprocessed' => 'Belum diproses',
                     'benchmarking' => 'Pemilihan vendor',
                     'selected' => 'Proses PR & PO',
                     'po_issued' => 'Proses di vendor',
-                    'grn_received' => 'Barang sudah diterima',
+                    'grn_received' => 'Barang diterima',
                     'done' => 'Selesai',
-                    'pending_approval' => 'Menunggu Approval',
                     default => strtoupper($itemPurchasingStatusCode),
                 };
 
@@ -357,6 +357,41 @@ class ReportController extends Controller
             'done' => $statusCounts['done'] ?? 0,
         ];
 
+        // Calculate Purchasing Status Counts
+        // 1. Count from PurchasingItem table
+        $piCounts = \App\Models\PurchasingItem::select('status', \DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        // 2. Count items that are ready for purchasing but have no PurchasingItem yet
+        // These will be counted as "unprocessed"
+        $readyButNoPI = \App\Models\ApprovalRequestItem::whereIn('status', ['in_purchasing', 'approved', 'in_release'])
+            ->whereNotExists(function($query) {
+                $query->select(\DB::raw(1))
+                      ->from('purchasing_items')
+                      ->whereColumn('purchasing_items.approval_request_id', 'approval_request_items.approval_request_id')
+                      ->whereColumn('purchasing_items.master_item_id', 'approval_request_items.master_item_id');
+            })
+            ->count();
+
+        // 3. Count items that are WAITING for approval (pending_approval)
+        $pendingApproval = \App\Models\ApprovalRequestItem::whereIn('status', ['pending', 'on progress'])
+            ->count();
+
+        // Combine unprocessed PI with ready items
+        $totalUnprocessed = ($piCounts['unprocessed'] ?? 0) + $readyButNoPI;
+
+        $purchasingCounts = [
+            'pending_approval' => $pendingApproval,
+            'unprocessed' => $totalUnprocessed,
+            'benchmarking' => $piCounts['benchmarking'] ?? 0,
+            'selected' => $piCounts['selected'] ?? 0,
+            'po_issued' => $piCounts['po_issued'] ?? 0,
+            'grn_received' => $piCounts['grn_received'] ?? 0,
+            'done' => $piCounts['done'] ?? 0,
+        ];
+
         return view('reports.approval-requests.index', [
             'columns' => [
                 ['label' => 'NO INPUT','field' => 'no_input','width' => 'w-36'],
@@ -368,13 +403,13 @@ class ReportController extends Controller
                         $text = $row['process'] ?? '-';
                         // Map purchasing status to Tailwind classes (align with my-requests.blade.php)
                         $cls = match($code){
+                            'pending_approval' => 'bg-yellow-100 text-yellow-800',
                             'benchmarking' => 'bg-red-600 text-white',
                             'selected' => 'bg-yellow-400 text-black',
                             'po_issued' => 'bg-orange-500 text-white',
                             'grn_received' => 'bg-green-600 text-white',
                             'done' => 'bg-green-700 text-white',
                             'unprocessed' => 'bg-gray-200 text-gray-800',
-                            'pending_approval' => 'bg-blue-100 text-blue-800',
                             default => 'bg-gray-200 text-gray-800',
                         };
                         return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium '.$cls.'">'.e($text).'</span>';
@@ -419,6 +454,7 @@ class ReportController extends Controller
             'departments' => $departments,
             'categories' => $categories,
             'statusCounts' => $statusCounts,
+            'purchasingCounts' => $purchasingCounts,
         ]);
     }
 
@@ -461,7 +497,37 @@ class ReportController extends Controller
             'done' => $statusCounts['done'] ?? 0,
         ];
 
-        return view('reports.approval-requests.process-purchasing', compact('item', 'statusCounts'));
+        // Calculate Purchasing Status Counts
+        $piCounts = \App\Models\PurchasingItem::select('status', \DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $readyButNoPI = \App\Models\ApprovalRequestItem::whereIn('status', ['in_purchasing', 'approved', 'in_release'])
+            ->whereNotExists(function($query) {
+                $query->select(\DB::raw(1))
+                      ->from('purchasing_items')
+                      ->whereColumn('purchasing_items.approval_request_id', 'approval_request_items.approval_request_id')
+                      ->whereColumn('purchasing_items.master_item_id', 'approval_request_items.master_item_id');
+            })
+            ->count();
+
+        $pendingApproval = \App\Models\ApprovalRequestItem::whereIn('status', ['pending', 'on progress'])
+            ->count();
+
+        $totalUnprocessed = ($piCounts['unprocessed'] ?? 0) + $readyButNoPI;
+
+        $purchasingCounts = [
+            'pending_approval' => $pendingApproval,
+            'unprocessed' => $totalUnprocessed,
+            'benchmarking' => $piCounts['benchmarking'] ?? 0,
+            'selected' => $piCounts['selected'] ?? 0,
+            'po_issued' => $piCounts['po_issued'] ?? 0,
+            'grn_received' => $piCounts['grn_received'] ?? 0,
+            'done' => $piCounts['done'] ?? 0,
+        ];
+
+        return view('reports.approval-requests.process-purchasing', compact('item', 'statusCounts', 'purchasingCounts'));
     }
 
     public function vendorForm(PurchasingItem $purchasingItem)
@@ -799,9 +865,9 @@ class ReportController extends Controller
             $purchasingStatus = match($purchasingStatusCode) {
                 'unprocessed' => 'Belum diproses',
                 'benchmarking' => 'Pemilihan vendor',
-                'selected' => 'Uji coba/Proses PR sistem',
+                'selected' => 'Proses PR & PO',
                 'po_issued' => 'Proses di vendor',
-                'grn_received' => 'Barang sudah diterima',
+                'grn_received' => 'Barang diterima',
                 'done' => 'Selesai',
                 default => strtoupper($purchasingStatusCode),
             };

@@ -1,4 +1,4 @@
-@props(['class' => '', 'variant' => 'both', 'size' => 'md'])
+@props(['class' => '', 'variant' => 'both', 'size' => 'md', 'counts' => []])
 
 @php
     $isSmall = $size === 'sm';
@@ -20,12 +20,12 @@
     @endif
 
     @if($variant === 'purchasing' || $variant === 'both')
-        <span class="inline-flex items-center {{ $badgePad }} ">Status purchasing :</span>
-        <span class="inline-flex items-center {{ $badgePad }} rounded bg-gray-200 text-gray-800">Belum diproses</span>
-        <span class="inline-flex items-center {{ $badgePad }} rounded bg-red-600 text-white">Pemilihan vendor</span>
-        <span class="inline-flex items-center {{ $badgePad }} rounded bg-yellow-400 text-black">Proses PR & PO</span>
-        <span class="inline-flex items-center {{ $badgePad }} rounded bg-orange-500 text-white">Proses di vendor</span>
-        <span class="inline-flex items-center {{ $badgePad }} rounded bg-green-600 text-white">Barang diterima</span>
-        <span class="inline-flex items-center {{ $badgePad }} rounded bg-green-700 text-white">Selesai</span>
+        <span class="inline-flex items-center {{ $badgePad }} rounded bg-yellow-100 text-yellow-800">Menunggu Approval @if(isset($counts['pending_approval'])) : {{ $counts['pending_approval'] }} @endif</span>
+        <span class="inline-flex items-center {{ $badgePad }} rounded bg-gray-200 text-gray-800">Belum diproses @if(isset($counts['unprocessed'])) : {{ $counts['unprocessed'] }} @endif</span>
+        <span class="inline-flex items-center {{ $badgePad }} rounded bg-red-600 text-white">Pemilihan vendor @if(isset($counts['benchmarking'])) : {{ $counts['benchmarking'] }} @endif</span>
+        <span class="inline-flex items-center {{ $badgePad }} rounded bg-yellow-400 text-black">Proses PR & PO @if(isset($counts['selected'])) : {{ $counts['selected'] }} @endif</span>
+        <span class="inline-flex items-center {{ $badgePad }} rounded bg-orange-500 text-white">Proses di vendor @if(isset($counts['po_issued'])) : {{ $counts['po_issued'] }} @endif</span>
+        <span class="inline-flex items-center {{ $badgePad }} rounded bg-green-600 text-white">Barang diterima @if(isset($counts['grn_received'])) : {{ $counts['grn_received'] }} @endif</span>
+        <span class="inline-flex items-center {{ $badgePad }} rounded bg-green-700 text-white">Selesai @if(isset($counts['done'])) : {{ $counts['done'] }} @endif</span>
     @endif
 </div>

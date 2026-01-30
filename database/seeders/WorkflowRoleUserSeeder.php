@@ -47,21 +47,9 @@ class WorkflowRoleUserSeeder extends Seeder
         $this->createUsers($roles);
 
         $this->command->newLine();
-        $this->command->info('✅ Workflow roles and users seeded successfully!');
+        $this->command->info('✅ Workflow roles and permissions seeded successfully!');
+        $this->command->info('   Note: Demo users are NOT created. Use DepartmentSeeder or create users manually.');
         $this->command->newLine();
-        
-        // Show summary table
-        $this->command->table(
-            ['Role', 'Username', 'Email', 'Password'],
-            collect($roles)->map(function ($role, $key) {
-                return [
-                    $role->display_name,
-                    $key,
-                    "{$key}@example.com",
-                    'password123'
-                ];
-            })->toArray()
-        );
     }
 
     /**
@@ -132,39 +120,55 @@ class WorkflowRoleUserSeeder extends Seeder
             'manage_approvals'
         ])->pluck('id')->toArray();
 
-        // Purchasing-related permissions
+        // Manager permissions (Manager Unit) - includes CapEx and Pending Release
+        $managerPermissions = Permission::whereIn('name', [
+            'view_dashboard',
+            'view_my_approvals',
+            'approval',
+            'manage_approvals',
+            'manage_capex',
+            'view_pending_release'
+        ])->pluck('id')->toArray();
+
+        // Purchasing-related permissions (removed release permission)
         $purchasingPermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
             'approval',
             'manage_approvals',
             'manage_purchasing',
-            'manage_capex'
+            'manage_capex',
+            'view_pending_release'
         ])->pluck('id')->toArray();
 
-        // Finance-related permissions
+        // Finance-related permissions (added manage_vendor for Kelola Vendor Purchasing)
         $financePermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
             'approval',
             'manage_approvals',
-            'view_reports'
+            'view_reports',
+            'manage_vendor',
+            'manage_capex',
+            'view_pending_release'
         ])->pluck('id')->toArray();
 
-        // Director-level permissions
+        // Director-level permissions - includes CapEx and Pending Release
         $directorPermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
             'approval',
             'manage_approvals',
             'view_all_approvals',
-            'view_reports'
+            'view_reports',
+            'manage_capex',
+            'view_pending_release'
         ])->pluck('id')->toArray();
 
         // Assign permissions
         $permissionMapping = [
             'koordinator' => $approvalPermissions,
-            'manager_unit' => $approvalPermissions,
+            'manager_unit' => $managerPermissions,
             'hospital_director' => $directorPermissions,
             'manager_pt' => $directorPermissions,
             'purchasing' => $purchasingPermissions,
@@ -183,65 +187,11 @@ class WorkflowRoleUserSeeder extends Seeder
 
     /**
      * Create users for each role
+     * Note: Demo users have been removed. Real users should be created manually or through DepartmentSeeder.
      */
     private function createUsers(array $roles): void
     {
-        $usersData = [
-            'koordinator' => [
-                'name' => 'Koordinator Demo',
-                'email' => 'koordinator@example.com',
-            ],
-            'manager_unit' => [
-                'name' => 'Manager Unit Demo',
-                'email' => 'manager_unit@example.com',
-            ],
-            'hospital_director' => [
-                'name' => 'Direktur RS Demo',
-                'email' => 'hospital_director@example.com',
-            ],
-            'manager_pt' => [
-                'name' => 'Manager PT Demo',
-                'email' => 'manager_pt@example.com',
-            ],
-            'purchasing' => [
-                'name' => 'Manager Pembelian Demo',
-                'email' => 'purchasing@example.com',
-            ],
-            'manager_keuangan' => [
-                'name' => 'Manager Keuangan Demo',
-                'email' => 'manager_keuangan@example.com',
-            ],
-            'direktur_pt' => [
-                'name' => 'Direktur PT Demo',
-                'email' => 'direktur_pt@example.com',
-            ],
-        ];
-
         $this->command->newLine();
-        $this->command->info('👤 Creating Users...');
-
-        foreach ($usersData as $username => $data) {
-            if (!isset($roles[$username])) {
-                continue;
-            }
-
-            $user = User::firstOrCreate(
-                ['email' => $data['email']],
-                [
-                    'name' => $data['name'],
-                    'username' => $username,
-                    'email' => $data['email'],
-                    'password' => Hash::make('password'),
-                    'role_id' => $roles[$username]->id,
-                ]
-            );
-
-            // Update role_id if user already exists but role changed
-            if ($user->role_id !== $roles[$username]->id) {
-                $user->update(['role_id' => $roles[$username]->id]);
-            }
-
-            $this->command->info("  ✓ User '{$user->name}' ({$user->email}) created/found");
-        }
+        $this->command->info('👤 Skipping demo user creation (users should be created manually)');
     }
 }

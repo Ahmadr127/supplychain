@@ -157,11 +157,8 @@
                         @endif
                     @endif
                     <td class="w-20">
-                        @php
-                            // Use user's step status as requested
-                            $displayStatus = $row->step->status;
-                        @endphp
-                        <x-approval-status-badge :status="$displayStatus" />
+                        {{-- Status is already transformed in controller --}}
+                        <x-approval-status-badge :status="$row->step->status" />
                     </td>
                     <td class="w-40">
                         <x-purchasing-status-badge :item="$row->itemData" :request="$row->request" />

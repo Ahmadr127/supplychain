@@ -24,34 +24,39 @@
                 $note = trim(preg_replace('/\s+/', ' ', (string)$pi->benchmark_notes));
                 $finalBmNotes = "$itemName: $note";
             }
-        } elseif (in_array($item->status, ['in_purchasing', 'approved', 'in_release'])) {
-            $finalStatus = 'unprocessed';
         } else {
-            $finalStatus = 'pending_approval';
+            // No PurchasingItem yet - determine based on approval status
+            if (in_array($item->status, ['in_purchasing', 'approved', 'in_release'])) {
+                // Approval completed - show as unprocessed (ready for purchasing)
+                $finalStatus = 'unprocessed';
+            } else {
+                // Still in approval process - NOT READY yet
+                $finalStatus = 'pending_approval';
+            }
         }
     }
 
     $ps = $finalStatus ?? 'unprocessed';
     $psText = match($ps){
+        'pending_approval' => 'Menunggu Approval',
         'unprocessed' => 'Belum diproses',
         'benchmarking' => 'Pemilihan vendor',
         'selected' => 'Proses PR & PO',
         'po_issued' => 'Proses di vendor',
-        'grn_received' => 'Barang sudah diterima',
+        'grn_received' => 'Barang diterima',
         'done' => 'Selesai',
-        'pending_approval' => 'Menunggu Approval',
         default => strtoupper($ps),
     };
     
     // Colors per request: benchmarking=red, selected=yellow, po_issued=orange, grn_received=green (white text)
     $psColor = match($ps){
+        'pending_approval' => 'bg-yellow-100 text-yellow-800',
         'benchmarking' => 'bg-red-600 text-white',
         'selected' => 'bg-yellow-400 text-black',
         'po_issued' => 'bg-orange-500 text-white',
         'grn_received' => 'bg-green-600 text-white',
         'unprocessed' => 'bg-gray-200 text-gray-800',
         'done' => 'bg-green-700 text-white',
-        'pending_approval' => 'bg-blue-100 text-blue-800',
         default => 'bg-gray-200 text-gray-800',
     };
 @endphp

@@ -183,53 +183,44 @@
                     @endif
 
                     {{-- Master Data Dropdown --}}
-                    @if(auth()->user()->hasPermission('manage_items'))
+                    @if(auth()->user()->hasPermission('manage_items') || auth()->user()->hasPermission('manage_suppliers'))
                         <x-sidebar-dropdown-menu 
                             title="Master Data" 
                             icon="fa-database" 
-                            permission="manage_items"
-                            routePrefix="master-items.*,item-categories.*,item-types.*,units.*,commodities.*"
+                            routePrefix="master-items.*,item-categories.*,item-types.*,units.*,commodities.*,suppliers.*"
                             defaultOpen="false">
-                            <x-sidebar-menu-item 
-                                route="master-items.index" 
-                                icon="fa-box" 
-                                label="Master Barang" 
-                                routeMatch="master-items.*"
-                            />
-                            <x-sidebar-menu-item 
-                                route="item-categories.index" 
-                                icon="fa-tags" 
-                                label="Kategori Barang" 
-                                routeMatch="item-categories.*"
-                            />
-                            <x-sidebar-menu-item 
-                                route="item-types.index" 
-                                icon="fa-cube" 
-                                label="Tipe Barang" 
-                                routeMatch="item-types.*"
-                            />
-                            <x-sidebar-menu-item 
-                                route="units.index" 
-                                icon="fa-weight" 
-                                label="Satuan Barang" 
-                                routeMatch="units.*"
-                            />
-                            <x-sidebar-menu-item 
-                                route="commodities.index" 
-                                icon="fa-industry" 
-                                label="Komoditas" 
-                                routeMatch="commodities.*"
-                            />
-                        </x-sidebar-dropdown-menu>
-                    @endif
-
-                    {{-- Config Dropdown (Suppliers & Settings) --}}
-                    @if(auth()->user()->hasPermission('manage_suppliers') || auth()->user()->hasPermission('manage_settings'))
-                        <x-sidebar-dropdown-menu 
-                            title="Config" 
-                            icon="fa-tools" 
-                            routePrefix="suppliers.*,settings.*"
-                            defaultOpen="false">
+                            @if(auth()->user()->hasPermission('manage_items'))
+                                <x-sidebar-menu-item 
+                                    route="master-items.index" 
+                                    icon="fa-box" 
+                                    label="Master Barang" 
+                                    routeMatch="master-items.*"
+                                />
+                                <x-sidebar-menu-item 
+                                    route="item-categories.index" 
+                                    icon="fa-tags" 
+                                    label="Kategori Barang" 
+                                    routeMatch="item-categories.*"
+                                />
+                                <x-sidebar-menu-item 
+                                    route="item-types.index" 
+                                    icon="fa-cube" 
+                                    label="Tipe Barang" 
+                                    routeMatch="item-types.*"
+                                />
+                                <x-sidebar-menu-item 
+                                    route="units.index" 
+                                    icon="fa-weight" 
+                                    label="Satuan Barang" 
+                                    routeMatch="units.*"
+                                />
+                                <x-sidebar-menu-item 
+                                    route="commodities.index" 
+                                    icon="fa-industry" 
+                                    label="Komoditas" 
+                                    routeMatch="commodities.*"
+                                />
+                            @endif
                             @if(auth()->user()->hasPermission('manage_suppliers'))
                                 <x-sidebar-menu-item 
                                     route="suppliers.index" 
@@ -238,14 +229,22 @@
                                     routeMatch="suppliers.*"
                                 />
                             @endif
-                            @if(auth()->user()->hasPermission('manage_settings'))
-                                <x-sidebar-menu-item 
-                                    route="settings.index" 
-                                    icon="fa-cog" 
-                                    label="Pengaturan" 
-                                    routeMatch="settings.*"
-                                />
-                            @endif
+                        </x-sidebar-dropdown-menu>
+                    @endif
+
+                    {{-- Config Dropdown (Settings only) --}}
+                    @if(auth()->user()->hasPermission('manage_settings'))
+                        <x-sidebar-dropdown-menu 
+                            title="Config" 
+                            icon="fa-tools" 
+                            routePrefix="settings.*"
+                            defaultOpen="false">
+                            <x-sidebar-menu-item 
+                                route="settings.index" 
+                                icon="fa-cog" 
+                                label="Pengaturan" 
+                                routeMatch="settings.*"
+                            />
                         </x-sidebar-dropdown-menu>
                     @endif
 

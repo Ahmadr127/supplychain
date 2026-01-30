@@ -499,14 +499,14 @@ class DynamicWorkflowSeeder extends Seeder
     {
         return (object) [
             'step_number' => $stepNumber,
-            'step_name' => $name,
+            'step_name' => $name . ' Release',
             'step_type' => 'releaser',
             'step_phase' => 'release', // Phase 3 (after purchasing)
             'approver_type' => 'role',
             'approver_id' => null,
             'approver_role_id' => $role?->id,
             'approver_department_id' => null,
-            'scope_process' => null,
+            'scope_process' => 'Release',
             'required_action' => 'release',
             'can_insert_step' => false,
             'is_conditional' => false,
