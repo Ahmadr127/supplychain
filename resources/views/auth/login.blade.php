@@ -1,65 +1,138 @@
 @extends('layouts.auth')
 
-@section('title', 'Login')
+@section('title', 'Login - Supply Chain')
 
 @section('content')
-<div class="relative min-h-screen w-full overflow-hidden bg-white">
-    <!-- Subtle wave patterns -->
-    <div class="absolute inset-x-0 -top-24 h-64" style="background: radial-gradient(70% 60% at 50% 0%, #E6FAF2 0%, rgba(230,250,242,0) 70%);"></div>
-    <div class="absolute inset-x-0 -bottom-24 h-64" style="background: radial-gradient(70% 60% at 50% 100%, #EAFBF7 0%, rgba(234,251,247,0) 70%);"></div>
-
-    <div class="relative mx-auto w-full max-w-lg px-4 sm:px-6 lg:px-8 py-12">
-        <!-- Glass card -->
-        <div class="backdrop-blur-xl bg-white/70 border border-white/40 shadow-2xl rounded-3xl p-8 sm:p-10">
-            <!-- Logo -->
-            <div class="flex flex-col items-center mb-6">
-                <div class="rounded-2xl border border-[#0f766e]/20 bg-white shadow-md p-3">
-                    <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-12 object-contain" />
+<div class="min-h-screen w-full flex">
+    <!-- Left Side - Login Form -->
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
+        <div class="w-full max-w-md">
+            <!-- Mobile Logo -->
+            <div class="lg:hidden flex flex-col items-center mb-8">
+                <div class="rounded-2xl border border-green-200 bg-white shadow-md p-4 mb-3">
+                    <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-16 object-contain" />
                 </div>
-                <p class="mt-3 text-xs font-semibold tracking-wide text-[#006D7A]">Supply Chain Management System</p>
+                <h2 class="text-2xl font-bold text-gray-800">Supply Chain</h2>
+                <p class="text-sm text-gray-600">Sistem Permintaan Uang Muka</p>
             </div>
 
-            <!-- Title -->
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-6">Log in</h1>
-
-            <!-- Form -->
-            <form action="{{ route('login') }}" method="POST" class="space-y-4">
-                @csrf
-
-                <div>
-                    <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                    <input id="username" name="username" type="text" required placeholder="yourname" value="{{ old('username') }}"
-                           class="w-full rounded-xl border border-gray-300 px-4 py-3 bg-white/80 text-gray-900 shadow-sm outline-none transition focus:ring-4 focus:ring-[#006D7A]/20 focus:border-[#006D7A] hover:border-gray-400" />
+            <!-- Login Card -->
+            <div class="bg-white rounded-2xl shadow-xl p-8">
+                <!-- Title -->
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Selamat Datang</h1>
+                    <p class="text-gray-600">Silakan login untuk melanjutkan</p>
                 </div>
 
-                <div>
+                <!-- Form -->
+                <form action="{{ route('login') }}" method="POST" class="space-y-5">
+                    @csrf
+
+                    <!-- Email atau Username -->
+                    <div>
+                        <label for="login" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-user mr-2 text-green-600"></i>Email atau Username
+                        </label>
+                        <input 
+                            id="login" 
+                            name="login" 
+                            type="text" 
+                            required 
+                            placeholder="Masukkan email atau username Anda" 
+                            value="{{ old('login') }}"
+                            class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 bg-white text-gray-900 shadow-sm outline-none transition focus:ring-4 focus:ring-green-500/20 focus:border-green-600 hover:border-gray-300"
+                        />
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label for="password" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-lock mr-2 text-green-600"></i>Password
+                        </label>
+                        <div class="relative">
+                            <input 
+                                id="password" 
+                                name="password" 
+                                type="password" 
+                                required 
+                                placeholder="Masukkan password Anda"
+                                class="w-full rounded-xl border-2 border-gray-200 px-4 py-3 pr-12 bg-white text-gray-900 shadow-sm outline-none transition focus:ring-4 focus:ring-green-500/20 focus:border-green-600 hover:border-gray-300"
+                            />
+                            <button 
+                                type="button" 
+                                id="togglePassword" 
+                                aria-label="Show password" 
+                                class="absolute inset-y-0 right-0 px-4 text-gray-400 hover:text-green-600 focus:outline-none transition"
+                            >
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Remember & Forgot -->
                     <div class="flex items-center justify-between">
-                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                        <a href="#" class="text-sm text-[#006D7A] hover:text-[#005F66]">Forgot Password?</a>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="remember" class="rounded border-gray-300 text-green-600 shadow-sm focus:ring-green-500">
+                            <span class="ml-2 text-sm text-gray-600">Ingat saya</span>
+                        </label>
+                        <a href="#" class="text-sm font-medium text-green-600 hover:text-green-700">Lupa password?</a>
                     </div>
-                    <div class="relative">
-                        <input id="password" name="password" type="password" required placeholder="••••••••"
-                               class="w-full rounded-xl border border-gray-300 px-4 py-3 pr-11 bg-white/80 text-gray-900 shadow-sm outline-none transition focus:ring-4 focus:ring-[#006D7A]/20 focus:border-[#006D7A] hover:border-gray-400" />
-                        <button type="button" id="togglePassword" aria-label="Show password" class="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-[#006D7A] focus:outline-none">
-                            <i class="fa-solid fa-eye"></i>
-                        </button>
+
+                    <!-- Error Messages -->
+                    @if ($errors->any())
+                    <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                        <div class="flex items-start">
+                            <i class="fas fa-exclamation-circle text-red-500 mt-0.5 mr-3"></i>
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-red-800 mb-1">Terjadi kesalahan:</p>
+                                <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+                                    @foreach ($errors->all() as $error)
+                                        <li>{{ $error }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                    @endif
 
-                @if ($errors->any())
-                <div class="bg-red-50 border-l-4 border-red-400 p-3 rounded-lg text-sm text-red-700">
-                    <ul class="list-disc list-inside">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-                @endif
+                    <!-- Submit Button -->
+                    <button 
+                        type="submit" 
+                        class="w-full rounded-xl bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-3.5 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-green-500/50"
+                    >
+                        <i class="fas fa-sign-in-alt mr-2"></i>
+                        Masuk
+                    </button>
+                </form>
 
-                <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-[#006D7A] to-[#005F66] text-white font-semibold py-3 shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#006D7A]/30">
-                    Log in
-                </button>
-            </form>
+                <!-- Footer -->
+                <div class="mt-6 text-center text-sm text-gray-500">
+                    <p>© {{ date('Y') }} Supply Chain. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side - Branding -->
+    <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-green-600 via-green-700 to-green-800 relative overflow-hidden">
+        <!-- Decorative Elements -->
+        <div class="absolute inset-0 opacity-10">
+            <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full -translate-x-1/2 -translate-y-1/2"></div>
+            <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full translate-x-1/2 translate-y-1/2"></div>
+        </div>
+
+        <!-- Content -->
+        <div class="relative z-10 flex flex-col items-center justify-center w-full px-12 text-white">
+            <!-- Logo -->
+            <div class="mb-8 bg-white rounded-3xl shadow-2xl p-8">
+                <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-32 w-32 object-contain" />
+            </div>
+
+            <!-- App Name -->
+            <h1 class="text-5xl font-bold mb-4 text-center">Supply Chain</h1>
+            <!-- <p class="text-xl text-green-100 text-center max-w-md">
+                Sistem Permintaan Uang Muka
+            </p> -->
         </div>
     </div>
 </div>
