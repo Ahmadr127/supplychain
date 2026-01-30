@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'All My Approvals')
+@section('title', 'Need to Approve')
 
 @section('content')
 

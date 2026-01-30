@@ -40,20 +40,40 @@
                             <i class="fas fa-chart-pie text-indigo-600 text-lg"></i>
                         </div>
                         <div class="text-right">
-                            <p class="text-3xl font-bold text-gray-900">{{ $myRequestsStats['stats']['total'] ?? 0 }}</p>
-                            <p class="text-xs text-gray-500 mt-0.5">Total Request</p>
+                            <p class="text-3xl font-bold text-gray-900">{{ $myRequestsStats['stats']['active'] ?? 0 }}</p>
+                            <p class="text-xs text-gray-500 mt-0.5">Active Requests</p>
                         </div>
                     </div>
                     <h3 class="font-semibold text-gray-900 mb-2 text-sm group-hover:text-indigo-600 transition">My Requests</h3>
-                    <div class="pt-3 border-t border-gray-50 space-y-2">
+                    <div class="pt-3 border-t border-gray-50 space-y-1">
+                        @if(($myRequestsStats['stats']['on_progress'] ?? 0) > 0)
                         <div class="flex justify-between items-center text-[10px] text-gray-500">
-                            <span>Ongoing</span>
-                            <span class="font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">{{ $myRequestsStats['stats']['on_progress'] ?? 0 }}</span>
+                            <span>Approval Process</span>
+                            <span class="font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">{{ $myRequestsStats['stats']['on_progress'] }}</span>
                         </div>
+                        @endif
+                        @if(($myRequestsStats['stats']['in_purchasing'] ?? 0) > 0)
+                        <div class="flex justify-between items-center text-[10px] text-gray-500">
+                            <span>In Purchasing</span>
+                            <span class="font-medium text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">{{ $myRequestsStats['stats']['in_purchasing'] }}</span>
+                        </div>
+                        @endif
+                        @if(($myRequestsStats['stats']['in_release'] ?? 0) > 0)
+                        <div class="flex justify-between items-center text-[10px] text-gray-500">
+                            <span>Release Process</span>
+                            <span class="font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">{{ $myRequestsStats['stats']['in_release'] }}</span>
+                        </div>
+                        @endif
                         <div class="flex justify-between items-center text-[10px] text-gray-500">
                             <span>Approved</span>
                             <span class="font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">{{ $myRequestsStats['stats']['approved'] ?? 0 }}</span>
                         </div>
+                        @if(($myRequestsStats['stats']['rejected'] ?? 0) > 0)
+                        <div class="flex justify-between items-center text-[10px] text-gray-500">
+                            <span>Rejected</span>
+                            <span class="font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">{{ $myRequestsStats['stats']['rejected'] }}</span>
+                        </div>
+                        @endif
                     </div>
                 </div>
             </a>
@@ -73,18 +93,18 @@
                     </div>
                     <h3 class="font-semibold text-gray-900 mb-2 text-sm group-hover:text-green-600 transition">Pending Approvals</h3>
                     <div class="flex items-center gap-2 mb-3">
-                        @if(($pendingApprovalsStats['stats']['pending'] ?? 0) == 0)
+                        @if(($pendingApprovalsStats['stats']['on_progress'] ?? 0) == 0)
                         <span class="text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium border border-green-100">
                             Semua sudah diproses
                         </span>
                         @else
                         <span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium border border-amber-100">
-                            Ada {{ $pendingApprovalsStats['stats']['pending'] }} pending
+                            {{ $pendingApprovalsStats['stats']['on_progress'] }} pengajuan yg perlu keputusan
                         </span>
                         @endif
                     </div>
                     <div class="pt-3 border-t border-gray-50 flex items-center justify-between text-[10px] text-gray-500">
-                        <span>Pending: {{ $pendingApprovalsStats['stats']['pending'] ?? 0 }}</span>
+                        <span>Total Request: {{ $pendingApprovalsStats['stats']['total'] ?? 0 }}</span>
                         <span>Hari ini: {{ $pendingApprovalsStats['stats']['approved_today'] ?? 0 }}</span>
                     </div>
                 </div>
@@ -92,7 +112,7 @@
             @endif
 
             @if($processPurchasingStats)
-            <a href="{{ route('reports.approval-requests.process-purchasing') }}" class="block group">
+            <a href="{{ route('reports.approval-requests') }}" class="block group">
                 <div class="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition border border-gray-100 h-full group-hover:border-purple-200">
                     <div class="flex items-start justify-between mb-3">
                         <div class="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center group-hover:bg-purple-100 transition">
@@ -100,23 +120,27 @@
                         </div>
                         <div class="text-right">
                             <p class="text-3xl font-bold text-gray-900">{{ $processPurchasingStats['need_attention'] ?? 0 }}</p>
-                            <p class="text-xs text-gray-500 mt-0.5">Total</p>
+                            <p class="text-xs text-gray-500 mt-0.5">Need Action</p>
                         </div>
                     </div>
                     <h3 class="font-semibold text-gray-900 mb-2 text-sm group-hover:text-purple-600 transition">Process Purchasing</h3>
-                    <div class="flex items-center gap-2 mb-3">
-                        @if(($processPurchasingStats['need_attention'] ?? 0) == 0)
-                        <span class="text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium border border-green-100">
-                            Tidak ada yang perlu diproses
-                        </span>
-                        @else
-                        <span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium border border-amber-100">
-                            {{ $processPurchasingStats['need_attention'] }} perlu perhatian
-                        </span>
-                        @endif
-                    </div>
-                    <div class="pt-3 border-t border-gray-50 flex items-center justify-between text-[10px] text-gray-500">
-                        <span>Perlu perhatian: {{ $processPurchasingStats['need_attention'] ?? 0 }}</span>
+                    <div class="pt-3 border-t border-gray-50 space-y-1">
+                        <div class="flex justify-between items-center text-[10px] text-gray-500">
+                            <span>New Requests</span>
+                            <span class="font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">{{ $processPurchasingStats['stats']['unprocessed'] ?? 0 }}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[10px] text-gray-500">
+                            <span>Benchmarking</span>
+                            <span class="font-medium text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full border border-yellow-100">{{ $processPurchasingStats['stats']['benchmarking'] ?? 0 }}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[10px] text-gray-500">
+                            <span>Processing PO</span>
+                            <span class="font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">{{ ($processPurchasingStats['stats']['selected'] ?? 0) + ($processPurchasingStats['stats']['po_issued'] ?? 0) }}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[10px] text-gray-500">
+                            <span>Goods Received</span>
+                            <span class="font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">{{ $processPurchasingStats['stats']['grn_received'] ?? 0 }}</span>
+                        </div>
                     </div>
                 </div>
             </a>

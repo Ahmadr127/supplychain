@@ -9,51 +9,35 @@ use Illuminate\Support\Facades\DB;
 class PendingReleasesStatsService
 {
     /**
-     * Get statistics for pending release requests
+     * Get statistics for pending release requests (same scope as release-requests/my-pending page).
+     * Page uses only approver_id and approver_role_id (no department).
      *
      * @return array
      */
     public function getStats(): array
     {
         $user = Auth::user();
-        
-        // Get release phase steps that this user can approve
+
         $query = ApprovalItemStep::where('step_phase', 'release')
-            ->where(function($q) use ($user) {
-                $userDepartments = $user->departments()->pluck('departments.id')->toArray();
-                $userRoleId = $user->role_id;
-                
+            ->where(function ($q) use ($user) {
                 $q->where('approver_id', $user->id)
-                  ->orWhere('approver_role_id', $userRoleId)
-                  ->orWhereIn('approver_department_id', $userDepartments);
+                    ->orWhere('approver_role_id', $user->role_id);
             });
-        
-        // Count by status
-        $stats = $query->select('status', DB::raw('count(*) as count'))
-                       ->groupBy('status')
-                       ->pluck('count', 'status')
-                       ->toArray();
-        
-        // Get pending releases that need action
-        $pendingCount = ApprovalItemStep::where('step_phase', 'release')
-            ->where('status', 'pending')
-            ->where(function($q) use ($user) {
-                $userDepartments = $user->departments()->pluck('departments.id')->toArray();
-                $userRoleId = $user->role_id;
-                
-                $q->where('approver_id', $user->id)
-                  ->orWhere('approver_role_id', $userRoleId)
-                  ->orWhereIn('approver_department_id', $userDepartments);
-            })
-            ->count();
-        
-        // Get releases approved today
+
+        $stats = (clone $query)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $pendingCount = (clone $query)->where('status', 'pending')->count();
+
         $approvedToday = ApprovalItemStep::where('step_phase', 'release')
             ->where('status', 'approved')
             ->where('approved_by', $user->id)
             ->whereDate('approved_at', today())
             ->count();
-        
+
         return [
             'total' => array_sum($stats),
             'pending' => $pendingCount,
@@ -93,17 +77,14 @@ class PendingReleasesStatsService
     public function getRecentPendingItems(int $limit = 5)
     {
         $user = Auth::user();
-        $userDepartments = $user->departments()->pluck('departments.id')->toArray();
-        $userRoleId = $user->role_id;
-        
+
         return ApprovalItemStep::where('step_phase', 'release')
             ->where('status', 'pending')
-            ->where(function($q) use ($user, $userDepartments, $userRoleId) {
+            ->where(function ($q) use ($user) {
                 $q->where('approver_id', $user->id)
-                  ->orWhere('approver_role_id', $userRoleId)
-                  ->orWhereIn('approver_department_id', $userDepartments);
+                    ->orWhere('approver_role_id', $user->role_id);
             })
-            ->with(['approvalRequest', 'masterItem', 'approvalRequestItem'])
+            ->with(['approvalRequest', 'masterItem', 'requestItem'])
             ->latest('created_at')
             ->limit($limit)
             ->get();

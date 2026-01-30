@@ -26,15 +26,42 @@ class MyRequestsStatsService
           ->pluck('count', 'status')
           ->toArray();
         
+        // Get counts for purchasing items belonging to this user
+        $purchasingStats = DB::table('purchasing_items')
+            ->join('approval_requests', 'purchasing_items.approval_request_id', '=', 'approval_requests.id')
+            ->where('approval_requests.requester_id', $userId)
+            ->select('purchasing_items.status', DB::raw('count(*) as count'))
+            ->groupBy('purchasing_items.status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        // Match my-requests page: on_progress and pending are separate (ApprovalRequestItem status)
+        $onProgress = $items['on progress'] ?? 0;
+        $pending = $items['pending'] ?? 0;
+        $inPurchasing = $items['in_purchasing'] ?? 0;
+        $inRelease = $items['in_release'] ?? 0;
+
+        // Active = on progress + pending + in_purchasing + in_release (same as page)
+        $active = $onProgress + $pending + $inPurchasing + $inRelease;
+
         return [
             'total' => array_sum($items),
-            'on_progress' => $items['on progress'] ?? 0,
-            'pending' => $items['pending'] ?? 0,
+            'active' => $active,
+            'on_progress' => $onProgress,
+            'pending' => $pending,
             'approved' => $items['approved'] ?? 0,
             'rejected' => $items['rejected'] ?? 0,
             'cancelled' => $items['cancelled'] ?? 0,
-            'in_purchasing' => $items['in_purchasing'] ?? 0,
-            'in_release' => $items['in_release'] ?? 0,
+            'in_purchasing' => $inPurchasing,
+            'in_release' => $inRelease,
+            
+            // Detailed purchasing stats for this user
+            'purchasing_unprocessed' => $purchasingStats['unprocessed'] ?? 0,
+            'purchasing_benchmarking' => $purchasingStats['benchmarking'] ?? 0,
+            'purchasing_selected' => $purchasingStats['selected'] ?? 0, // PR & PO
+            'purchasing_po_issued' => $purchasingStats['po_issued'] ?? 0, // In Vendor
+            'purchasing_grn_received' => $purchasingStats['grn_received'] ?? 0, // Goods Received
+            'purchasing_done' => $purchasingStats['done'] ?? 0,
         ];
     }
     

@@ -2,32 +2,46 @@
 
 namespace App\Services\Dashboard;
 
+use App\Models\ApprovalRequestItem;
 use App\Models\PurchasingItem;
 use Illuminate\Support\Facades\DB;
 
 class ProcessPurchasingStatsService
 {
     /**
-     * Get statistics for purchasing process
+     * Get statistics for purchasing process (same logic as reports approval-requests / process-purchasing page).
      *
      * @return array
      */
     public function getStats(): array
     {
-        // Get count by purchasing status
-        $stats = PurchasingItem::select('status', DB::raw('count(*) as count'))
-                               ->groupBy('status')
-                               ->pluck('count', 'status')
-                               ->toArray();
-        
+        $piCounts = PurchasingItem::select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        // Items ready for purchasing but no PurchasingItem yet (counted as "unprocessed" on page)
+        $readyButNoPI = ApprovalRequestItem::whereIn('status', ['in_purchasing', 'approved', 'in_release'])
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('purchasing_items')
+                    ->whereColumn('purchasing_items.approval_request_id', 'approval_request_items.approval_request_id')
+                    ->whereColumn('purchasing_items.master_item_id', 'approval_request_items.master_item_id');
+            })
+            ->count();
+
+        $pendingApproval = ApprovalRequestItem::whereIn('status', ['pending', 'on progress'])->count();
+        $totalUnprocessed = ($piCounts['unprocessed'] ?? 0) + $readyButNoPI;
+
         return [
-            'total' => array_sum($stats),
-            'unprocessed' => $stats['unprocessed'] ?? 0,
-            'benchmarking' => $stats['benchmarking'] ?? 0,
-            'selected' => $stats['selected'] ?? 0,
-            'po_issued' => $stats['po_issued'] ?? 0,
-            'grn_received' => $stats['grn_received'] ?? 0,
-            'done' => $stats['done'] ?? 0,
+            'total' => array_sum($piCounts) + $readyButNoPI,
+            'pending_approval' => $pendingApproval,
+            'unprocessed' => $totalUnprocessed,
+            'benchmarking' => $piCounts['benchmarking'] ?? 0,
+            'selected' => $piCounts['selected'] ?? 0,
+            'po_issued' => $piCounts['po_issued'] ?? 0,
+            'grn_received' => $piCounts['grn_received'] ?? 0,
+            'done' => $piCounts['done'] ?? 0,
         ];
     }
     
@@ -89,13 +103,13 @@ class ProcessPurchasingStatsService
     }
     
     /**
-     * Get items that need attention (unprocessed or benchmarking)
+     * Get items that need attention (unprocessed + ready-but-no-PI + benchmarking, same as page).
      *
      * @return int
      */
     public function getNeedAttentionCount(): int
     {
-        return PurchasingItem::whereIn('status', ['unprocessed', 'benchmarking'])
-                             ->count();
+        $stats = $this->getStats();
+        return $stats['unprocessed'] + $stats['benchmarking'];
     }
 }
