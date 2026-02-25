@@ -190,7 +190,7 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                             this.isLoadingCapex = true;
                             try {
                                 // Fetch active Capex items for requester's department
-                                const response = await fetch('{{ route('api.capex.items.available', ['department_id' => $approvalRequest->requester->departments->first()->id ?? 0]) }}');
+                                const response = await fetch('{{ route('capex.api.available-items', ['department_id' => $approvalRequest->requester->primaryDepartment()->first()->id ?? 0]) }}');
                                 const data = await response.json();
                                 this.capexItems = data.items || [];
                             } catch (e) {
