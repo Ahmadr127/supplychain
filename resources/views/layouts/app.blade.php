@@ -306,7 +306,7 @@
                 {{-- CapEx Dropdown --}}
                 @if(auth()->user()->hasPermission('manage_capex') || auth()->user()->hasPermission('manage_capex_unit'))
                     <x-sidebar-dropdown-menu 
-                        title="CapEx" 
+                        title="Cap Ex" 
                         icon="fa-wallet" 
                         routePrefix="capex.*"
                         defaultOpen="false">
@@ -314,7 +314,7 @@
                         <x-sidebar-menu-item 
                             route="capex.index" 
                             icon="fa-list-ol" 
-                            label="CapEx ID Numbers" 
+                            label="Daftar Cap Ex" 
                             routeMatch="capex.*"
                         />
                         @endif
@@ -322,7 +322,7 @@
                         <x-sidebar-menu-item 
                             route="unit.capex.index" 
                             icon="fa-wallet" 
-                            label="CapEx Unit Saya" 
+                            label="Cap Ex Unit Saya" 
                             routeMatch="unit.capex.*"
                         />
                         @endif
