@@ -120,13 +120,13 @@ class WorkflowRoleUserSeeder extends Seeder
             'manage_approvals'
         ])->pluck('id')->toArray();
 
-        // Manager permissions (Manager Unit) - includes CapEx and Pending Release
+        // Manager permissions (Manager Unit) - includes CapEx Unit and Pending Release
         $managerPermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
             'approval',
             'manage_approvals',
-            'manage_capex',
+            'manage_capex_unit',
             'view_pending_release'
         ])->pluck('id')->toArray();
 
@@ -137,7 +137,7 @@ class WorkflowRoleUserSeeder extends Seeder
             'approval',
             'manage_approvals',
             'manage_purchasing',
-            'manage_capex',
+            'manage_capex_unit',
             'view_pending_release'
         ])->pluck('id')->toArray();
 
@@ -149,11 +149,11 @@ class WorkflowRoleUserSeeder extends Seeder
             'manage_approvals',
             'view_reports',
             'manage_vendor',
-            'manage_capex',
+            'manage_capex_unit',
             'view_pending_release'
         ])->pluck('id')->toArray();
 
-        // Director-level permissions - includes CapEx and Pending Release
+        // Director-level permissions - includes CapEx Unit and Pending Release
         $directorPermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
@@ -161,7 +161,7 @@ class WorkflowRoleUserSeeder extends Seeder
             'manage_approvals',
             'view_all_approvals',
             'view_reports',
-            'manage_capex',
+            'manage_capex_unit',
             'view_pending_release'
         ])->pluck('id')->toArray();
 

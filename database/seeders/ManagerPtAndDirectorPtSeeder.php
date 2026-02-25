@@ -47,7 +47,7 @@ class ManagerPtAndDirectorPtSeeder extends Seeder
             'manage_approvals', 
             'view_reports',
             'view_pending_release',
-            'manage_capex' // Important for managers/directors
+            'manage_capex_unit', // Unit-level capex access only, admin has manage_capex
         ];
         
         $permIds = Permission::whereIn('name', $commonPermissions)->pluck('id');

@@ -40,7 +40,7 @@ class ExtendedRoleSeeder extends Seeder
                 'name' => 'manager_pt',
                 'display_name' => 'Manager PT',
                 'description' => 'Manager PT - Approver dan Releaser',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports, $manageCapex, $viewPendingRelease, $viewDashboard],
+                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports, $viewPendingRelease, $viewDashboard],
             ],
             [
                 'name' => 'purchasing',
