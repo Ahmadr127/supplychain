@@ -334,6 +334,16 @@
                     </x-sidebar-dropdown-menu>
                 @endif
 
+                {{-- Import Engine --}}
+                @if(auth()->user()->hasPermission('manage_import'))
+                    <x-sidebar-menu-item 
+                        route="import.index" 
+                        icon="fa-file-import" 
+                        label="Import Data" 
+                        routeMatch="import.*"
+                    />
+                @endif
+
             </nav>
         </div>
 

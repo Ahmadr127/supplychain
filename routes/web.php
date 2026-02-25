@@ -22,6 +22,7 @@ use App\Http\Controllers\SupplierLookupController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\PurchasingItemController;
 use App\Http\Controllers\ApprovalRequestItemController;
+use App\Http\Controllers\ImportController;
 
 use App\Http\Controllers\ReleaseRequestController;
 
@@ -268,4 +269,18 @@ Route::middleware('auth')->group(function () {
     // File download routes
     Route::get('approval-requests/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');
     Route::get('approval-requests/attachments/{attachment}/view', [ApprovalRequestController::class, 'viewAttachment'])->name('approval-requests.view-attachment');
+
+    // -----------------------------------------------------------------------
+    // Import Engine Routes
+    // -----------------------------------------------------------------------
+    Route::middleware('permission:manage_import')->prefix('import')->name('import.')->group(function () {
+        Route::get('/',             [ImportController::class, 'index'])->name('index');
+        Route::post('/upload',      [ImportController::class, 'upload'])->name('upload');
+        Route::get('/mapping',      [ImportController::class, 'mapping'])->name('mapping');
+        Route::post('/mapping',     [ImportController::class, 'saveMapping'])->name('save-mapping');
+        Route::get('/preview',      [ImportController::class, 'preview'])->name('preview');
+        Route::post('/run',         [ImportController::class, 'run'])->name('run');
+        Route::get('/logs/{history}',    [ImportController::class, 'logs'])->name('logs');
+        Route::get('/progress/{history}',[ImportController::class, 'progress'])->name('progress');
+    });
 });
