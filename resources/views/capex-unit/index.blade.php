@@ -59,22 +59,32 @@
 
     {{-- Budget Summary (if capex exists) --}}
     @if($capex)
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    @php
+        $totalPendingAll = $capex->items()->sum('pending_amount');
+        $totalAvailAll   = max(0, $capex->total_budget - $capex->total_used - $totalPendingAll);
+    @endphp
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
             <p class="text-xl font-bold text-gray-800">{{ $items->total() }}</p>
             <p class="text-xs text-gray-400 mt-1">Total Item</p>
         </div>
         <div class="bg-blue-50 rounded-xl border border-blue-200 p-4 text-center">
-            <p class="text-xl font-bold text-blue-700">Rp {{ number_format($capex->total_budget, 0, ',', '.') }}</p>
+            <p class="text-lg font-bold text-blue-700">Rp {{ number_format($capex->total_budget, 0, ',', '.') }}</p>
             <p class="text-xs text-blue-600 mt-1">Total Anggaran</p>
         </div>
-        <div class="bg-green-50 rounded-xl border border-green-200 p-4 text-center">
-            <p class="text-xl font-bold text-green-700">Rp {{ number_format($capex->total_used, 0, ',', '.') }}</p>
-            <p class="text-xs text-green-600 mt-1">Terpakai</p>
+        <div class="bg-red-50 rounded-xl border border-red-100 p-4 text-center">
+            <p class="text-lg font-bold text-red-600">Rp {{ number_format($capex->total_used, 0, ',', '.') }}</p>
+            <p class="text-xs text-red-500 mt-1">Terpakai</p>
         </div>
-        <div class="bg-gray-50 rounded-xl border border-gray-200 p-4 text-center">
-            <p class="text-xl font-bold text-gray-700">Rp {{ number_format($capex->remaining_budget, 0, ',', '.') }}</p>
-            <p class="text-xs text-gray-400 mt-1">Sisa Anggaran</p>
+        <div class="bg-orange-50 rounded-xl border border-orange-200 p-4 text-center">
+            <p class="text-lg font-bold text-orange-600">Rp {{ number_format($totalPendingAll, 0, ',', '.') }}</p>
+            <p class="text-xs text-orange-500 mt-1 flex items-center justify-center gap-1">
+                <i class="fas fa-clock text-[10px]"></i> Sedang Diajukan
+            </p>
+        </div>
+        <div class="bg-green-50 rounded-xl border border-green-200 p-4 text-center">
+            <p class="text-lg font-bold text-green-700">Rp {{ number_format($totalAvailAll, 0, ',', '.') }}</p>
+            <p class="text-xs text-green-600 mt-1">Sisa Tersedia</p>
         </div>
     </div>
     @endif
@@ -111,8 +121,10 @@
                         <th class="px-4 py-3 text-center border-b border-gray-200">Tipe</th>
                         <th class="px-4 py-3 text-center border-b border-gray-200">Prioritas</th>
                         <th class="px-4 py-3 text-left border-b border-gray-200">Bulan</th>
-                        <th class="px-4 py-3 text-right border-b border-gray-200">Amount/Thn</th>
                         <th class="px-4 py-3 text-right border-b border-gray-200">Nilai CapEx</th>
+                        <th class="px-4 py-3 text-right border-b border-gray-200 text-red-500">Terpakai</th>
+                        <th class="px-4 py-3 text-right border-b border-gray-200 text-orange-500">Diajukan</th>
+                        <th class="px-4 py-3 text-right border-b border-gray-200 text-green-600">Tersedia</th>
                         <th class="px-4 py-3 text-left border-b border-gray-200">PIC</th>
                         <th class="px-4 py-3 text-center border-b border-gray-200">Status</th>
                         <th class="px-4 py-3 text-center border-b border-gray-200">Aksi</th>
@@ -120,9 +132,17 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100" id="unitCapexTableBody">
                     @foreach($items as $item)
-                    <tr class="hover:bg-gray-50">
+                    <tr class="hover:bg-gray-50" id="unit-row-{{ $item->id }}">
                         <td class="px-4 py-3 text-center text-xs text-gray-500">{{ $loop->iteration + ($items->currentPage() - 1) * $items->perPage() }}</td>
-                        <td class="px-4 py-3 font-mono text-xs text-gray-600">{{ $item->capex_id_number }}</td>
+                        <td class="px-4 py-3">
+                            <span class="font-mono text-xs text-gray-600">{{ $item->capex_id_number }}</span>
+                            @if($item->activeAllocations && $item->activeAllocations->count() > 0)
+                            <button onclick="toggleUnitAlloc({{ $item->id }})" class="ml-1 text-orange-500 text-xs" title="Lihat pengajuan aktif">
+                                <i class="fas fa-list-ul"></i>
+                                <span class="bg-orange-100 text-orange-700 rounded-full px-1 text-[10px] font-bold">{{ $item->activeAllocations->count() }}</span>
+                            </button>
+                            @endif
+                        </td>
                         <td class="px-4 py-3">
                             <p class="font-medium text-gray-800 truncate max-w-xs" title="{{ $item->item_name }}">{{ $item->item_name }}</p>
                             @if($item->description)<p class="text-xs text-gray-400 truncate max-w-xs">{{ $item->description }}</p>@endif
@@ -144,11 +164,24 @@
                             @else—@endif
                         </td>
                         <td class="px-4 py-3 text-gray-600">{{ $item->month ?? '—' }}</td>
-                        <td class="px-4 py-3 text-right text-gray-600">
-                            {{ $item->amount_per_year ? 'Rp ' . number_format($item->amount_per_year, 0, ',', '.') : '—' }}
-                        </td>
                         <td class="px-4 py-3 text-right font-medium text-gray-800">
                             Rp {{ number_format($item->budget_amount, 0, ',', '.') }}
+                        </td>
+                        <td class="px-4 py-3 text-right text-red-600">
+                            Rp {{ number_format($item->used_amount, 0, ',', '.') }}
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            @if((float)$item->pending_amount > 0)
+                                <span class="text-orange-600 font-medium">Rp {{ number_format($item->pending_amount, 0, ',', '.') }}</span>
+                            @else
+                                <span class="text-gray-300">—</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            @php $avail = max(0,(float)$item->budget_amount-(float)$item->used_amount-(float)$item->pending_amount); @endphp
+                            <span class="font-medium {{ $avail <= 0 ? 'text-red-600' : 'text-green-600' }}">
+                                Rp {{ number_format($avail, 0, ',', '.') }}
+                            </span>
                         </td>
                         <td class="px-4 py-3 text-gray-500 text-xs">{{ $item->pic ?? '—' }}</td>
                         <td class="px-4 py-3 text-center">
@@ -166,7 +199,7 @@
                                    class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                                     <i class="fas fa-pen text-xs"></i>
                                 </a>
-                                @if($item->used_amount <= 0)
+                                @if($item->used_amount <= 0 && $item->pending_amount <= 0)
                                 <form method="POST" action="{{ route('unit.capex.destroy', $item) }}"
                                       onsubmit="return confirm('Hapus item ini?')">
                                     @csrf @method('DELETE')
@@ -178,6 +211,62 @@
                             </div>
                         </td>
                     </tr>
+                    {{-- Allocation detail row --}}
+                    @if(isset($item->activeAllocations) && $item->activeAllocations->count() > 0)
+                    <tr id="unit-alloc-row-{{ $item->id }}" class="hidden bg-orange-50">
+                        <td colspan="13" class="px-6 py-3">
+                            <div class="text-xs font-semibold text-orange-700 mb-2">
+                                <i class="fas fa-clock mr-1"></i> Pengajuan Aktif — {{ $item->capex_id_number }}
+                            </div>
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="text-gray-500 border-b border-orange-200">
+                                        <th class="text-left py-1 pr-4">Kode Pengajuan</th>
+                                        <th class="text-left py-1 pr-4">Item</th>
+                                        <th class="text-right py-1 pr-4">Nominal</th>
+                                        <th class="text-center py-1 pr-4">Status Alokasi</th>
+                                        <th class="text-center py-1">Status Item</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach($item->activeAllocations as $alloc)
+                                    <tr class="border-b border-orange-100">
+                                        <td class="py-1.5 pr-4">
+                                            @if($alloc->approvalRequest)
+                                            <a href="{{ route('approval-requests.show', $alloc->approvalRequest) }}"
+                                               class="text-blue-600 hover:underline font-mono font-medium">
+                                                {{ $alloc->approvalRequest->request_number ?? '#'.$alloc->approval_request_id }}
+                                            </a>
+                                            @else
+                                            <span class="text-gray-400">#{{ $alloc->approval_request_id }}</span>
+                                            @endif
+                                        </td>
+                                        <td class="py-1.5 pr-4 text-gray-700">{{ $alloc->approvalRequestItem?->masterItem?->name ?? '—' }}</td>
+                                        <td class="py-1.5 pr-4 text-right font-medium text-orange-700">Rp {{ number_format($alloc->allocated_amount, 0, ',', '.') }}</td>
+                                        <td class="py-1.5 pr-4 text-center">
+                                            <span class="px-2 py-0.5 rounded-full {{ $alloc->status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700' }}">
+                                                {{ ucfirst($alloc->status) }}
+                                            </span>
+                                        </td>
+                                        <td class="py-1.5 text-center">
+                                            @php
+                                                $ist = $alloc->approvalRequestItem?->status;
+                                                $isc = match($ist) {
+                                                    'on progress' => 'bg-blue-100 text-blue-700',
+                                                    'in_purchasing' => 'bg-purple-100 text-purple-700',
+                                                    'approved' => 'bg-green-100 text-green-700',
+                                                    default => 'bg-gray-100 text-gray-600',
+                                                };
+                                            @endphp
+                                            <span class="px-2 py-0.5 rounded-full {{ $isc }}">{{ ucfirst(str_replace('_',' ',$ist ?? '—')) }}</span>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                    @endif
                     @endforeach
                 </tbody>
             </table>
@@ -199,7 +288,10 @@
 </div>
 @push('scripts')
 <script>
-    // search dipindah ke server-side
+    function toggleUnitAlloc(itemId) {
+        const row = document.getElementById('unit-alloc-row-' + itemId);
+        if (row) row.classList.toggle('hidden');
+    }
 </script>
 @endpush
 @endsection

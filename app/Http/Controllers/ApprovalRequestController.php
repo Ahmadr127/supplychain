@@ -226,6 +226,8 @@ class ApprovalRequestController extends Controller
         // Additional conditional validation: new items must include a category
         $validator->after(function($v) use ($request) {
             $items = $request->input('items', []);
+            $seenMasterItemIds = [];
+
             foreach ($items as $idx => $row) {
                 $hasId = !empty($row['master_item_id']);
                 $hasName = !empty($row['name']);
@@ -235,6 +237,16 @@ class ApprovalRequestController extends Controller
                         $v->errors()->add("items.$idx.item_category", 'Kategori wajib diisi untuk item baru.');
                     }
                 }
+
+                // Cek duplikat master_item_id dalam satu request
+                if ($hasId) {
+                    $masterItemId = (int) $row['master_item_id'];
+                    if (in_array($masterItemId, $seenMasterItemIds)) {
+                        $v->errors()->add("items.$idx.master_item_id", 'Item yang sama tidak boleh ditambahkan lebih dari satu kali dalam satu request.');
+                    } else {
+                        $seenMasterItemIds[] = $masterItemId;
+                    }
+                }
             }
         });
 
@@ -242,11 +254,6 @@ class ApprovalRequestController extends Controller
         // FS document will be uploaded by Keuangan during approval if total >= 100jt
 
         if ($validator->fails()) {
-            Log::warning('ApprovalRequest.update.validation_failed', [
-                'request_id' => $approvalRequest->id,
-                'auth_id' => auth()->id(),
-                'errors' => $validator->errors()->toArray(),
-            ]);
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
@@ -995,6 +1002,24 @@ class ApprovalRequestController extends Controller
         // Only allow cancel if user is the requester
         if ((int)$approvalRequest->requester_id !== (int)auth()->id()) {
             abort(403, 'Anda tidak memiliki akses untuk membatalkan request ini.');
+        }
+
+        // Release any pending CapEx allocations before cancelling
+        $approvalRequest->load('items');
+        foreach ($approvalRequest->items as $item) {
+            if ($item->capex_item_id) {
+                try {
+                    app(\App\Services\CapexAllocationService::class)->releaseReservation(
+                        $item,
+                        'Request dibatalkan oleh pemohon'
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('CapEx release failed on cancel', [
+                        'item_id' => $item->id,
+                        'error'   => $e->getMessage(),
+                    ]);
+                }
+            }
         }
 
         $success = $approvalRequest->cancel(auth()->id());

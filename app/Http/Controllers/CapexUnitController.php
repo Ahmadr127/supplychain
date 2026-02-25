@@ -48,7 +48,10 @@ class CapexUnitController extends Controller
             ->with('department')
             ->first();
 
-        $itemsQuery = $capex ? $capex->items() : null;
+        $itemsQuery = $capex ? $capex->items()->with([
+        'activeAllocations.approvalRequest',
+        'activeAllocations.approvalRequestItem.masterItem',
+    ]) : null;
 
         if ($itemsQuery && $request->filled('search')) {
             $search = '%' . $request->search . '%';

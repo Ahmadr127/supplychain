@@ -133,7 +133,8 @@ class RolePermissionSeeder extends Seeder
                 'manage_approvals',
                 'manage_vendor',
                 'manage_capex_unit',
-                'view_release_requests',
+                // view_release_requests dihapus — Manager Keuangan tidak perlu lihat semua release requests
+                // view_pending_release tetap ada — Manager Keuangan masih bisa lihat pending release miliknya
                 'view_pending_release',
                 'view_process_purchasing',
                 'view_dashboard',
@@ -142,9 +143,10 @@ class RolePermissionSeeder extends Seeder
         
         $direkturRole->permissions()->sync(
             Permission::whereIn('name', [
-                'view_my_approvals',
+                // Hanya bisa menyetujui/menolak approval (Pending Approvals)
+                // TIDAK punya view_my_approvals (no My Requests menu)
+                // TIDAK punya manage_approvals (tidak bisa create request)
                 'approval',
-                'manage_approvals',
                 'view_dashboard',
             ])->get()
         );

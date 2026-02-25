@@ -73,29 +73,45 @@
         </div>
 
         {{-- Budget Card --}}
+        @php
+            $totalPending  = $items->sum(fn($i) => (float)$i->pending_amount);
+            // Use all items from capex for total, not just paginated
+            $totalBudget   = $capex->total_budget;
+            $totalUsed     = $capex->total_used;
+            $totalPendingAll = $capex->items()->sum('pending_amount');
+            $totalAvail    = max(0, $totalBudget - $totalUsed - $totalPendingAll);
+        @endphp
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 class="text-sm font-medium text-gray-500 mb-4">Ringkasan Budget</h3>
             <div class="space-y-4">
                 <div>
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-gray-600">Total Budget</span>
-                        <span class="font-bold text-gray-900">Rp {{ number_format($capex->total_budget, 0, ',', '.') }}</span>
+                        <span class="font-bold text-gray-900">Rp {{ number_format($totalBudget, 0, ',', '.') }}</span>
                     </div>
                 </div>
                 <div>
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-gray-600">Terpakai</span>
-                        <span class="font-medium text-red-600">Rp {{ number_format($capex->total_used, 0, ',', '.') }}</span>
+                        <span class="font-medium text-red-600">Rp {{ number_format($totalUsed, 0, ',', '.') }}</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2">
                         <div class="bg-blue-600 h-2 rounded-full" style="width: {{ $capex->utilization_percent }}%"></div>
                     </div>
                     <div class="text-right text-xs text-gray-500 mt-1">{{ $capex->utilization_percent }}% Terpakai</div>
                 </div>
+                @if($totalPendingAll > 0)
+                <div class="flex justify-between text-sm">
+                    <span class="text-orange-600 flex items-center gap-1">
+                        <i class="fas fa-clock text-xs"></i> Sedang Diajukan
+                    </span>
+                    <span class="font-medium text-orange-600">Rp {{ number_format($totalPendingAll, 0, ',', '.') }}</span>
+                </div>
+                @endif
                 <div class="pt-2 border-t border-gray-100">
                     <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Sisa Budget</span>
-                        <span class="font-bold text-green-600">Rp {{ number_format($capex->remaining_budget, 0, ',', '.') }}</span>
+                        <span class="text-gray-600">Sisa Tersedia</span>
+                        <span class="font-bold text-green-600">Rp {{ number_format($totalAvail, 0, ',', '.') }}</span>
                     </div>
                 </div>
             </div>
@@ -150,9 +166,10 @@
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Prioritas</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulan</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount/Thn</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nilai CapEx</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Terpakai</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-orange-500 uppercase tracking-wider">Diajukan</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-green-600 uppercase tracking-wider">Tersedia</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PIC</th>
                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     @if(auth()->user()->hasPermission('manage_capex'))
@@ -162,9 +179,17 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200" id="showCapexTableBody">
                 @forelse($items as $item)
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50" id="item-row-{{ $item->id }}">
                     <td class="px-4 py-3 text-center text-xs text-gray-500 whitespace-nowrap">{{ $loop->iteration + ($items->currentPage() - 1) * $items->perPage() }}</td>
-                    <td class="px-4 py-3 whitespace-nowrap text-xs font-mono text-blue-600">{{ $item->capex_id_number }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="text-xs font-mono text-blue-600">{{ $item->capex_id_number }}</span>
+                        @if($item->activeAllocations->count() > 0)
+                        <button onclick="toggleAlloc({{ $item->id }})" class="ml-1 text-orange-500 hover:text-orange-700 text-xs" title="Lihat pengajuan aktif">
+                            <i class="fas fa-list-ul"></i>
+                            <span class="bg-orange-100 text-orange-700 rounded-full px-1.5 py-0.5 text-[10px] font-bold">{{ $item->activeAllocations->count() }}</span>
+                        </button>
+                        @endif
+                    </td>
                     <td class="px-4 py-3">
                         <div class="text-sm font-medium text-gray-900">{{ $item->item_name }}</div>
                         @if($item->category)<div class="text-xs text-gray-400">{{ $item->category }}</div>@endif
@@ -181,14 +206,24 @@
                         @else —@endif
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-500">{{ $item->month ?? '—' }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-500">
-                        {{ $item->amount_per_year ? 'Rp '.number_format($item->amount_per_year,0,',','.') : '—' }}
-                    </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium text-gray-900">
                         Rp {{ number_format($item->budget_amount, 0, ',', '.') }}
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
                         Rp {{ number_format($item->used_amount, 0, ',', '.') }}
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
+                        @if((float)$item->pending_amount > 0)
+                            <span class="text-orange-600 font-medium">Rp {{ number_format($item->pending_amount, 0, ',', '.') }}</span>
+                        @else
+                            <span class="text-gray-300">—</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
+                        @php $avail = max(0,(float)$item->budget_amount-(float)$item->used_amount-(float)$item->pending_amount); @endphp
+                        <span class="font-medium {{ $avail <= 0 ? 'text-red-600' : 'text-green-600' }}">
+                            Rp {{ number_format($avail, 0, ',', '.') }}
+                        </span>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">{{ $item->pic ?? '—' }}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-center">
@@ -207,11 +242,11 @@
                     @if(auth()->user()->hasPermission('manage_capex'))
                     <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
                         <div class="flex justify-center gap-2">
-                            <button onclick="editItem({{ $item->id }}, '{{ addslashes($item->item_name) }}', '{{ $item->capex_type }}', '{{ $item->priority_scale }}', '{{ $item->month }}', '{{ addslashes($item->category) }}', '{{ addslashes($item->pic) }}', '{{ addslashes($item->description) }}', '{{ number_format($item->budget_amount, 0, ',', '.') }}', '{{ $item->amount_per_year ? number_format($item->amount_per_year, 0, ',', '.') : '' }}')" 
+                            <button onclick="editItem({{ $item->id }}, '{{ addslashes($item->item_name) }}', '{{ $item->capex_type }}', '{{ $item->priority_scale }}', '{{ $item->month }}', '{{ addslashes($item->category) }}', '{{ addslashes($item->pic) }}', '{{ addslashes($item->description) }}', '{{ number_format($item->budget_amount, 0, ',', '.') }}', '{{ $item->amount_per_year ? number_format($item->amount_per_year, 0, ',', '.') : '' }}')"
                                 class="text-indigo-600 hover:text-indigo-900" title="Edit Item">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            @if($item->used_amount == 0)
+                            @if($item->used_amount == 0 && $item->pending_amount == 0)
                             <form action="{{ route('capex.items.destroy', $item) }}" method="POST" class="inline" onsubmit="return confirm('Yakin hapus item ini?')">
                                 @csrf
                                 @method('DELETE')
@@ -224,6 +259,72 @@
                     </td>
                     @endif
                 </tr>
+                {{-- Allocation detail row (hidden by default) --}}
+                @if($item->activeAllocations->count() > 0)
+                <tr id="alloc-row-{{ $item->id }}" class="hidden bg-orange-50">
+                    <td colspan="12" class="px-6 py-3">
+                        <div class="text-xs font-semibold text-orange-700 mb-2 flex items-center gap-2">
+                            <i class="fas fa-clock"></i> Pengajuan Aktif untuk {{ $item->capex_id_number }}
+                        </div>
+                        <table class="w-full text-xs border-collapse">
+                            <thead>
+                                <tr class="text-gray-500 border-b border-orange-200">
+                                    <th class="text-left py-1 pr-4">Kode Pengajuan</th>
+                                    <th class="text-left py-1 pr-4">Item</th>
+                                    <th class="text-left py-1 pr-4">Pengaju</th>
+                                    <th class="text-right py-1 pr-4">Nominal</th>
+                                    <th class="text-center py-1 pr-4">Status Alokasi</th>
+                                    <th class="text-center py-1">Status Item</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach($item->activeAllocations as $alloc)
+                                <tr class="border-b border-orange-100">
+                                    <td class="py-1.5 pr-4">
+                                        @if($alloc->approvalRequest)
+                                        <a href="{{ route('approval-requests.show', $alloc->approvalRequest) }}"
+                                           class="text-blue-600 hover:underline font-mono font-medium">
+                                            {{ $alloc->approvalRequest->request_number ?? '#'.$alloc->approval_request_id }}
+                                        </a>
+                                        @else
+                                        <span class="text-gray-400">#{{ $alloc->approval_request_id }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-1.5 pr-4 text-gray-700">
+                                        {{ $alloc->approvalRequestItem?->masterItem?->name ?? '—' }}
+                                    </td>
+                                    <td class="py-1.5 pr-4 text-gray-600">{{ $alloc->allocator?->name ?? '—' }}</td>
+                                    <td class="py-1.5 pr-4 text-right font-medium text-orange-700">
+                                        Rp {{ number_format($alloc->allocated_amount, 0, ',', '.') }}
+                                    </td>
+                                    <td class="py-1.5 pr-4 text-center">
+                                        @php
+                                            $ac = $alloc->status === 'pending'
+                                                ? 'bg-yellow-100 text-yellow-700'
+                                                : 'bg-blue-100 text-blue-700';
+                                        @endphp
+                                        <span class="px-2 py-0.5 rounded-full {{ $ac }}">{{ ucfirst($alloc->status) }}</span>
+                                    </td>
+                                    <td class="py-1.5 text-center">
+                                        @php
+                                            $ist = $alloc->approvalRequestItem?->status;
+                                            $isc = match($ist) {
+                                                'on progress' => 'bg-blue-100 text-blue-700',
+                                                'in_purchasing' => 'bg-purple-100 text-purple-700',
+                                                'in_release' => 'bg-indigo-100 text-indigo-700',
+                                                'approved' => 'bg-green-100 text-green-700',
+                                                default => 'bg-gray-100 text-gray-600',
+                                            };
+                                        @endphp
+                                        <span class="px-2 py-0.5 rounded-full {{ $isc }}">{{ ucfirst(str_replace('_',' ',$ist ?? '—')) }}</span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+                @endif
                 @empty
                 <tr>
                     <td colspan="7" class="px-6 py-8 text-center text-gray-500">
@@ -397,6 +498,11 @@
 </div>
 
 <script>
+    function toggleAlloc(itemId) {
+        const row = document.getElementById('alloc-row-' + itemId);
+        if (row) row.classList.toggle('hidden');
+    }
+
     // Format Rupiah
     document.querySelectorAll('.rupiah-input').forEach(input => {
         input.addEventListener('keyup', function(e) {

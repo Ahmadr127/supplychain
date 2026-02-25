@@ -252,19 +252,30 @@
                                         <div class="flex justify-between items-start mb-1">
                                             <div class="font-medium text-gray-900 text-xs">{{ $item->capexItem->capex_id_number }} - {{ $item->capexItem->item_name }}</div>
                                         </div>
-                                        <div class="grid grid-cols-3 gap-2 text-[10px]">
+                                        <div class="grid grid-cols-4 gap-2 text-[10px]">
                                             <div>
                                                 <div class="text-gray-500">Budget Awal</div>
                                                 <div class="font-medium text-gray-900">Rp {{ number_format($item->capexItem->budget_amount, 0, ',', '.') }}</div>
                                             </div>
                                             <div>
                                                 <div class="text-gray-500">Terpakai</div>
-                                                <div class="font-medium text-yellow-600">Rp {{ number_format($item->capexItem->used_amount, 0, ',', '.') }}</div>
+                                                <div class="font-medium text-red-600">Rp {{ number_format($item->capexItem->used_amount, 0, ',', '.') }}</div>
                                             </div>
                                             <div>
-                                                <div class="text-gray-500">Sisa</div>
-                                                <div class="font-bold {{ $item->capexItem->remaining_amount < 0 ? 'text-red-600' : 'text-green-600' }}">
-                                                    Rp {{ number_format($item->capexItem->remaining_amount, 0, ',', '.') }}
+                                                <div class="text-gray-500 flex items-center gap-0.5"><i class="fas fa-clock text-[9px] text-orange-400"></i> Diajukan</div>
+                                                <div class="font-medium text-orange-600">Rp {{ number_format($item->capexItem->pending_amount ?? 0, 0, ',', '.') }}</div>
+                                            </div>
+                                            <div>
+                                                @php
+                                                    $capexAvail = max(0,
+                                                        (float)$item->capexItem->budget_amount
+                                                        - (float)$item->capexItem->used_amount
+                                                        - (float)($item->capexItem->pending_amount ?? 0)
+                                                    );
+                                                @endphp
+                                                <div class="text-gray-500">Tersedia</div>
+                                                <div class="font-bold {{ $capexAvail <= 0 ? 'text-red-600' : 'text-green-600' }}">
+                                                    Rp {{ number_format($capexAvail, 0, ',', '.') }}
                                                 </div>
                                             </div>
                                         </div>

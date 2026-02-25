@@ -6,6 +6,8 @@ use App\Models\ApprovalRequest;
 use App\Models\ApprovalRequestItem;
 use App\Models\ApprovalItemStep;
 use App\Models\PurchasingItem;
+use App\Models\CapexItem;
+use App\Services\CapexAllocationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -106,19 +108,12 @@ class ApprovalItemApprovalController extends Controller
                 if ($request->has('capex_item_id') && $request->capex_item_id) {
                     // Option A: From Capex
                     $capexItemId = $request->capex_item_id;
-                    $capexItem = \App\Models\CapexItem::findOrFail($capexItemId);
-                    
-                    // If unit_price is provided (manual override or confirmation), use it. 
-                    // Otherwise could default to something else, but here we expect user to input price 
-                    // even if capex is selected (to confirm how much of the budget is used).
-                    // However, the requirement says "bisa memilih id item capex... atau menggunakan inputan harga manual".
-                    // Usually, selecting Capex means we are allocating THIS item to THAT budget. 
-                    // The price itself is still the price of the item.
-                    
+                    $capexItem = CapexItem::findOrFail($capexItemId);
+
                     if ($request->has('unit_price')) {
                         $unitPrice = (float) str_replace('.', '', $request->unit_price);
                     }
-                    
+
                     Log::info('🟦 Selected Capex Item: ' . $capexItemId);
                 } else {
                     // Option B: Manual Input (Non-Capex)
@@ -132,15 +127,51 @@ class ApprovalItemApprovalController extends Controller
                     Log::error('🟥 Price <= 0, rolling back transaction');
                     return back()->withErrors(['unit_price' => 'Harga harus lebih dari 0'])->withInput();
                 }
-                
+
+                // Validasi budget CapEx sebelum update
+                if ($capexItemId) {
+                    $capexItem = $capexItem ?? CapexItem::findOrFail($capexItemId);
+                    $totalForCapex = (int) ($itemData['quantity'] ?? $item->quantity) * $unitPrice;
+                    $allocationService = app(CapexAllocationService::class);
+                    if (!$allocationService->hasSufficientBudget($capexItem, $totalForCapex)) {
+                        DB::rollBack();
+                        $available = $allocationService->getAvailableBudget($capexItem);
+                        Log::error('🟥 Budget CapEx tidak mencukupi', [
+                            'capex_item_id' => $capexItemId,
+                            'requested'     => $totalForCapex,
+                            'available'     => $available,
+                        ]);
+                        return back()->withErrors([
+                            'capex_item_id' => 'Budget CapEx tidak mencukupi. Tersedia: Rp ' . number_format($available, 0, ',', '.'),
+                        ])->withInput();
+                    }
+                }
+
                 Log::info('🟦 Updating item with price and capex...');
                 $item->update([
-                    'unit_price' => $unitPrice,
-                    'total_price' => $item->quantity * $unitPrice,
-                    'capex_item_id' => $capexItemId,
-                    'approved_price_by' => auth()->id(),
-                    'approved_price_at' => now(),
+                    'unit_price'         => $unitPrice,
+                    'total_price'        => $item->quantity * $unitPrice,
+                    'capex_item_id'      => $capexItemId,
+                    'approved_price_by'  => auth()->id(),
+                    'approved_price_at'  => now(),
                 ]);
+
+                // Reserve budget CapEx
+                if ($capexItemId) {
+                    $allocationService = app(CapexAllocationService::class);
+                    $item->refresh();
+                    $reserved = $allocationService->reserve(
+                        CapexItem::find($capexItemId),
+                        $item,
+                        (float) $item->total_price,
+                        auth()->id()
+                    );
+                    if (!$reserved) {
+                        Log::warning('⚠️ Gagal reserve budget CapEx (mungkin race condition)', [
+                            'capex_item_id' => $capexItemId,
+                        ]);
+                    }
+                }
                 
                 Log::info('🟩 Manager approved with price:', [
                     'item_id' => $item->id,
@@ -264,14 +295,17 @@ class ApprovalItemApprovalController extends Controller
                     Log::info('🟦 Item status BEFORE: ' . $item->status);
                     
                     $item->update([
-                        'status' => 'approved',
+                        'status'      => 'approved',
                         'approved_by' => auth()->id(),
                         'approved_at' => now(),
                     ]);
-                    
                     $item->refresh();
-                    Log::info('🟩 Item status AFTER: ' . $item->status);
-                    Log::info('🟩 Item FULLY APPROVED (3-phase workflow complete)', ['item_id' => $item->id]);
+
+                    // Confirm CapEx allocation (pending → used)
+                    if ($item->capex_item_id) {
+                        app(CapexAllocationService::class)->confirmAllocation($item);
+                        Log::info('🟩 CapEx allocation confirmed', ['capex_item_id' => $item->capex_item_id]);
+                    }
                     
                 } else {
                     // Activate next release step
@@ -333,18 +367,23 @@ class ApprovalItemApprovalController extends Controller
                         // This is handled in PurchasingItemService::activateReleaseSteps()
                         
                     } else {
-                        // Old workflow (no release steps) - mark as fully approved immediately
-                        Log::info('🟨 No release steps - marking item as fully approved');
-                        Log::info('🟦 Item status BEFORE: ' . $item->status);
-                        
-                        $item->update([
-                            'status' => 'approved',
-                            'approved_by' => auth()->id(),
-                            'approved_at' => now(),
-                        ]);
-                        
-                        $item->refresh();
-                        Log::info('🟩 Item status AFTER: ' . $item->status);
+                    // Old workflow (no release steps) - mark as fully approved immediately
+                    Log::info('🟨 No release steps - marking item as fully approved');
+                    Log::info('🟦 Item status BEFORE: ' . $item->status);
+                    
+                    $item->update([
+                        'status'      => 'approved',
+                        'approved_by' => auth()->id(),
+                        'approved_at' => now(),
+                    ]);
+                    $item->refresh();
+                    Log::info('🟩 Item status AFTER: ' . $item->status);
+
+                    // Confirm CapEx allocation (pending → used)
+                    if ($item->capex_item_id) {
+                        app(CapexAllocationService::class)->confirmAllocation($item);
+                        Log::info('🟩 CapEx allocation confirmed', ['capex_item_id' => $item->capex_item_id]);
+                    }
 
                         // Create purchasing item immediately
                         $this->createPurchasingItem($item);
@@ -426,11 +465,23 @@ class ApprovalItemApprovalController extends Controller
 
             // Mark item as rejected
             $item->update([
-                'status' => 'rejected',
-                'approved_by' => auth()->id(),
-                'approved_at' => now(),
+                'status'          => 'rejected',
+                'approved_by'     => auth()->id(),
+                'approved_at'     => now(),
                 'rejected_reason' => $request->rejected_reason,
             ]);
+
+            // Release CapEx reservation jika ada
+            if ($item->capex_item_id) {
+                app(CapexAllocationService::class)->releaseReservation(
+                    $item,
+                    'Item ditolak: ' . $request->rejected_reason
+                );
+                Log::info('🟩 CapEx reservation released (item rejected)', [
+                    'capex_item_id' => $item->capex_item_id,
+                    'item_id'       => $item->id,
+                ]);
+            }
 
             Log::info('Item rejected', [
                 'item_id' => $item->id,

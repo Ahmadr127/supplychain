@@ -10,7 +10,7 @@ class CapexAllocation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'capex_id_number_id',
+        'capex_item_id',
         'approval_request_id',
         'approval_request_item_id',
         'allocated_amount',
@@ -27,21 +27,25 @@ class CapexAllocation extends Model
 
     protected $casts = [
         'allocated_amount' => 'decimal:2',
-        'allocation_date' => 'date',
-        'confirmed_at' => 'datetime',
-        'cancelled_at' => 'datetime',
+        'allocation_date'  => 'date',
+        'confirmed_at'     => 'datetime',
+        'cancelled_at'     => 'datetime',
     ];
 
+    // ═══════════════════════════════════════════════════════════════
+    // RELATIONS
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * CapEx ID Number this allocation is from
+     * CapEx Item yang dialokasikan
      */
-    public function capexIdNumber()
+    public function capexItem()
     {
-        return $this->belongsTo(CapexIdNumber::class);
+        return $this->belongsTo(CapexItem::class);
     }
 
     /**
-     * Approval request this allocation is for
+     * Approval request ini alokasi
      */
     public function approvalRequest()
     {
@@ -49,7 +53,7 @@ class CapexAllocation extends Model
     }
 
     /**
-     * Specific item this allocation is for (optional)
+     * Item spesifik dalam pengajuan
      */
     public function approvalRequestItem()
     {
@@ -57,7 +61,7 @@ class CapexAllocation extends Model
     }
 
     /**
-     * User who made the allocation (Manager Unit)
+     * User yang membuat alokasi (Manager Unit)
      */
     public function allocator()
     {
@@ -65,7 +69,7 @@ class CapexAllocation extends Model
     }
 
     /**
-     * User who confirmed the allocation
+     * User yang mengkonfirmasi alokasi
      */
     public function confirmer()
     {
@@ -73,115 +77,29 @@ class CapexAllocation extends Model
     }
 
     /**
-     * User who cancelled the allocation
+     * User yang membatalkan alokasi
      */
     public function canceller()
     {
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
-    /**
-     * Confirm this allocation
-     */
-    public function confirm(int $userId): bool
-    {
-        if ($this->status !== 'pending') {
-            return false;
-        }
+    // ═══════════════════════════════════════════════════════════════
+    // SCOPES
+    // ═══════════════════════════════════════════════════════════════
 
-        $this->status = 'confirmed';
-        $this->confirmed_by = $userId;
-        $this->confirmed_at = now();
-        
-        return $this->save();
-    }
-
-    /**
-     * Cancel this allocation and release budget back
-     */
-    public function cancel(int $userId, string $reason = null): bool
-    {
-        if (!in_array($this->status, ['pending', 'confirmed'])) {
-            return false;
-        }
-
-        // Release budget back to capex
-        $this->capexIdNumber->release($this->allocated_amount);
-
-        $this->status = 'cancelled';
-        $this->cancelled_by = $userId;
-        $this->cancelled_at = now();
-        $this->cancellation_reason = $reason;
-        
-        return $this->save();
-    }
-
-    /**
-     * Release this allocation (final step after PO/GRN)
-     */
-    public function release(): bool
-    {
-        if ($this->status !== 'confirmed') {
-            return false;
-        }
-
-        $this->status = 'released';
-        return $this->save();
-    }
-
-    /**
-     * Scope: Pending allocations
-     */
     public function scopePending($query)
     {
         return $query->where('status', 'pending');
     }
 
-    /**
-     * Scope: Confirmed allocations
-     */
     public function scopeConfirmed($query)
     {
         return $query->where('status', 'confirmed');
     }
 
-    /**
-     * Scope: Active allocations (not cancelled)
-     */
     public function scopeActive($query)
     {
-        return $query->whereIn('status', ['pending', 'confirmed', 'released']);
-    }
-
-    /**
-     * Create allocation and deduct from capex budget
-     */
-    public static function createAllocation(
-        int $capexId,
-        int $requestId,
-        float $amount,
-        int $allocatedBy,
-        ?int $itemId = null,
-        ?string $notes = null
-    ): ?self {
-        $capex = CapexIdNumber::find($capexId);
-        
-        if (!$capex || !$capex->hasSufficientBudget($amount)) {
-            return null;
-        }
-
-        // Allocate from capex
-        $capex->allocate($amount);
-
-        return self::create([
-            'capex_id_number_id' => $capexId,
-            'approval_request_id' => $requestId,
-            'approval_request_item_id' => $itemId,
-            'allocated_amount' => $amount,
-            'allocation_date' => now()->toDateString(),
-            'status' => 'pending',
-            'allocated_by' => $allocatedBy,
-            'notes' => $notes,
-        ]);
+        return $query->whereIn('status', ['pending', 'confirmed']);
     }
 }

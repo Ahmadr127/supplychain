@@ -22,30 +22,42 @@ class CapexItem extends Model
         'pic',
         'budget_amount',
         'used_amount',
+        'pending_amount',
         'status',
         'approval_request_id',
         'approval_request_item_id',
     ];
 
     protected $casts = [
-        'budget_amount' => 'decimal:2',
-        'used_amount' => 'decimal:2',
+        'budget_amount'  => 'decimal:2',
+        'used_amount'    => 'decimal:2',
+        'pending_amount' => 'decimal:2',
     ];
 
     /**
-     * Get remaining amount
+     * Budget tersedia = budget_amount - used_amount - pending_amount
      */
-    public function getRemainingAmountAttribute(): float
+    public function getAvailableAmountAttribute(): float
     {
-        return (float) $this->budget_amount - (float) $this->used_amount;
+        return max(0, (float) $this->budget_amount
+            - (float) $this->used_amount
+            - (float) $this->pending_amount);
     }
 
     /**
-     * Check if item has sufficient budget
+     * @deprecated Gunakan getAvailableAmountAttribute()
+     */
+    public function getRemainingAmountAttribute(): float
+    {
+        return $this->available_amount;
+    }
+
+    /**
+     * Cek budget tersedia (memperhitungkan pending_amount)
      */
     public function hasSufficientBudget(float $amount): bool
     {
-        return $this->remaining_amount >= $amount;
+        return $this->available_amount >= $amount;
     }
 
     /**
@@ -108,6 +120,23 @@ class CapexItem extends Model
     public function approvalRequestItem()
     {
         return $this->belongsTo(ApprovalRequestItem::class);
+    }
+
+    /**
+     * Alokasi aktif (pending/confirmed) untuk item ini
+     */
+    public function activeAllocations()
+    {
+        return $this->hasMany(CapexAllocation::class, 'capex_item_id')
+                    ->whereIn('status', ['pending', 'confirmed']);
+    }
+
+    /**
+     * Semua alokasi historis
+     */
+    public function allocations()
+    {
+        return $this->hasMany(CapexAllocation::class, 'capex_item_id');
     }
 
     /**

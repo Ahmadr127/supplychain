@@ -49,6 +49,9 @@ class ReportController extends Controller
         }
         if ($request->filled('status')) {
             $q->where('status', $request->status);
+        } else {
+            // Default: exclude rejected and cancelled requests
+            $q->whereNotIn('status', ['rejected', 'cancelled']);
         }
         // Filter by purchasing process/status if provided
         if ($request->filled('purchasing_status')) {
@@ -119,6 +122,11 @@ class ReportController extends Controller
             };
 
             foreach ($req->items as $item) {
+                // Skip rejected or cancelled items — they don't belong in the purchasing report
+                if (in_array($item->status, ['rejected', 'cancelled'])) {
+                    continue;
+                }
+
                 $m = $item->masterItem;
                 $qty = (int) ($item->quantity ?? 0);
                 $spec = $item->specification ?? null;
@@ -813,6 +821,9 @@ class ReportController extends Controller
         }
         if ($request->filled('status')) {
             $q->where('status', $request->status);
+        } else {
+            // Default: exclude rejected and cancelled (consistent with index view)
+            $q->whereNotIn('status', ['rejected', 'cancelled']);
         }
         if ($request->filled('year')) {
             $q->whereYear('created_at', (int)$request->year);

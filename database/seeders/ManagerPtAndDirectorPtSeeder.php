@@ -39,23 +39,30 @@ class ManagerPtAndDirectorPtSeeder extends Seeder
             $this->command->info("  ✓ Role: {$details['display_name']}");
         }
 
-        // 2. Assign Permissions (Expanded from ExtendedRoleSeeder logic)
-        $commonPermissions = [
-            'view_dashboard', 
-            'view_my_approvals', 
-            'approval', 
-            'manage_approvals', 
-            'view_reports',
+        // 2. Assign Permissions — gunakan sync (bukan syncWithoutDetaching) agar eksplisit
+        // manager_pt: hanya approval & release, TIDAK punya view_all_approvals / manage_capex
+        $managerPtPermissions = Permission::whereIn('name', [
+            'view_dashboard',
+            'view_my_approvals',
+            'approval',
+            'manage_approvals',
             'view_pending_release',
-            'manage_capex_unit', // Unit-level capex access only, admin has manage_capex
-        ];
-        
-        $permIds = Permission::whereIn('name', $commonPermissions)->pluck('id');
-        
-        foreach ($roles as $role) {
-            $role->permissions()->syncWithoutDetaching($permIds);
-        }
-        $this->command->info('  ✓ Permissions assigned');
+            'manage_capex_unit',
+        ])->pluck('id');
+
+        // direktur_pt: hanya approval & release, TIDAK punya view_all_approvals / manage_capex
+        $direkturPtPermissions = Permission::whereIn('name', [
+            'view_dashboard',
+            'view_my_approvals',
+            'approval',
+            'manage_approvals',
+            'view_pending_release',
+            'manage_capex_unit',
+        ])->pluck('id');
+
+        $roles['manager_pt']->permissions()->sync($managerPtPermissions);
+        $roles['direktur_pt']->permissions()->sync($direkturPtPermissions);
+        $this->command->info('  ✓ Permissions synced (explicit, no view_all_approvals / manage_capex)');
 
         // 3. Create Departments (if not exist)
         $deptsData = [
@@ -117,7 +124,7 @@ class ManagerPtAndDirectorPtSeeder extends Seeder
             //     $this->command->info("  ! User restored: {$userData['name']}");
             // }
             
-            $user = User::updateOrCreate(
+            $user = User::firstOrCreate(
                 ['email' => $userData['email']],
                 [
                     'name' => $userData['name'],

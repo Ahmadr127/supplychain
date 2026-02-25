@@ -82,6 +82,7 @@
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Jml Item</th>
                     <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Nilai CapEx</th>
                     <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Terpakai</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-orange-500 uppercase tracking-wider">Diajukan</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Utilisasi</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Aksi</th>
@@ -102,6 +103,16 @@
                     </td>
                     <td class="px-4 py-3 text-right text-sm font-medium text-gray-600">
                         Rp {{ number_format($capex->total_used, 0, ',', '.') }}
+                    </td>
+                    @php
+                        $totalPending = $capex->items()->sum('pending_amount');
+                    @endphp
+                    <td class="px-4 py-3 text-right text-sm">
+                        @if($totalPending > 0)
+                            <span class="text-orange-600 font-medium">Rp {{ number_format($totalPending, 0, ',', '.') }}</span>
+                        @else
+                            <span class="text-gray-300">—</span>
+                        @endif
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2">

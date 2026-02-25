@@ -102,7 +102,11 @@ class CapexController extends Controller
     {
         $capex->load(['department', 'creator']);
 
-        $itemsQuery = $capex->items();
+        $itemsQuery = $capex->items()->with([
+            'activeAllocations.approvalRequest',
+            'activeAllocations.approvalRequestItem.masterItem',
+            'activeAllocations.allocator',
+        ]);
 
         if ($request->filled('search')) {
             $search = '%' . $request->search . '%';
@@ -300,16 +304,20 @@ class CapexController extends Controller
 
         $items = $capex->items()
             ->available()
-            ->select('id', 'capex_id_number', 'item_name', 'category', 'budget_amount', 'used_amount')
+            ->select('id', 'capex_id_number', 'item_name', 'category', 'budget_amount', 'used_amount', 'pending_amount')
             ->get()
             ->map(function ($item) {
+                $available = max(0, (float) $item->budget_amount - (float) $item->used_amount - (float) $item->pending_amount);
                 return [
-                    'id' => $item->id,
-                    'capex_id_number' => $item->capex_id_number,
-                    'item_name' => $item->item_name,
-                    'category' => $item->category,
-                    'budget_amount' => $item->budget_amount,
-                    'remaining_amount' => $item->remaining_amount,
+                    'id'               => $item->id,
+                    'capex_id_number'  => $item->capex_id_number,
+                    'item_name'        => $item->item_name,
+                    'category'         => $item->category,
+                    'budget_amount'    => $item->budget_amount,
+                    'used_amount'      => $item->used_amount,
+                    'pending_amount'   => $item->pending_amount,
+                    'available_amount' => $available,
+                    'remaining_amount' => $available, // compat alias
                 ];
             });
 
