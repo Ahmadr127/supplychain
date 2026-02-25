@@ -64,7 +64,7 @@
     {{-- Budget Info Display --}}
     <div id="{{ $name }}_info" class="hidden mt-2 p-2 bg-blue-50 rounded-md border border-blue-200">
         <div class="flex justify-between items-center text-xs">
-            <span class="text-gray-600">Total Budget:</span>
+            <span class="text-gray-600">Nilai CapEx:</span>
             <span id="{{ $name }}_total" class="font-semibold text-gray-900">-</span>
         </div>
         <div class="flex justify-between items-center text-xs mt-1">

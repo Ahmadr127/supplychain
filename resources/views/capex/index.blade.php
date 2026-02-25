@@ -3,17 +3,23 @@
 @section('title', 'Master CapEx')
 
 @section('content')
-<div class="container mx-auto px-4 py-6">
+<div>
     {{-- Header --}}
     <div class="flex justify-between items-center mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Master CapEx</h1>
             <p class="text-sm text-gray-600">Kelola Anggaran CapEx per Departemen</p>
         </div>
-        <a href="{{ route('capex.create') }}" 
-            class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors">
-            <i class="fas fa-plus mr-2"></i>Buat CapEx Baru
-        </a>
+        <div class="flex gap-2">
+            <a href="{{ route('capex.import.upload-form-all') }}" 
+                class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors">
+                <i class="fas fa-file-excel mr-2"></i>Import Semua Unit
+            </a>
+            <a href="{{ route('capex.create') }}" 
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors">
+                <i class="fas fa-plus mr-2"></i>Buat CapEx Baru
+            </a>
+        </div>
     </div>
 
     {{-- Filters --}}
@@ -21,15 +27,16 @@
         <form method="GET" class="flex flex-wrap gap-4 items-end">
             <div class="w-64">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Departemen</label>
-                <select name="department_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
-                    <option value="">Semua Departemen</option>
-                    @foreach($departments as $dept)
-                        <option value="{{ $dept->id }}" {{ request('department_id') == $dept->id ? 'selected' : '' }}>
-                            {{ $dept->name }} ({{ $dept->code }})
-                        </option>
-                    @endforeach
-                </select>
+                <x-searchable-select
+                    name="department_id"
+                    :options="$departments->map(fn($d) => ['id' => $d->id, 'label' => $d->name . ' (' . $d->code . ')'])"
+                    :selected="request('department_id')"
+                    placeholder="Semua Departemen"
+                    search-placeholder="Cari departemen..."
+                    width="w-72"
+                />
             </div>
+
             <div class="w-32">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Tahun</label>
                 <select name="year" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
@@ -48,30 +55,42 @@
                     <option value="closed" {{ request('status') === 'closed' ? 'selected' : '' }}>Closed</option>
                 </select>
             </div>
+            <div class="flex-1 min-w-48">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Pencarian</label>
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari nama/kode departemen..."
+                        class="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
             <button type="submit" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md text-sm">
                 <i class="fas fa-filter mr-1"></i>Filter
             </button>
         </form>
     </div>
 
+    {{-- Search box sudah dipindah ke dalam filter form di atas --}}
+
     {{-- Table --}}
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-10">No.</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Departemen</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Tahun</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Jml Item</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Budget</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Nilai CapEx</th>
                     <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Terpakai</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Utilisasi</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Aksi</th>
                 </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
+            <tbody class="bg-white divide-y divide-gray-200" id="capexTableBody">
                 @forelse($capexes as $capex)
                 <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-center text-sm text-gray-500">{{ $loop->iteration + ($capexes->currentPage() - 1) * $capexes->perPage() }}</td>
                     <td class="px-4 py-3">
                         <div class="font-medium text-gray-900">{{ $capex->department->name }}</div>
                         <div class="text-xs text-gray-500">{{ $capex->department->code }}</div>
@@ -119,7 +138,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
                         <i class="fas fa-folder-open text-3xl mb-2"></i>
                         <p>Belum ada data CapEx</p>
                     </td>
@@ -136,4 +155,10 @@
     </div>
     @endif
 </div>
+
+@push('scripts')
+<script>
+    // search dipindah ke server-side, tidak perlu JS filter
+</script>
+@endpush
 @endsection

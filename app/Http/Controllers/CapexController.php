@@ -14,7 +14,9 @@ class CapexController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Capex::with(['department', 'items']);
+        $query = Capex::with(['department', 'items'])
+            ->join('departments', 'capexes.department_id', '=', 'departments.id')
+            ->select('capexes.*');
 
         // Filter by year
         if ($request->filled('year')) {
@@ -26,16 +28,26 @@ class CapexController extends Controller
 
         // Filter by department
         if ($request->filled('department_id')) {
-            $query->where('department_id', $request->department_id);
+            $query->where('capexes.department_id', $request->department_id);
         }
 
         // Filter by status
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('capexes.status', $request->status);
         }
 
-        $capexes = $query->orderBy('department_id')
-            ->paginate(20);
+        // Search by department name or code
+        if ($request->filled('search')) {
+            $search = '%' . $request->search . '%';
+            $query->where(function ($q) use ($search) {
+                $q->where('departments.name', 'like', $search)
+                  ->orWhere('departments.code', 'like', $search);
+            });
+        }
+
+        $capexes = $query->orderBy('departments.name')
+            ->paginate(20)
+            ->withQueryString();
 
         $departments = Department::where('code', '!=', 'DIR')->orderBy('name')->get();
         $years = Capex::distinct()->pluck('fiscal_year')->sort()->reverse();
@@ -86,10 +98,26 @@ class CapexController extends Controller
     /**
      * Display the specified capex with its items
      */
-    public function show(Capex $capex)
+    public function show(Request $request, Capex $capex)
     {
-        $capex->load(['department', 'items', 'creator']);
-        return view('capex.show', compact('capex'));
+        $capex->load(['department', 'creator']);
+
+        $itemsQuery = $capex->items();
+
+        if ($request->filled('search')) {
+            $search = '%' . $request->search . '%';
+            $itemsQuery->where(function ($q) use ($search) {
+                $q->where('capex_id_number', 'like', $search)
+                  ->orWhere('item_name', 'like', $search)
+                  ->orWhere('pic', 'like', $search)
+                  ->orWhere('category', 'like', $search)
+                  ->orWhere('description', 'like', $search);
+            });
+        }
+
+        $items = $itemsQuery->orderBy('priority_scale')->orderBy('id')->paginate(25)->withQueryString();
+
+        return view('capex.show', compact('capex', 'items'));
     }
 
     /**
@@ -168,16 +196,24 @@ class CapexController extends Controller
     public function storeItem(Request $request, Capex $capex)
     {
         $validated = $request->validate([
-            'item_name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:500',
-            'category' => 'nullable|string|max:100',
-            'budget_amount' => 'required|string',
+            'item_name'      => 'required|string|max:255',
+            'description'    => 'nullable|string|max:500',
+            'category'       => 'nullable|string|max:100',
+            'capex_type'     => 'nullable|in:New,Replacement',
+            'priority_scale' => 'nullable|integer|in:1,2,3',
+            'month'          => 'nullable|string|max:20',
+            'budget_amount'  => 'required|string',
+            'amount_per_year'=> 'nullable|string',
+            'pic'            => 'nullable|string|max:100',
         ]);
 
-        // Parse budget amount
+        // Parse amounts
         $validated['budget_amount'] = (float) str_replace('.', '', $validated['budget_amount']);
-        
-        // Generate CapEx ID Number
+        if (!empty($validated['amount_per_year'])) {
+            $validated['amount_per_year'] = (float) str_replace('.', '', $validated['amount_per_year']);
+        }
+
+        // Generate CapEx ID Number in new format: {seq}/CapEx/{year}/{dept_code}
         $deptCode = $capex->department->code;
         $validated['capex_id_number'] = CapexItem::generateIdNumber($deptCode, $capex->fiscal_year);
         $validated['capex_id'] = $capex->id;
@@ -196,15 +232,19 @@ class CapexController extends Controller
     public function updateItem(Request $request, CapexItem $item)
     {
         $validated = $request->validate([
-            'item_name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:500',
-            'category' => 'nullable|string|max:100',
-            'budget_amount' => 'required|string',
+            'item_name'      => 'required|string|max:255',
+            'description'    => 'nullable|string|max:500',
+            'category'       => 'nullable|string|max:100',
+            'capex_type'     => 'nullable|in:New,Replacement',
+            'priority_scale' => 'nullable|integer|in:1,2,3',
+            'month'          => 'nullable|string|max:20',
+            'budget_amount'  => 'required|string',
+            'amount_per_year'=> 'nullable|string',
+            'pic'            => 'nullable|string|max:100',
         ]);
 
-        // Parse budget amount
         $newBudget = (float) str_replace('.', '', $validated['budget_amount']);
-        
+
         // Ensure new budget >= used amount
         if ($newBudget < $item->used_amount) {
             return back()->withErrors([
@@ -213,6 +253,9 @@ class CapexController extends Controller
         }
 
         $validated['budget_amount'] = $newBudget;
+        if (!empty($validated['amount_per_year'])) {
+            $validated['amount_per_year'] = (float) str_replace('.', '', $validated['amount_per_year']);
+        }
 
         $item->update($validated);
 

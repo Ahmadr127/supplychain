@@ -3,9 +3,8 @@
 @section('title', 'Edit CapEx')
 
 @section('content')
-<div class="container mx-auto px-4 py-6">
-    <div class="max-w-2xl mx-auto">
-        {{-- Header --}}
+<div class="max-w-2xl">
+    {{-- Header --}}
         <div class="flex items-center gap-2 text-sm text-gray-600 mb-4">
             <a href="{{ route('capex.index') }}" class="hover:text-blue-600">Master CapEx</a>
             <span>/</span>
@@ -82,6 +81,5 @@
                 </div>
             </form>
         </div>
-    </div>
 </div>
 @endsection

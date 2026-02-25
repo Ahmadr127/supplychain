@@ -8,16 +8,20 @@ use Illuminate\Support\Facades\Auth;
 
 class CheckPermission
 {
-    public function handle(Request $request, Closure $next, $permission)
+    public function handle(Request $request, Closure $next, string $permission)
     {
         if (!Auth::check()) {
             return redirect('/login');
         }
 
-        if (!Auth::user()->hasPermission($permission)) {
-            abort(403, 'Unauthorized action.');
+        // Support multiple permissions with | separator (user needs ANY one of them)
+        $permissions = explode('|', $permission);
+        foreach ($permissions as $perm) {
+            if (Auth::user()->hasPermission(trim($perm))) {
+                return $next($request);
+            }
         }
 
-        return $next($request);
+        abort(403, 'Unauthorized action.');
     }
 }

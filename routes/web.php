@@ -156,25 +156,7 @@ Route::middleware('auth')->group(function () {
         Route::resource('suppliers', SupplierController::class);
     });
 
-    // CapEx Management routes (budget per department per year)
-    Route::middleware('permission:manage_capex')->group(function () {
-        Route::get('capex', [\App\Http\Controllers\CapexController::class, 'index'])->name('capex.index');
-        Route::get('capex/create', [\App\Http\Controllers\CapexController::class, 'create'])->name('capex.create');
-        Route::post('capex', [\App\Http\Controllers\CapexController::class, 'store'])->name('capex.store');
-        Route::get('capex/{capex}', [\App\Http\Controllers\CapexController::class, 'show'])->name('capex.show');
-        Route::get('capex/{capex}/edit', [\App\Http\Controllers\CapexController::class, 'edit'])->name('capex.edit');
-        Route::put('capex/{capex}', [\App\Http\Controllers\CapexController::class, 'update'])->name('capex.update');
-        Route::delete('capex/{capex}', [\App\Http\Controllers\CapexController::class, 'destroy'])->name('capex.destroy');
-        
-        // CapEx Items
-        Route::post('capex/{capex}/items', [\App\Http\Controllers\CapexController::class, 'storeItem'])->name('capex.items.store');
-        Route::put('capex/items/{item}', [\App\Http\Controllers\CapexController::class, 'updateItem'])->name('capex.items.update');
-        Route::delete('capex/items/{item}', [\App\Http\Controllers\CapexController::class, 'destroyItem'])->name('capex.items.destroy');
-        
-        // API: Get available capex items for department
-        Route::get('api/capex/available-items', [\App\Http\Controllers\CapexController::class, 'getAvailableItems'])->name('api.capex.available-items');
-        Route::get('api/capex/items/available', [\App\Http\Controllers\CapexController::class, 'getAvailableItems'])->name('api.capex.items.available');
-    });
+
 
     // Release Requests routes (for viewing items in release phase)
     // Release Requests routes (for viewing items in release phase)
@@ -283,4 +265,57 @@ Route::middleware('auth')->group(function () {
         Route::get('/logs/{history}',    [ImportController::class, 'logs'])->name('logs');
         Route::get('/progress/{history}',[ImportController::class, 'progress'])->name('progress');
     });
+
+    // -----------------------------------------------------------------------
+    // CapEx Import Routes (Admin all-units + per-unit)
+    // Shared mapping/preview/run accessible to both admin and unit users
+    // MUST BE DEFINED BEFORE CapEx Admin Routes to prevent '{capex}' wildcard from catching 'import'
+    // -----------------------------------------------------------------------
+    Route::prefix('capex/import')->name('capex.import.')->group(function () {
+        // Admin: import for all units
+        Route::middleware('permission:manage_capex')->group(function () {
+            Route::get('/',        [\App\Http\Controllers\CapexImportController::class, 'uploadFormAll'])->name('upload-form-all');
+            Route::post('/upload', [\App\Http\Controllers\CapexImportController::class, 'uploadAll'])->name('upload-all');
+        });
+
+        // Per-unit import (admin or unit managers)
+        Route::get('/unit/{capex}',        [\App\Http\Controllers\CapexImportController::class, 'uploadForm'])->name('upload-unit');
+        Route::post('/unit/{capex}/upload', [\App\Http\Controllers\CapexImportController::class, 'upload'])->name('upload');
+
+        // Shared steps (mapping, preview, run)
+        Route::get('/mapping',    [\App\Http\Controllers\CapexImportController::class, 'mapping'])->name('mapping');
+        Route::post('/mapping',   [\App\Http\Controllers\CapexImportController::class, 'saveMapping'])->name('save-mapping');
+        Route::get('/preview',    [\App\Http\Controllers\CapexImportController::class, 'preview'])->name('preview');
+        Route::post('/run',       [\App\Http\Controllers\CapexImportController::class, 'run'])->name('run');
+    });
+
+    // -----------------------------------------------------------------------
+    // CapEx Admin Routes
+    // -----------------------------------------------------------------------
+    Route::middleware('permission:manage_capex')->prefix('capex')->name('capex.')->group(function () {
+        Route::get('/',                    [\App\Http\Controllers\CapexController::class, 'index'])->name('index');
+        Route::get('/create',              [\App\Http\Controllers\CapexController::class, 'create'])->name('create');
+        Route::post('/',                   [\App\Http\Controllers\CapexController::class, 'store'])->name('store');
+        Route::get('/{capex}',             [\App\Http\Controllers\CapexController::class, 'show'])->name('show');
+        Route::get('/{capex}/edit',        [\App\Http\Controllers\CapexController::class, 'edit'])->name('edit');
+        Route::patch('/{capex}',           [\App\Http\Controllers\CapexController::class, 'update'])->name('update');
+        Route::delete('/{capex}',          [\App\Http\Controllers\CapexController::class, 'destroy'])->name('destroy');
+        Route::post('/{capex}/items',      [\App\Http\Controllers\CapexController::class, 'storeItem'])->name('items.store');
+        Route::patch('/items/{item}',      [\App\Http\Controllers\CapexController::class, 'updateItem'])->name('items.update');
+        Route::delete('/items/{item}',     [\App\Http\Controllers\CapexController::class, 'destroyItem'])->name('items.destroy');
+        Route::get('/api/available-items', [\App\Http\Controllers\CapexController::class, 'getAvailableItems'])->name('api.available-items');
+    });
+
+    // -----------------------------------------------------------------------
+    // CapEx Unit-Level CRUD (for department/unit users)
+    // -----------------------------------------------------------------------
+    Route::middleware('permission:manage_capex_unit|manage_capex')->prefix('unit/capex')->name('unit.capex.')->group(function () {
+        Route::get('/',                  [\App\Http\Controllers\CapexUnitController::class, 'index'])->name('index');
+        Route::get('/create',            [\App\Http\Controllers\CapexUnitController::class, 'create'])->name('create');
+        Route::post('/',                 [\App\Http\Controllers\CapexUnitController::class, 'store'])->name('store');
+        Route::get('/{item}/edit',       [\App\Http\Controllers\CapexUnitController::class, 'edit'])->name('edit');
+        Route::patch('/{item}',          [\App\Http\Controllers\CapexUnitController::class, 'update'])->name('update');
+        Route::delete('/{item}',         [\App\Http\Controllers\CapexUnitController::class, 'destroy'])->name('destroy');
+    });
 });
+

@@ -3,7 +3,7 @@
 @section('title', 'Detail CapEx')
 
 @section('content')
-<div class="container mx-auto px-4 py-6">
+<div>
     {{-- Header --}}
     <div class="flex justify-between items-center mb-6">
         <div>
@@ -18,6 +18,10 @@
         </div>
         <div class="flex gap-2">
             @if(auth()->user()->hasPermission('manage_capex'))
+            <a href="{{ route('capex.import.upload-unit', $capex) }}"
+               class="bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors">
+                <i class="fas fa-file-import mr-2"></i>Import Excel
+            </a>
             <form action="{{ route('capex.destroy', $capex) }}" method="POST" onsubmit="return confirm('Yakin hapus CapEx ini beserta semua itemnya?')">
                 @csrf
                 @method('DELETE')
@@ -114,55 +118,86 @@
 
     {{-- Items Table --}}
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-            <h3 class="font-semibold text-gray-900">Daftar Item CapEx</h3>
-            <span class="bg-gray-200 text-gray-700 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                {{ $capex->items->count() }} Item
-            </span>
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <h3 class="font-semibold text-gray-900">Daftar Item CapEx</h3>
+                <span class="bg-gray-200 text-gray-700 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                    {{ $capex->items()->count() }} Item
+                </span>
+            </div>
+            <form method="GET" action="{{ route('capex.show', $capex) }}" class="flex items-center gap-2">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari ID, nama, PIC..."
+                        class="pl-9 pr-4 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                    <i class="fas fa-search"></i>
+                </button>
+                @if(request('search'))
+                <a href="{{ route('capex.show', $capex) }}" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">
+                    <i class="fas fa-times"></i>
+                </a>
+                @endif
+            </form>
         </div>
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item & Kategori</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Terpakai</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Sisa</th>
-                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">No.</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID CapEx</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Prioritas</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulan</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount/Thn</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Nilai CapEx</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Terpakai</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PIC</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     @if(auth()->user()->hasPermission('manage_capex'))
-                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                     @endif
                 </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                @forelse($capex->items as $item)
+            <tbody class="bg-white divide-y divide-gray-200" id="showCapexTableBody">
+                @forelse($items as $item)
                 <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-mono font-medium text-blue-600">
-                        {{ $item->capex_id_number }}
-                    </td>
-                    <td class="px-6 py-4">
+                    <td class="px-4 py-3 text-center text-xs text-gray-500 whitespace-nowrap">{{ $loop->iteration + ($items->currentPage() - 1) * $items->perPage() }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-xs font-mono text-blue-600">{{ $item->capex_id_number }}</td>
+                    <td class="px-4 py-3">
                         <div class="text-sm font-medium text-gray-900">{{ $item->item_name }}</div>
-                        <div class="text-xs text-gray-500">{{ $item->category ?? '-' }}</div>
-                        @if($item->description)
-                        <div class="text-xs text-gray-500 mt-1 italic">{{ Str::limit($item->description, 50) }}</div>
-                        @endif
+                        @if($item->category)<div class="text-xs text-gray-400">{{ $item->category }}</div>@endif
+                        @if($item->description)<div class="text-xs text-gray-400 italic">{{ Str::limit($item->description, 40) }}</div>@endif
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                    <td class="px-4 py-3 text-center">
+                        @if($item->capex_type)
+                            <span class="inline-block px-2 py-0.5 text-xs rounded-full {{ $item->capex_type === 'New' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700' }}">{{ $item->capex_type }}</span>
+                        @else —@endif
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        @if($item->priority_scale)
+                            <span class="inline-block px-2 py-0.5 text-xs font-bold rounded-full {{ $item->priority_scale == 1 ? 'bg-red-100 text-red-700' : ($item->priority_scale == 2 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600') }}">P{{ $item->priority_scale }}</span>
+                        @else —@endif
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-500">{{ $item->month ?? '—' }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-500">
+                        {{ $item->amount_per_year ? 'Rp '.number_format($item->amount_per_year,0,',','.') : '—' }}
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium text-gray-900">
                         Rp {{ number_format($item->budget_amount, 0, ',', '.') }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
                         Rp {{ number_format($item->used_amount, 0, ',', '.') }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium {{ $item->remaining_amount > 0 ? 'text-green-600' : 'text-red-600' }}">
-                        Rp {{ number_format($item->remaining_amount, 0, ',', '.') }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                    <td class="px-4 py-3 text-xs text-gray-500">{{ $item->pic ?? '—' }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center">
                         @php
                             $itemStatusColors = [
-                                'available' => 'bg-green-100 text-green-800',
+                                'available'      => 'bg-green-100 text-green-800',
                                 'partially_used' => 'bg-yellow-100 text-yellow-800',
-                                'exhausted' => 'bg-red-100 text-red-800',
-                                'cancelled' => 'bg-gray-100 text-gray-800',
+                                'exhausted'      => 'bg-red-100 text-red-800',
+                                'cancelled'      => 'bg-gray-100 text-gray-800',
                             ];
                         @endphp
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $itemStatusColors[$item->status] ?? 'bg-gray-100 text-gray-800' }}">
@@ -170,9 +205,9 @@
                         </span>
                     </td>
                     @if(auth()->user()->hasPermission('manage_capex'))
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
                         <div class="flex justify-center gap-2">
-                            <button onclick="editItem({{ $item->id }}, '{{ $item->item_name }}', '{{ $item->category }}', '{{ $item->description }}', '{{ number_format($item->budget_amount, 0, ',', '.') }}')" 
+                            <button onclick="editItem({{ $item->id }}, '{{ addslashes($item->item_name) }}', '{{ $item->capex_type }}', '{{ $item->priority_scale }}', '{{ $item->month }}', '{{ addslashes($item->category) }}', '{{ addslashes($item->pic) }}', '{{ addslashes($item->description) }}', '{{ number_format($item->budget_amount, 0, ',', '.') }}', '{{ $item->amount_per_year ? number_format($item->amount_per_year, 0, ',', '.') : '' }}')" 
                                 class="text-indigo-600 hover:text-indigo-900" title="Edit Item">
                                 <i class="fas fa-edit"></i>
                             </button>
@@ -192,17 +227,25 @@
                 @empty
                 <tr>
                     <td colspan="7" class="px-6 py-8 text-center text-gray-500">
-                        <p>Belum ada item dalam CapEx ini.</p>
-                        @if($capex->status === 'active' && auth()->user()->hasPermission('manage_capex'))
-                        <button onclick="document.getElementById('addItemModal').classList.remove('hidden')" class="text-blue-600 hover:underline mt-2">
-                            Tambah Item Sekarang
-                        </button>
+                        @if(request('search'))
+                            <p>Tidak ada item yang sesuai dengan pencarian "{{ request('search') }}".</p>
+                            <a href="{{ route('capex.show', $capex) }}" class="text-blue-600 hover:underline mt-2 inline-block">Hapus pencarian</a>
+                        @else
+                            <p>Belum ada item dalam CapEx ini.</p>
+                            @if($capex->status === 'active' && auth()->user()->hasPermission('manage_capex'))
+                            <button onclick="document.getElementById('addItemModal').classList.remove('hidden')" class="text-blue-600 hover:underline mt-2">
+                                Tambah Item Sekarang
+                            </button>
+                            @endif
                         @endif
                     </td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
+        <div class="px-4 py-3 border-t border-gray-100">
+            {{ $items->links() }}
+        </div>
     </div>
 </div>
 
@@ -217,30 +260,58 @@
         </div>
         <form action="{{ route('capex.items.store', $capex) }}" method="POST">
             @csrf
-            <div class="space-y-4">
+            <div class="space-y-3">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Item</label>
-                    <input type="text" name="item_name" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Item <span class="text-red-500">*</span></label>
+                    <input type="text" name="item_name" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kategori (Tipe)</label>
+                        <select name="capex_type" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">— Pilih —</option>
+                            <option value="New">New</option>
+                            <option value="Replacement">Replacement</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Skala Prioritas</label>
+                        <select name="priority_scale" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">—</option>
+                            <option value="1">1 — Tinggi</option>
+                            <option value="2">2 — Sedang</option>
+                            <option value="3">3 — Rendah</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Bulan</label>
+                        <select name="month" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">—</option>
+                            @foreach(['January','February','March','April','May','June','July','August','September','October','November','December'] as $m)
+                                <option value="{{ $m }}">{{ $m }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kode Instalasi</label>
+                        <input type="text" name="category" placeholder="e.g. I-RI" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount/Tahun (Rp)</label>
+                        <input type="text" name="amount_per_year" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 rupiah-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nilai CapEx (Rp) <span class="text-red-500">*</span></label>
+                        <input type="text" name="budget_amount" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 rupiah-input">
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
-                    <input type="text" name="category" list="categories" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                    <datalist id="categories">
-                        <option value="Infrastructure">
-                        <option value="Hardware">
-                        <option value="Software">
-                        <option value="Furniture">
-                        <option value="Office Equipment">
-                        <option value="Medical Equipment">
-                    </datalist>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">PIC</label>
+                    <input type="text" name="pic" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Budget (Rp)</label>
-                    <input type="text" name="budget_amount" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 rupiah-input">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
-                    <textarea name="description" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
+                    <textarea name="description" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
@@ -262,23 +333,59 @@
         </div>
         <form id="editItemForm" method="POST">
             @csrf
-            @method('PUT')
-            <div class="space-y-4">
+            @method('PATCH')
+            <div class="space-y-3">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Item</label>
-                    <input type="text" name="item_name" id="edit_item_name" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Item <span class="text-red-500">*</span></label>
+                    <input type="text" name="item_name" id="edit_item_name" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kategori (Tipe)</label>
+                        <select name="capex_type" id="edit_capex_type" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">— Pilih —</option>
+                            <option value="New">New</option>
+                            <option value="Replacement">Replacement</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Skala Prioritas</label>
+                        <select name="priority_scale" id="edit_priority_scale" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">—</option>
+                            <option value="1">1 — Tinggi</option>
+                            <option value="2">2 — Sedang</option>
+                            <option value="3">3 — Rendah</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Bulan</label>
+                        <select name="month" id="edit_month" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">—</option>
+                            @foreach(['January','February','March','April','May','June','July','August','September','October','November','December'] as $m)
+                                <option value="{{ $m }}">{{ $m }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kode Instalasi</label>
+                        <input type="text" name="category" id="edit_category" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount/Tahun (Rp)</label>
+                        <input type="text" name="amount_per_year" id="edit_amount_per_year" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 rupiah-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nilai CapEx (Rp) <span class="text-red-500">*</span></label>
+                        <input type="text" name="budget_amount" id="edit_budget_amount" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 rupiah-input">
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
-                    <input type="text" name="category" id="edit_category" list="categories" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">PIC</label>
+                    <input type="text" name="pic" id="edit_pic" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Budget (Rp)</label>
-                    <input type="text" name="budget_amount" id="edit_budget_amount" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 rupiah-input">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
-                    <textarea name="description" id="edit_description" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
+                    <textarea name="description" id="edit_description" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
@@ -297,6 +404,10 @@
         });
     });
 
+    function filterShowCapexTable() {
+        // search dipindah ke server-side
+    }
+
     function formatRupiah(angka, prefix) {
         var number_string = angka.replace(/[^,\d]/g, '').toString(),
             split = number_string.split(','),
@@ -313,12 +424,17 @@
         return prefix == undefined ? rupiah : (rupiah ? 'Rp. ' + rupiah : '');
     }
 
-    function editItem(id, name, category, description, budget) {
+    function editItem(id, name, capexType, priorityScale, month, category, pic, description, budget, amountPerYear) {
         document.getElementById('editItemForm').action = `/capex/items/${id}`;
-        document.getElementById('edit_item_name').value = name;
-        document.getElementById('edit_category').value = category;
-        document.getElementById('edit_description').value = description;
+        document.getElementById('edit_item_name').value    = name;
+        document.getElementById('edit_capex_type').value   = capexType;
+        document.getElementById('edit_priority_scale').value = priorityScale;
+        document.getElementById('edit_month').value        = month;
+        document.getElementById('edit_category').value     = category;
+        document.getElementById('edit_pic').value          = pic;
+        document.getElementById('edit_description').value  = description;
         document.getElementById('edit_budget_amount').value = budget;
+        document.getElementById('edit_amount_per_year').value = amountPerYear;
         document.getElementById('editItemModal').classList.remove('hidden');
     }
 </script>

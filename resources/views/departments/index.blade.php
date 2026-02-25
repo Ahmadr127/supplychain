@@ -42,11 +42,20 @@
                 <i class="fas fa-building text-blue-600"></i>
                 <span class="text-sm font-medium text-gray-700">Total: {{ $departments->total() }} departments</span>
             </div>
-            <a href="{{ route('departments.create') }}" 
-               class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-lg transition-colors duration-200 flex items-center space-x-2 text-sm">
-                <i class="fas fa-plus"></i>
-                <span>Tambah Department</span>
-            </a>
+            <div class="flex items-center space-x-2">
+                @if(auth()->user()->hasPermission('manage_import'))
+                <a href="{{ route('import.index') }}" 
+                   class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg transition-colors duration-200 flex items-center space-x-2 text-sm">
+                    <i class="fas fa-file-import"></i>
+                    <span>Import Data</span>
+                </a>
+                @endif
+                <a href="{{ route('departments.create') }}" 
+                   class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-lg transition-colors duration-200 flex items-center space-x-2 text-sm">
+                    <i class="fas fa-plus"></i>
+                    <span>Tambah Department</span>
+                </a>
+            </div>
         </div>
     </div>
 

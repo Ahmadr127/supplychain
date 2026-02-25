@@ -15,6 +15,11 @@ class CapexItem extends Model
         'item_name',
         'description',
         'category',
+        'priority_scale',
+        'month',
+        'amount_per_year',
+        'capex_type',
+        'pic',
         'budget_amount',
         'used_amount',
         'status',
@@ -124,19 +129,19 @@ class CapexItem extends Model
     /**
      * Generate next CapEx ID Number
      */
+    /**
+     * Generate next CapEx ID Number in format: {seq}/CapEx/{year}/{dept_code}
+     * e.g. 7/CapEx/2026/I-RI
+     */
     public static function generateIdNumber(string $deptCode, int $year): string
     {
-        $prefix = "CAPEX-{$deptCode}-{$year}";
-        
-        $lastItem = self::where('capex_id_number', 'like', "{$prefix}-%")
-            ->orderByDesc('id')
-            ->first();
-        
-        $sequence = 1;
-        if ($lastItem && preg_match("/{$prefix}-(\d+)/", $lastItem->capex_id_number, $matches)) {
-            $sequence = (int) $matches[1] + 1;
-        }
-        
-        return sprintf('%s-%03d', $prefix, $sequence);
+        // Count existing items for this dept+year to determine next sequence
+        $count = self::whereHas('capex', function ($q) use ($deptCode, $year) {
+            $q->where('fiscal_year', $year)
+              ->whereHas('department', fn($d) => $d->where('code', $deptCode));
+        })->count();
+
+        $seq = $count + 1;
+        return "{$seq}/CapEx/{$year}/{$deptCode}";
     }
 }

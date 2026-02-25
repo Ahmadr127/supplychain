@@ -233,22 +233,7 @@
                         </x-sidebar-dropdown-menu>
                     @endif
 
-                    {{-- Config Dropdown (Settings only) --}}
-                    @if(auth()->user()->hasPermission('manage_settings'))
-                        <x-sidebar-dropdown-menu 
-                            title="Config" 
-                            icon="fa-tools" 
-                            routePrefix="settings.*"
-                            defaultOpen="false">
-                            <x-sidebar-menu-item 
-                                route="settings.index" 
-                                icon="fa-cog" 
-                                label="Pengaturan" 
-                                routeMatch="settings.*"
-                            />
-                        </x-sidebar-dropdown-menu>
-                    @endif
-
+                    {{-- removed config menu --}}
 
                 </ul>
 
@@ -319,30 +304,32 @@
                     @endif
 
                 {{-- CapEx Dropdown --}}
-                @if(auth()->user()->hasPermission('manage_capex'))
+                @if(auth()->user()->hasPermission('manage_capex') || auth()->user()->hasPermission('manage_capex_unit'))
                     <x-sidebar-dropdown-menu 
                         title="CapEx" 
                         icon="fa-wallet" 
                         routePrefix="capex.*"
                         defaultOpen="false">
+                        @if(auth()->user()->hasPermission('manage_capex'))
                         <x-sidebar-menu-item 
                             route="capex.index" 
                             icon="fa-list-ol" 
                             label="CapEx ID Numbers" 
                             routeMatch="capex.*"
                         />
+                        @endif
+                        @if(auth()->user()->hasPermission('manage_capex_unit'))
+                        <x-sidebar-menu-item 
+                            route="unit.capex.index" 
+                            icon="fa-wallet" 
+                            label="CapEx Unit Saya" 
+                            routeMatch="unit.capex.*"
+                        />
+                        @endif
                     </x-sidebar-dropdown-menu>
                 @endif
 
-                {{-- Import Engine --}}
-                @if(auth()->user()->hasPermission('manage_import'))
-                    <x-sidebar-menu-item 
-                        route="import.index" 
-                        icon="fa-file-import" 
-                        label="Import Data" 
-                        routeMatch="import.*"
-                    />
-                @endif
+
 
             </nav>
         </div>
