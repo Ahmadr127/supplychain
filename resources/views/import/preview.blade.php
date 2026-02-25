@@ -124,9 +124,9 @@
                             <td colspan="20" class="text-center py-8 text-gray-400">Tidak ada data untuk dipreview.</td>
                         </tr>
                     @endforelse
-                \u003c/tbody\u003e
-            \u003c/table\u003e
-        \u003c/div\u003e
+                </tbody>
+            </table>
+        </div>
 
         {{-- Pagination Footer --}}
         @php
