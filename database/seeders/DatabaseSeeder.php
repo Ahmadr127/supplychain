@@ -27,7 +27,7 @@ class DatabaseSeeder extends Seeder
             WorkflowRoleUserSeeder::class,  // Create roles & users for workflow
             DynamicWorkflowSeeder::class,
             ManagerPtAndDirectorPtSeeder::class, // Helper seeder for Manager & Director PT
-            //CapexSeeder::class,  // CapEx data per department
+            CapexSeeder::class,  // CapEx data per department
             ImportPermissionSeeder::class,
             CapexUnitPermissionSeeder::class,
             
