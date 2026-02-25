@@ -27,7 +27,8 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_submission_types', 'display_name' => 'Kelola Jenis Pengajuan', 'description' => 'Mengelola jenis pengajuan (Barang/Jasa/Program Kerja)'],
 
             ['name' => 'manage_purchasing', 'display_name' => 'Kelola Purchasing', 'description' => 'Mengelola proses purchasing per item'],
-            ['name' => 'manage_capex', 'display_name' => 'Kelola CapEx', 'description' => 'Mengelola CapEx ID Numbers dan budget'],
+            ['name' => 'manage_capex', 'display_name' => 'Kelola CapEx', 'description' => 'Mengelola CapEx ID Numbers dan budget (Admin only)'],
+            ['name' => 'manage_capex_unit', 'display_name' => 'Kelola CapEx Unit', 'description' => 'Melihat dan mengelola item CapEx untuk unit/departemen sendiri'],
             ['name' => 'manage_settings', 'display_name' => 'Kelola Pengaturan', 'description' => 'Mengelola pengaturan aplikasi'],
             
             // New Permissions for Release and Purchasing separation
@@ -108,7 +109,7 @@ class RolePermissionSeeder extends Seeder
                 'view_my_approvals',
                 'approval',
                 'manage_approvals',
-                'manage_capex',
+                'manage_capex_unit',
                 'view_pending_release',
                 'view_dashboard',
             ])->get()
@@ -119,7 +120,7 @@ class RolePermissionSeeder extends Seeder
                 'view_my_approvals',
                 'approval',
                 'manage_approvals',
-                'manage_capex',
+                'manage_capex_unit',
                 'view_pending_release',
                 'view_dashboard',
             ])->get()
@@ -131,7 +132,7 @@ class RolePermissionSeeder extends Seeder
                 'approval',
                 'manage_approvals',
                 'manage_vendor',
-                'manage_capex',
+                'manage_capex_unit',
                 'view_release_requests',
                 'view_pending_release',
                 'view_process_purchasing',
@@ -162,9 +163,8 @@ class RolePermissionSeeder extends Seeder
                 'view_my_approvals',
                 'approval',
                 'view_dashboard',
- 
                 'manage_purchasing',
-                'manage_capex',
+                'manage_capex_unit',
                 'view_pending_release',
                 'view_process_purchasing',
                 'process_purchasing_item',
