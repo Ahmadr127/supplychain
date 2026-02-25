@@ -322,7 +322,7 @@
                         <x-sidebar-menu-item 
                             route="unit.capex.index" 
                             icon="fa-wallet" 
-                            label="Cap Ex Unit Saya" 
+                            label="Cap Ex Unit" 
                             routeMatch="unit.capex.*"
                         />
                         @endif
