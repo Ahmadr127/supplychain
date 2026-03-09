@@ -101,8 +101,20 @@
                         class="w-full rounded-xl bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-3.5 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-green-500/50"
                     >
                         <i class="fas fa-sign-in-alt mr-2"></i>
-                        Masuk
                     </button>
+
+                    <!-- Divider -->
+                    <div class="relative flex items-center justify-center mt-6 mb-4">
+                        <span class="absolute inset-x-0 h-px bg-gray-200"></span>
+                        <span class="relative bg-white px-4 text-sm text-gray-400">Atau login dengan</span>
+                    </div>
+
+                    <!-- SSO Button -->
+                    <a href="{{ route('auth.sso.redirect') }}" 
+                        class="w-full rounded-xl border border-gray-300 bg-white text-gray-700 font-bold py-3.5 shadow-sm hover:bg-gray-50 hover:shadow transition-all duration-200 flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-gray-100">
+                        <i class="fas fa-shield-alt mr-2 text-green-600"></i>
+                        Single Sign-On (SSO)
+                    </a>
                 </form>
 
                 <!-- Footer -->

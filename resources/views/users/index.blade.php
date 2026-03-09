@@ -30,7 +30,7 @@
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                            Nama
+                            Nama/NIK
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                             Username
@@ -63,6 +63,7 @@
                                 </div>
                                 <div class="ml-4 min-w-0">
                                     <div class="text-sm font-medium text-gray-900 truncate">{{ $user->name }}</div>
+                                    <div class="text-xs text-gray-500 truncate">{{ $user->nik ?: 'Tanpa NIK' }}</div>
                                 </div>
                             </div>
                         </td>

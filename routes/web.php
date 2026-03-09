@@ -60,9 +60,98 @@ Route::middleware('guest')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
 });
 
+// SSO Routes
+Route::get('/auth/sso/redirect', function (\Illuminate\Http\Request $request) {
+    $state = \Illuminate\Support\Str::random(40);
+    $request->session()->put('sso_state', $state);
+
+    $query = http_build_query([
+        'client_id'     => env('SSO_CLIENT_ID'),
+        'redirect_uri'  => env('SSO_REDIRECT_URI'),
+        'response_type' => 'code',
+        'scope'         => '',
+        'state'         => $state,
+    ]);
+
+    return redirect(env('SSO_BASE_URL') . '/oauth/authorize?' . $query);
+})->middleware('web')->name('auth.sso.redirect');
+
+Route::get('/auth/sso/callback', function (\Illuminate\Http\Request $request) {
+    // Validate state (CSRF protection) 
+    if ($request->state && session('sso_state')) {
+        abort_if($request->state !== session('sso_state'), 419, 'Invalid SSO state.');
+    }
+
+    // Exchange auth code with access token
+    $tokenResponse = \Illuminate\Support\Facades\Http::asForm()
+        ->withoutVerifying()
+        ->post(env('SSO_BASE_URL') . '/oauth/token', [
+            'grant_type'    => 'authorization_code',
+            'client_id'     => env('SSO_CLIENT_ID'),
+            'client_secret' => env('SSO_CLIENT_SECRET'),
+            'redirect_uri'  => env('SSO_REDIRECT_URI'),
+            'code'          => $request->code,
+        ]);
+
+    if (! $tokenResponse->successful()) {
+        $body = $tokenResponse->json();
+        $errDetail = $body['error_description']
+            ?? $body['error']
+            ?? $body['message']
+            ?? ('HTTP ' . $tokenResponse->status() . ' — ' . json_encode($body));
+
+        \Illuminate\Support\Facades\Log::error('SSO token exchange failed', [
+            'status' => $tokenResponse->status(),
+            'body'   => $body,
+        ]);
+
+        return redirect('/login')->withErrors([
+            'sso' => 'Gagal mendapatkan token dari SSO: ' . $errDetail,
+        ]);
+    }
+
+    $accessToken = $tokenResponse->json('access_token');
+
+    // Fetch user data from SSO using access token
+    $ssoUser = \Illuminate\Support\Facades\Http::withToken($accessToken)
+        ->get(env('SSO_BASE_URL') . '/api/user')
+        ->json();
+
+    if (empty($ssoUser['email'])) {
+        return redirect('/login')->withErrors(['sso' => 'Gagal mengambil data user dari SSO.']);
+    }
+
+    // Find local user by email or username
+    $localUser = \App\Models\User::where('email', $ssoUser['email'])->first()
+        ?? \App\Models\User::where('username', $ssoUser['username'] ?? '')->first();
+
+    if ($localUser) {
+        // Update existing user data
+        $localUser->update([
+            'name'  => $ssoUser['name'],
+            'email' => $ssoUser['email'],
+        ]);
+    } else {
+        // Create new user if not exists
+        $localUser = \App\Models\User::create([
+            'name'     => $ssoUser['name'],
+            'email'    => $ssoUser['email'],
+            'username' => $ssoUser['username'] ?? null,
+            'password' => bcrypt(\Illuminate\Support\Str::random(32)),
+        ]);
+    }
+
+    // Local login & session regenerate
+    \Illuminate\Support\Facades\Auth::login($localUser, remember: true);
+    $request->session()->regenerate();
+
+    return redirect()->intended('/dashboard');
+})->middleware('web')->name('auth.sso.callback');
+
 // Protected routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/profile', [\App\Http\Controllers\ProfileController::class, 'index'])->name('profile');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     
     // User Management routes
