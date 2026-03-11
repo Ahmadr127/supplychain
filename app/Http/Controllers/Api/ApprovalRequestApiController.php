@@ -24,13 +24,13 @@ class ApprovalRequestApiController extends Controller
      */
     public function index(Request $request)
     {
-        $query = ApprovalRequest::with(['user', 'department', 'items'])
+        $query = ApprovalRequest::with(['requester', 'items'])
             ->orderBy('created_at', 'desc');
 
         if ($request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('request_number', 'like', "%{$request->search}%")
-                  ->orWhereHas('user', fn($u) => $u->where('name', 'like', "%{$request->search}%"));
+                  ->orWhereHas('requester', fn($u) => $u->where('name', 'like', "%{$request->search}%"));
             });
         }
 
@@ -50,8 +50,8 @@ class ApprovalRequestApiController extends Controller
      */
     public function myRequests(Request $request)
     {
-        $query = ApprovalRequest::with(['user', 'department', 'items'])
-            ->where('user_id', Auth::id())
+        $query = ApprovalRequest::with(['requester', 'items'])
+            ->where('requester_id', Auth::id())
             ->orderBy('created_at', 'desc');
 
         if ($request->status) $query->where('status', $request->status);
@@ -71,7 +71,7 @@ class ApprovalRequestApiController extends Controller
     {
         $user = Auth::user();
 
-        $query = ApprovalRequest::with(['user', 'department', 'items.steps'])
+        $query = ApprovalRequest::with(['requester', 'items.steps'])
             ->whereHas('items.steps', function ($q) use ($user) {
                 $q->where('status', 'pending')
                   ->where(function ($sq) use ($user) {
@@ -98,7 +98,7 @@ class ApprovalRequestApiController extends Controller
      */
     public function show(ApprovalRequest $approvalRequest)
     {
-        $approvalRequest->load(['user', 'department', 'items.masterItem', 'items.steps.approverUser']);
+        $approvalRequest->load(['requester', 'items.masterItem', 'items.steps.approver']);
 
         $userId = Auth::id();
 
@@ -125,8 +125,7 @@ class ApprovalRequestApiController extends Controller
             'data'   => [
                 'id'             => $approvalRequest->id,
                 'request_number' => $approvalRequest->request_number,
-                'user'           => $approvalRequest->user,
-                'department'     => $approvalRequest->department,
+                'requester'      => $approvalRequest->requester,
                 'status'         => $approvalRequest->status,
                 'notes'          => $approvalRequest->notes,
                 'created_at'     => $approvalRequest->created_at,
@@ -151,7 +150,7 @@ class ApprovalRequestApiController extends Controller
     private function formatStepFull($step): array
     {
         return array_merge($this->formatStep($step), [
-            'approved_by'     => $step->approverUser?->name,
+            'approved_by'     => $step->approver?->name,
             'approved_at'     => $step->approved_at,
             'comments'        => $step->comments,
             'rejected_reason' => $step->rejected_reason,
