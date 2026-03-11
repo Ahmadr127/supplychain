@@ -116,7 +116,7 @@ Route::get('/auth/sso/callback', function (\Illuminate\Http\Request $request) {
     try {
         $ssoUserResponse = \Illuminate\Support\Facades\Http::withToken($accessToken)
             ->get(env('SSO_BASE_URL') . '/api/user');
-        $ssoUser = $ssoUserResponse->json();
+        $ssoUser = $ssoUserResponse->json('data') ?? $ssoUserResponse->json();
 
         if (empty($ssoUser['email'])) {
             $errorBody = $ssoUserResponse->body();
