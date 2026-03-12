@@ -54,12 +54,30 @@ class ApprovalItemApiController extends Controller
         $currentStep = $item->getCurrentPendingStep();
         $userId      = Auth::id();
 
+        $needsPriceInput = false;
+        $needsCapexInput = false;
+        $needsFsUpload = false;
+
+        if ($currentStep) {
+            $needsPriceInput = $currentStep->required_action === 'input_price' && (is_null($item->unit_price) || $item->unit_price <= 0);
+            $needsCapexInput = $currentStep->required_action === 'input_price';
+            
+            if ($currentStep->required_action === 'verify_budget') {
+                $total = $item->quantity * ($item->unit_price ?? 0);
+                $threshold = $currentStep->condition_value ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
+                $needsFsUpload = $total >= $threshold;
+            }
+        }
+
         return response()->json([
             'status' => 'success',
             'data'   => [
                 'item_id'      => $item->id,
                 'item_status'  => $item->status,
                 'can_approve'  => $currentStep ? $currentStep->canApprove($userId) : false,
+                'needs_price_input' => $needsPriceInput,
+                'needs_capex_input' => $needsCapexInput,
+                'needs_fs_upload' => $needsFsUpload,
                 'current_step' => $currentStep ? [
                     'id'              => $currentStep->id,
                     'step_number'     => $currentStep->step_number,
@@ -279,6 +297,21 @@ class ApprovalItemApiController extends Controller
 
     private function formatItem(ApprovalRequestItem $item, $currentStep, int $userId): array
     {
+        $needsPriceInput = false;
+        $needsCapexInput = false;
+        $needsFsUpload = false;
+
+        if ($currentStep) {
+            $needsPriceInput = $currentStep->required_action === 'input_price' && (is_null($item->unit_price) || $item->unit_price <= 0);
+            $needsCapexInput = $currentStep->required_action === 'input_price';
+            
+            if ($currentStep->required_action === 'verify_budget') {
+                $total = $item->quantity * ($item->unit_price ?? 0);
+                $threshold = $currentStep->condition_value ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
+                $needsFsUpload = $total >= $threshold;
+            }
+        }
+
         return [
             'id'              => $item->id,
             'master_item'     => $item->masterItem,
@@ -287,8 +320,13 @@ class ApprovalItemApiController extends Controller
             'unit_price'      => $item->unit_price,
             'total_price'     => $item->total_price,
             'status'          => $item->status,
+            'fs_document'     => $item->fs_document,
+            'capex_item_id'   => $item->capex_item_id,
             'rejected_reason' => $item->rejected_reason,
             'can_approve'     => $currentStep ? $currentStep->canApprove($userId) : false,
+            'needs_price_input' => $needsPriceInput,
+            'needs_capex_input' => $needsCapexInput,
+            'needs_fs_upload' => $needsFsUpload,
             'current_step'    => $currentStep ? [
                 'id'              => $currentStep->id,
                 'step_number'     => $currentStep->step_number,
