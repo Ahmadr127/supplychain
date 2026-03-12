@@ -31,7 +31,7 @@ class ApprovalItemApiController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Item tidak ditemukan dalam request ini.'], 404);
         }
 
-        $item->load(['masterItem', 'steps.approverUser']);
+        $item->load(['masterItem', 'steps.approver']);
         $currentStep = $item->getCurrentPendingStep();
         $userId      = Auth::id();
 
@@ -217,7 +217,7 @@ class ApprovalItemApiController extends Controller
             $approvalRequest->refreshStatus();
             DB::commit();
 
-            $item->load(['masterItem', 'steps.approverUser']);
+            $item->load(['masterItem', 'steps.approver']);
 
             return response()->json([
                 'status'  => 'success',
@@ -281,7 +281,7 @@ class ApprovalItemApiController extends Controller
             $approvalRequest->refreshStatus();
             DB::commit();
 
-            $item->load(['masterItem', 'steps.approverUser']);
+            $item->load(['masterItem', 'steps.approver']);
 
             return response()->json([
                 'status'  => 'success',
@@ -343,7 +343,7 @@ class ApprovalItemApiController extends Controller
                 'step_phase'      => $s->step_phase,
                 'required_action' => $s->required_action,
                 'status'          => $s->status,
-                'approved_by'     => $s->approverUser?->name,
+                'approved_by'     => $s->approver?->name,
                 'approved_at'     => $s->approved_at,
                 'comments'        => $s->comments,
                 'rejected_reason' => $s->rejected_reason,

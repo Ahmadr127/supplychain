@@ -71,7 +71,7 @@ class ApprovalRequestApiController extends Controller
         // Check if user is a manager of any department
         $isManager = $user->departments()->wherePivot('is_manager', true)->exists();
 
-        $allRequests = ApprovalRequest::with(['requester', 'items.steps.approverUser'])
+        $allRequests = ApprovalRequest::with(['requester', 'items.steps.approver'])
             ->whereHas('items.steps', function ($q) use ($user, $isManager) {
                 // Must be an eligible approver for the step
                 $q->where(function ($sq) use ($user, $isManager) {
