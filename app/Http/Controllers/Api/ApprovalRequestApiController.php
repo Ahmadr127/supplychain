@@ -63,32 +63,80 @@ class ApprovalRequestApiController extends Controller
         ]);
     }
 
-    /**
-     * GET /api/approval-requests/pending
-     * Requests that have items waiting for approval from the current user.
-     */
     public function pending(Request $request)
     {
         $user = Auth::user();
+        $userId = $user->id;
 
-        $query = ApprovalRequest::with(['requester', 'items.steps'])
+        $allRequests = ApprovalRequest::with(['requester', 'items.steps.approverUser'])
             ->whereHas('items.steps', function ($q) use ($user) {
-                $q->where('status', 'pending')
-                  ->where(function ($sq) use ($user) {
-                      $sq->where(fn($s) => $s->where('approver_type', 'user')->where('approver_id', $user->id))
-                         ->orWhere(fn($s) => $s->where('approver_type', 'role')->where('approver_role_id', $user->role_id))
-                         ->orWhere(fn($s) => $s->where('approver_type', 'department')->where('approver_department_id', $user->department_id ?? null));
-                  });
+                // Must be an eligible approver for the step
+                $q->where(function ($sq) use ($user) {
+                    $sq->where(fn($s) => $s->where('approver_type', 'user')->where('approver_id', $user->id))
+                       ->orWhere(fn($s) => $s->where('approver_type', 'role')->where('approver_role_id', $user->role_id))
+                       ->orWhere(fn($s) => $s->where('approver_type', 'department')->where('approver_department_id', $user->department_id ?? null));
+                })
+                // And the step is either pending OR actioned by me
+                ->where(function ($sq) use ($user) {
+                    $sq->where('status', 'pending')
+                       ->orWhere('approver_id', $user->id);
+                });
             })
-            ->orderBy('created_at', 'desc');
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-        if ($request->search) {
-            $query->where('request_number', 'like', "%{$request->search}%");
+        $filtered = $allRequests->map(function ($req) use ($userId) {
+            $myItems = $req->items->filter(function ($item) use ($userId) {
+                $step = $item->getCurrentPendingStep();
+                $isPendingForMe = $step && $step->canApprove($userId);
+                
+                $hasActioned = $item->steps->contains(function ($s) use ($userId) {
+                    return $s->approver_id === $userId && in_array($s->status, ['approved', 'rejected']);
+                });
+                
+                return $isPendingForMe || $hasActioned;
+            });
+
+            if ($myItems->isEmpty()) return null;
+
+            $isPending = $myItems->contains(fn($i) => $i->getCurrentPendingStep() && $i->getCurrentPendingStep()->canApprove($userId));
+            $isRejected = $myItems->contains(fn($i) => clone $i->steps->where('approver_id', $userId)->where('status', 'rejected')->isNotEmpty());
+            
+            $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');
+
+            $req->status = $computedStatus;
+            $req->setRelation('items', $myItems);
+            return $req;
+        })->filter();
+
+        if ($request->filled('status') && $request->status !== 'all') {
+            $filtered = $filtered->where('status', $request->status);
         }
+
+        if ($request->filled('search')) {
+            $search = strtolower($request->search);
+            $filtered = $filtered->filter(function($req) use ($search) {
+                return str_contains(strtolower($req->request_number), $search)
+                    || str_contains(strtolower($req->requester->name ?? ''), $search);
+            });
+        }
+
+        $filtered = $filtered->values();
+
+        $perPage = (int)$request->get('per_page', 15);
+        $page = (int)$request->get('page', 1);
+
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
+            $filtered->forPage($page, $perPage)->values(),
+            $filtered->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
         return response()->json([
             'status' => 'success',
-            'data'   => $query->paginate($request->get('per_page', 15)),
+            'data'   => $paginator,
         ]);
     }
 
