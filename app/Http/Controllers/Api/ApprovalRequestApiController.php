@@ -68,13 +68,25 @@ class ApprovalRequestApiController extends Controller
         $user = Auth::user();
         $userId = $user->id;
 
+        // Check if user is a manager of any department
+        $isManager = $user->departments()->wherePivot('is_manager', true)->exists();
+
         $allRequests = ApprovalRequest::with(['requester', 'items.steps.approverUser'])
-            ->whereHas('items.steps', function ($q) use ($user) {
+            ->whereHas('items.steps', function ($q) use ($user, $isManager) {
                 // Must be an eligible approver for the step
-                $q->where(function ($sq) use ($user) {
+                $q->where(function ($sq) use ($user, $isManager) {
                     $sq->where(fn($s) => $s->where('approver_type', 'user')->where('approver_id', $user->id))
                        ->orWhere(fn($s) => $s->where('approver_type', 'role')->where('approver_role_id', $user->role_id))
                        ->orWhere(fn($s) => $s->where('approver_type', 'department')->where('approver_department_id', $user->department_id ?? null));
+                    
+                    if ($isManager) {
+                        $sq->orWhereIn('approver_type', [
+                            'department_manager',
+                            'requester_department_manager',
+                            'allocation_department_manager',
+                            'any_department_manager'
+                        ]);
+                    }
                 })
                 // And the step is either pending OR actioned by me
                 ->where(function ($sq) use ($user) {
@@ -100,7 +112,7 @@ class ApprovalRequestApiController extends Controller
             if ($myItems->isEmpty()) return null;
 
             $isPending = $myItems->contains(fn($i) => $i->getCurrentPendingStep() && $i->getCurrentPendingStep()->canApprove($userId));
-            $isRejected = $myItems->contains(fn($i) => clone $i->steps->where('approver_id', $userId)->where('status', 'rejected')->isNotEmpty());
+            $isRejected = $myItems->contains(fn($i) => $i->steps->where('approver_id', $userId)->where('status', 'rejected')->isNotEmpty());
             
             $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');
 
