@@ -60,7 +60,7 @@ class ApprovalItemApiController extends Controller
 
         if ($currentStep) {
             $needsPriceInput = $currentStep->required_action === 'input_price' && (is_null($item->unit_price) || $item->unit_price <= 0);
-            $needsCapexInput = $currentStep->required_action === 'input_price';
+            $needsCapexInput = $currentStep->required_action === 'select_capex';
             
             if ($currentStep->required_action === 'verify_budget') {
                 $total = $item->quantity * ($item->unit_price ?? 0);
@@ -303,7 +303,7 @@ class ApprovalItemApiController extends Controller
 
         if ($currentStep) {
             $needsPriceInput = $currentStep->required_action === 'input_price' && (is_null($item->unit_price) || $item->unit_price <= 0);
-            $needsCapexInput = $currentStep->required_action === 'input_price';
+            $needsCapexInput = $currentStep->required_action === 'select_capex';
             
             if ($currentStep->required_action === 'verify_budget') {
                 $total = $item->quantity * ($item->unit_price ?? 0);
