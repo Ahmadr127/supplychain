@@ -166,6 +166,10 @@ class ApprovalRequestApiController extends Controller
         ]);
 
         $userId = Auth::id();
+        $requester = $approvalRequest->requester;
+        $primaryDept = $requester
+            ? $requester->departments()->wherePivot('is_primary', true)->first()
+            : null;
 
         $items = $approvalRequest->items->map(function ($item) use ($userId) {
             $currentStep = $item->getCurrentPendingStep();
@@ -234,7 +238,9 @@ class ApprovalRequestApiController extends Controller
             'data'   => [
                 'id'             => $approvalRequest->id,
                 'request_number' => $approvalRequest->request_number,
-                'requester'      => $approvalRequest->requester,
+                'requester'      => $requester,
+                'department'     => $primaryDept,
+                'department_id'  => $primaryDept?->id,
                 'status'         => $approvalRequest->status,
                 'notes'          => $approvalRequest->notes,
                 'created_at'     => $approvalRequest->created_at,
