@@ -158,12 +158,43 @@ class ApprovalRequestApiController extends Controller
      */
     public function show(ApprovalRequest $approvalRequest)
     {
-        $approvalRequest->load(['requester', 'items.masterItem', 'items.steps.approver']);
+        $approvalRequest->load([
+            'requester',
+            'items.masterItem',
+            'items.steps.approver',
+            'items.capexItem',
+        ]);
 
         $userId = Auth::id();
 
         $items = $approvalRequest->items->map(function ($item) use ($userId) {
             $currentStep = $item->getCurrentPendingStep();
+
+            $needsPriceInput = false;
+            $needsCapexInput = false;
+            $needsFsUpload   = false;
+
+            if ($currentStep) {
+                $isInputPriceStep  = $currentStep->required_action === 'input_price';
+                $isSelectCapexStep = $currentStep->required_action === 'select_capex';
+
+                $needsPriceInput = $isInputPriceStep
+                    && (is_null($item->unit_price) || $item->unit_price <= 0);
+
+                // Sama dengan API per-item: pada langkah input_price, dropdown Capex
+                // perlu tersedia supaya approver bisa memilih antara Capex vs Non‑Capex.
+                $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
+
+                if ($currentStep->required_action === 'verify_budget') {
+                    $total     = $item->quantity * ($item->unit_price ?? 0);
+                    $threshold = $currentStep->condition_value
+                        ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
+                    $needsFsUpload = $total >= $threshold;
+                }
+            }
+
+            $fundingSource = $item->capex_item_id ? 'capex' : 'non_capex';
+            $capex         = $item->capexItem;
 
             return [
                 'id'              => $item->id,
@@ -173,8 +204,26 @@ class ApprovalRequestApiController extends Controller
                 'unit_price'      => $item->unit_price,
                 'total_price'     => $item->total_price,
                 'status'          => $item->status,
+                'fs_document'     => $item->fs_document,
+                'capex_item_id'   => $item->capex_item_id,
+                'funding_source'  => $fundingSource,
+                'capex_item'      => $capex ? [
+                    'id'               => $capex->id,
+                    'capex_id_number'  => $capex->capex_id_number,
+                    'item_name'        => $capex->item_name,
+                    'category'         => $capex->category,
+                    'capex_type'       => $capex->capex_type,
+                    'priority_scale'   => $capex->priority_scale,
+                    'budget_amount'    => (float) $capex->budget_amount,
+                    'used_amount'      => (float) $capex->used_amount,
+                    'pending_amount'   => (float) $capex->pending_amount,
+                    'available_amount' => $capex->available_amount,
+                ] : null,
                 'rejected_reason' => $item->rejected_reason,
                 'can_approve'     => $currentStep ? $currentStep->canApprove($userId) : false,
+                'needs_price_input' => $needsPriceInput,
+                'needs_capex_input' => $needsCapexInput,
+                'needs_fs_upload'   => $needsFsUpload,
                 'current_step'    => $currentStep ? $this->formatStep($currentStep) : null,
                 'steps'           => $item->steps->map(fn($s) => $this->formatStepFull($s)),
             ];
