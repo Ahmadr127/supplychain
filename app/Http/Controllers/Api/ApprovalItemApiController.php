@@ -31,7 +31,7 @@ class ApprovalItemApiController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Item tidak ditemukan dalam request ini.'], 404);
         }
 
-        $item->load(['masterItem', 'steps.approver']);
+        $item->load(['masterItem', 'steps.approver', 'capexItem']);
         $currentStep = $item->getCurrentPendingStep();
         $userId      = Auth::id();
 
@@ -59,8 +59,16 @@ class ApprovalItemApiController extends Controller
         $needsFsUpload = false;
 
         if ($currentStep) {
-            $needsPriceInput = $currentStep->required_action === 'input_price' && (is_null($item->unit_price) || $item->unit_price <= 0);
-            $needsCapexInput = $currentStep->required_action === 'select_capex';
+            $isInputPriceStep  = $currentStep->required_action === 'input_price';
+            $isSelectCapexStep = $currentStep->required_action === 'select_capex';
+
+            $needsPriceInput = $isInputPriceStep && (is_null($item->unit_price) || $item->unit_price <= 0);
+
+            // Pada fase input harga, user bisa memilih sumber anggaran:
+            // - Gunakan Capex  → pilih capex_item_id
+            // - Non‑Capex      → input manual tanpa capex_item_id
+            // Di mobile, dropdown Capex perlu muncul di langkah input_price.
+            $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
             
             if ($currentStep->required_action === 'verify_budget') {
                 $total = $item->quantity * ($item->unit_price ?? 0);
@@ -302,8 +310,14 @@ class ApprovalItemApiController extends Controller
         $needsFsUpload = false;
 
         if ($currentStep) {
-            $needsPriceInput = $currentStep->required_action === 'input_price' && (is_null($item->unit_price) || $item->unit_price <= 0);
-            $needsCapexInput = $currentStep->required_action === 'select_capex';
+            $isInputPriceStep  = $currentStep->required_action === 'input_price';
+            $isSelectCapexStep = $currentStep->required_action === 'select_capex';
+
+            $needsPriceInput = $isInputPriceStep && (is_null($item->unit_price) || $item->unit_price <= 0);
+
+            // Sama seperti di status(): pada langkah input_price, dropdown Capex
+            // perlu tersedia supaya approver bisa memilih antara Capex vs Non‑Capex.
+            $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
             
             if ($currentStep->required_action === 'verify_budget') {
                 $total = $item->quantity * ($item->unit_price ?? 0);
@@ -311,6 +325,13 @@ class ApprovalItemApiController extends Controller
                 $needsFsUpload = $total >= $threshold;
             }
         }
+
+        // Informasi sumber anggaran saat ini:
+        // - 'capex'     jika sudah terhubung ke capex_item_id
+        // - 'non_capex' jika belum terhubung ke Capex (manual / OpEx)
+        $fundingSource = $item->capex_item_id ? 'capex' : 'non_capex';
+
+        $capex = $item->capexItem;
 
         return [
             'id'              => $item->id,
@@ -322,6 +343,19 @@ class ApprovalItemApiController extends Controller
             'status'          => $item->status,
             'fs_document'     => $item->fs_document,
             'capex_item_id'   => $item->capex_item_id,
+            'funding_source'  => $fundingSource,
+            'capex_item'      => $capex ? [
+                'id'               => $capex->id,
+                'capex_id_number'  => $capex->capex_id_number,
+                'item_name'        => $capex->item_name,
+                'category'         => $capex->category,
+                'capex_type'       => $capex->capex_type,
+                'priority_scale'   => $capex->priority_scale,
+                'budget_amount'    => (float) $capex->budget_amount,
+                'used_amount'      => (float) $capex->used_amount,
+                'pending_amount'   => (float) $capex->pending_amount,
+                'available_amount' => $capex->available_amount,
+            ] : null,
             'rejected_reason' => $item->rejected_reason,
             'can_approve'     => $currentStep ? $currentStep->canApprove($userId) : false,
             'needs_price_input' => $needsPriceInput,
