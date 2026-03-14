@@ -15,9 +15,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Update status enum to include new phases
-        // MySQL ALTER ENUM approach
-        \DB::statement("ALTER TABLE approval_request_items MODIFY COLUMN status ENUM('pending', 'on progress', 'in_purchasing', 'in_release', 'approved', 'rejected', 'cancelled') DEFAULT 'pending'");
+        \DB::statement("ALTER TABLE approval_request_items DROP CONSTRAINT IF EXISTS approval_request_items_status_check");
+        \DB::statement("ALTER TABLE approval_request_items ALTER COLUMN status TYPE VARCHAR(255)");
+        \DB::statement("ALTER TABLE approval_request_items ADD CONSTRAINT approval_request_items_status_check CHECK (status IN ('pending', 'on progress', 'in_purchasing', 'in_release', 'approved', 'rejected', 'cancelled'))");
+        \DB::statement("ALTER TABLE approval_request_items ALTER COLUMN status SET DEFAULT 'pending'");
     }
 
     /**
@@ -25,7 +26,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Revert to original status values
-        \DB::statement("ALTER TABLE approval_request_items MODIFY COLUMN status ENUM('pending', 'on progress', 'approved', 'rejected', 'cancelled') DEFAULT 'pending'");
+        \DB::statement("ALTER TABLE approval_request_items DROP CONSTRAINT IF EXISTS approval_request_items_status_check");
+        \DB::statement("ALTER TABLE approval_request_items ADD CONSTRAINT approval_request_items_status_check CHECK (status IN ('pending', 'on progress', 'approved', 'rejected', 'cancelled'))");
     }
 };

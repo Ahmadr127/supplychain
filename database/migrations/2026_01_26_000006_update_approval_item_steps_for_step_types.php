@@ -46,8 +46,10 @@ return new class extends Migration
         });
         
         // Update status enum to include 'skipped' and 'pending_purchase' (for release phase waiting)
-        // Note: MySQL ALTER ENUM is tricky, using raw SQL
-        \DB::statement("ALTER TABLE approval_item_steps MODIFY COLUMN status ENUM('pending', 'pending_purchase', 'approved', 'rejected', 'skipped') DEFAULT 'pending'");
+        \DB::statement("ALTER TABLE approval_item_steps DROP CONSTRAINT IF EXISTS approval_item_steps_status_check");
+        \DB::statement("ALTER TABLE approval_item_steps ALTER COLUMN status TYPE VARCHAR(255)");
+        \DB::statement("ALTER TABLE approval_item_steps ADD CONSTRAINT approval_item_steps_status_check CHECK (status IN ('pending', 'pending_purchase', 'approved', 'rejected', 'skipped'))");
+        \DB::statement("ALTER TABLE approval_item_steps ALTER COLUMN status SET DEFAULT 'pending'");
     }
 
     /**
@@ -56,7 +58,8 @@ return new class extends Migration
     public function down(): void
     {
         // Revert status enum first (remove pending_purchase and skipped)
-        \DB::statement("ALTER TABLE approval_item_steps MODIFY COLUMN status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending'");
+        \DB::statement("ALTER TABLE approval_item_steps DROP CONSTRAINT IF EXISTS approval_item_steps_status_check");
+        \DB::statement("ALTER TABLE approval_item_steps ADD CONSTRAINT approval_item_steps_status_check CHECK (status IN ('pending', 'approved', 'rejected'))");
         
         Schema::table('approval_item_steps', function (Blueprint $table) {
             $table->dropForeign(['selected_capex_id']);

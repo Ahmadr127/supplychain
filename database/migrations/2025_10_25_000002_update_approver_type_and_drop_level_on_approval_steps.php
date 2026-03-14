@@ -9,15 +9,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Migrate existing rows using deprecated type 'department_level' to a safe type
         if (Schema::hasTable('approval_steps')) {
-            DB::statement("UPDATE `approval_steps` SET `approver_type` = 'requester_department_manager' WHERE `approver_type` = 'department_level'");
+            DB::statement("UPDATE approval_steps SET approver_type = 'requester_department_manager' WHERE approver_type = 'department_level'");
         }
 
-        // Update enum to add any_department_manager and remove department_level
-        DB::statement("ALTER TABLE `approval_steps` MODIFY `approver_type` ENUM('user','role','department_manager','requester_department_manager','any_department_manager') NOT NULL");
+        DB::statement("ALTER TABLE approval_steps DROP CONSTRAINT IF EXISTS approval_steps_approver_type_check");
+        DB::statement("ALTER TABLE approval_steps ALTER COLUMN approver_type TYPE VARCHAR(255)");
+        DB::statement("ALTER TABLE approval_steps ADD CONSTRAINT approval_steps_approver_type_check CHECK (approver_type IN ('user','role','department_manager','requester_department_manager','any_department_manager'))");
+        DB::statement("ALTER TABLE approval_steps ALTER COLUMN approver_type SET NOT NULL");
 
-        // Drop approver_level column if exists
         if (Schema::hasColumn('approval_steps', 'approver_level')) {
             Schema::table('approval_steps', function (Blueprint $table) {
                 $table->dropColumn('approver_level');
@@ -27,15 +27,13 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Re-add approver_level column
         if (!Schema::hasColumn('approval_steps', 'approver_level')) {
             Schema::table('approval_steps', function (Blueprint $table) {
                 $table->integer('approver_level')->nullable()->after('approver_department_id');
             });
         }
-        // Restore enum back to include department_level and remove any_department_manager
-        DB::statement("ALTER TABLE `approval_steps` MODIFY `approver_type` ENUM('user','role','department_manager','department_level','requester_department_manager') NOT NULL");
 
-        // It's not feasible to restore data precisely for department_level; leave as requester_department_manager
+        DB::statement("ALTER TABLE approval_steps DROP CONSTRAINT IF EXISTS approval_steps_approver_type_check");
+        DB::statement("ALTER TABLE approval_steps ADD CONSTRAINT approval_steps_approver_type_check CHECK (approver_type IN ('user','role','department_manager','department_level','requester_department_manager'))");
     }
 };
