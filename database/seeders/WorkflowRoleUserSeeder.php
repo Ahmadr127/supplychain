@@ -187,11 +187,11 @@ class WorkflowRoleUserSeeder extends Seeder
 
     /**
      * Create users for each role
-     * Note: Demo users have been removed. Real users should be created manually or through DepartmentSeeder.
+     * NOTE: User creation is now handled by OrganizationUsersSeeder
      */
     private function createUsers(array $roles): void
     {
         $this->command->newLine();
-        $this->command->info('👤 Skipping demo user creation (users should be created manually)');
+        $this->command->info('👤 User creation is now handled by OrganizationUsersSeeder');
     }
 }

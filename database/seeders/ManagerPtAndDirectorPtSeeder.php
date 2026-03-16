@@ -93,65 +93,7 @@ class ManagerPtAndDirectorPtSeeder extends Seeder
             $this->command->info("  ✓ Department: {$data['name']}");
         }
 
-        // 4. Create Users
-        $usersData = [
-            [
-                'name' => 'Budi Manager PT',
-                'email' => 'manager.pt@example.com',
-                'username' => 'manager.pt',
-                // 'phone' => '081234567890',
-                'role_key' => 'manager_pt',
-                'department_key' => 'management_pt'
-            ],
-            [
-                'name' => 'Siti Direktur PT',
-                'email' => 'direktur.pt@example.com',
-                'username' => 'direktur.pt',
-                // 'phone' => '081234567891',
-                'role_key' => 'direktur_pt',
-                'department_key' => 'direksi_pt'
-            ]
-        ];
-
-        foreach ($usersData as $userData) {
-            $role = $roles[$userData['role_key']];
-            $department = $departments[$userData['department_key']];
-
-            $user = User::where('email', $userData['email'])->first();
-            
-            // if ($user && $user->trashed()) {
-            //     $user->restore();
-            //     $this->command->info("  ! User restored: {$userData['name']}");
-            // }
-            
-            $user = User::firstOrCreate(
-                ['email' => $userData['email']],
-                [
-                    'name' => $userData['name'],
-                    'username' => $userData['username'],
-                    // 'phone' => $userData['phone'],
-                    'password' => Hash::make('password'), // Default password
-                    'role_id' => $role->id,
-                    'email_verified_at' => now(),
-                ]
-            );
-
-            // Assign Department
-            // Check if pivot exists, if not attach (assume primary and manager for simplicity in this seeder)
-            if (!$user->departments()->where('department_id', $department->id)->exists()) {
-                $user->departments()->attach($department->id, [
-                    'is_primary' => true,
-                    'is_manager' => true // They are managers of their own special departments
-                ]);
-            }
-
-            // Update Department Manager ID
-            $department->manager_id = $user->id;
-            $department->save();
-
-            $this->command->info("  👤 User created/updated: {$userData['name']} ({$role->display_name})");
-        }
-
-        $this->command->info('✅ Manager PT & Direktur PT seeded successfully!');
+        $this->command->info('✅ Manager PT & Direktur PT roles and departments seeded successfully!');
+        $this->command->info('NOTE: User creation is now handled by OrganizationUsersSeeder');
     }
 }

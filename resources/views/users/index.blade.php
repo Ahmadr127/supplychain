@@ -29,22 +29,25 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Nama/NIK
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Username
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Email
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Department
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Role
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Tanggal Dibuat
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Aksi
                         </th>
                     </tr>
@@ -52,7 +55,7 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @foreach($users as $user)
                     <tr>
-                        <td class="px-6 py-4 w-1/6">
+                        <td class="px-6 py-4">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
                                     <div class="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
@@ -63,17 +66,31 @@
                                 </div>
                                 <div class="ml-4 min-w-0">
                                     <div class="text-sm font-medium text-gray-900 truncate">{{ $user->name }}</div>
-                                    <div class="text-xs text-gray-500 truncate">{{ $user->nik ?: 'Tanpa NIK' }}</div>
+                                    <div class="text-xs text-gray-500 truncate">NIK: {{ $user->nik ?: '-' }}</div>
                                 </div>
                             </div>
                         </td>
-                        <td class="px-6 py-4 w-1/6">
+                        <td class="px-6 py-4">
                             <div class="text-sm text-gray-900 truncate">{{ $user->username }}</div>
                         </td>
-                        <td class="px-6 py-4 w-1/4">
+                        <td class="px-6 py-4">
                             <div class="text-sm text-gray-900 truncate">{{ $user->email }}</div>
                         </td>
-                        <td class="px-6 py-4 w-1/6">
+                        <td class="px-6 py-4">
+                            @if($user->departments && $user->departments->count() > 0)
+                                @php
+                                    $primaryDept = $user->departments->where('pivot.is_primary', true)->first();
+                                    $dept = $primaryDept ?: $user->departments->first();
+                                @endphp
+                                <div class="text-sm text-gray-900">{{ $dept->name }}</div>
+                                @if($user->departments->count() > 1)
+                                    <div class="text-xs text-gray-500">+{{ $user->departments->count() - 1 }} lainnya</div>
+                                @endif
+                            @else
+                                <span class="text-gray-400 text-sm">-</span>
+                            @endif
+                        </td>
+                        <td class="px-6 py-4">
                             @if($user->role)
                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
                                     @if($user->role->name === 'admin') bg-red-100 text-red-800
@@ -85,10 +102,10 @@
                                 <span class="text-gray-500">Tidak ada role</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 w-1/6 text-sm text-gray-500">
+                        <td class="px-6 py-4 text-sm text-gray-500">
                             {{ $user->created_at->format('d/m/Y H:i') }}
                         </td>
-                        <td class="px-6 py-4 w-1/6 text-sm font-medium">
+                        <td class="px-6 py-4 text-sm font-medium">
                             <a href="{{ route('users.edit', $user) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
                             @if($user->id !== auth()->id())
                                 <form action="{{ route('users.destroy', $user) }}" method="POST" class="inline">
