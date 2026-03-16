@@ -17,8 +17,8 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 class UserImportController extends Controller
 {
     /**
-     * Extract name without titles/gelar
-     * Takes only the text before the first comma
+     * Extract first and last name only (without middle names and titles)
+     * Takes text before comma, then extracts first and last word
      */
     private function extractNameWithoutTitle($fullName)
     {
@@ -26,7 +26,18 @@ class UserImportController extends Controller
         $parts = explode(',', $fullName);
         $name = trim($parts[0]);
         
-        return $name;
+        // Split by spaces and get first and last word
+        $words = array_filter(explode(' ', $name));
+        $words = array_values($words); // Re-index array
+        
+        if (count($words) == 0) {
+            return '';
+        } elseif (count($words) == 1) {
+            return $words[0];
+        } else {
+            // Return first and last name only
+            return $words[0] . ' ' . $words[count($words) - 1];
+        }
     }
 
     public function showImportForm()
