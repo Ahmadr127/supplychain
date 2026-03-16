@@ -16,6 +16,19 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class UserImportController extends Controller
 {
+    /**
+     * Extract name without titles/gelar
+     * Takes only the text before the first comma
+     */
+    private function extractNameWithoutTitle($fullName)
+    {
+        // Get text before the first comma
+        $parts = explode(',', $fullName);
+        $name = trim($parts[0]);
+        
+        return $name;
+    }
+
     public function showImportForm()
     {
         return view('users.import');
@@ -121,8 +134,9 @@ class UserImportController extends Controller
                         }
                     }
 
-                    // Generate username from name
-                    $username = strtolower(str_replace(' ', '.', preg_replace('/[^A-Za-z0-9\s]/', '', $name)));
+                    // Generate username from name (without titles)
+                    $nameWithoutTitle = $this->extractNameWithoutTitle($name);
+                    $username = strtolower(str_replace(' ', '.', preg_replace('/[^A-Za-z0-9\s]/', '', $nameWithoutTitle)));
                     $baseUsername = $username;
                     $counter = 1;
                     
