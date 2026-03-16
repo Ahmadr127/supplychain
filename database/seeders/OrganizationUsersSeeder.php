@@ -245,17 +245,7 @@ class OrganizationUsersSeeder extends Seeder
                 'role' => $staffRole,
                 'is_manager' => false,
             ],
-            // Additional users for workflow (from old seeders)
-            [
-                'nik' => '99999001',
-                'name' => 'Indah Triyani',
-                'username' => 'indah.triyani',
-                'email' => 'indah.triyani@azra.com',
-                'department_code' => 'PGD',
-                'position' => 'Manager Pengadaan',
-                'role' => $purchasingRole,
-                'is_manager' => true,
-            ],
+           
             [
                 'nik' => '99999002',
                 'name' => 'Admin System',

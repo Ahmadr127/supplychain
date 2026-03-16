@@ -23,6 +23,7 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\PurchasingItemController;
 use App\Http\Controllers\ApprovalRequestItemController;
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\UserImportController;
 
 use App\Http\Controllers\ReleaseRequestController;
 
@@ -164,6 +165,10 @@ Route::middleware('auth')->group(function () {
     // User Management routes
     Route::middleware('permission:manage_users')->group(function () {
         Route::resource('users', UserController::class);
+        // User Import routes
+        Route::get('users-import', [UserImportController::class, 'showImportForm'])->name('users.import');
+        Route::post('users-import', [UserImportController::class, 'import'])->name('users.import.process');
+        Route::get('users-import/template', [UserImportController::class, 'downloadTemplate'])->name('users.import.template');
     });
 
     // Role Management routes
