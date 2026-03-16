@@ -25,13 +25,10 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_items', 'display_name' => 'Kelola Master Barang', 'description' => 'Mengelola master barang dan data pendukungnya'],
             ['name' => 'manage_suppliers', 'display_name' => 'Kelola Supplier', 'description' => 'Mengelola data vendor/supplier'],
             ['name' => 'manage_submission_types', 'display_name' => 'Kelola Jenis Pengajuan', 'description' => 'Mengelola jenis pengajuan (Barang/Jasa/Program Kerja)'],
-
             ['name' => 'manage_purchasing', 'display_name' => 'Kelola Purchasing', 'description' => 'Mengelola proses purchasing per item'],
             ['name' => 'manage_capex', 'display_name' => 'Kelola CapEx', 'description' => 'Mengelola CapEx ID Numbers dan budget (Admin only)'],
             ['name' => 'manage_capex_unit', 'display_name' => 'Kelola CapEx Unit', 'description' => 'Melihat dan mengelola item CapEx untuk unit/departemen sendiri'],
             ['name' => 'manage_settings', 'display_name' => 'Kelola Pengaturan', 'description' => 'Mengelola pengaturan aplikasi'],
-            
-            // New Permissions for Release and Purchasing separation
             ['name' => 'view_release_requests', 'display_name' => 'Lihat Release Requests', 'description' => 'Melihat daftar release requests'],
             ['name' => 'view_pending_release', 'display_name' => 'Lihat Pending Release', 'description' => 'Melihat daftar pending release'],
             ['name' => 'view_process_purchasing', 'display_name' => 'Lihat Process Purchasing', 'description' => 'Melihat menu process purchasing'],
@@ -45,61 +42,62 @@ class RolePermissionSeeder extends Seeder
 
         // Create Roles
         $adminRole = Role::firstOrCreate(['name' => 'admin'], [
-            'name' => 'admin',
             'display_name' => 'Administrator',
             'description' => 'Role dengan akses penuh ke sistem'
         ]);
 
         $technicalExpertRole = Role::firstOrCreate(['name' => 'technical_expert'], [
-            'name' => 'technical_expert',
             'display_name' => 'Technical Expert',
             'description' => 'Ahli teknis di departemen IT'
         ]);
 
         $managerRole = Role::firstOrCreate(['name' => 'manager'], [
-            'name' => 'manager',
             'display_name' => 'Manager',
             'description' => 'Manager departemen'
         ]);
 
         $managerItRole = Role::firstOrCreate(['name' => 'manager_it'], [
-            'name' => 'manager_it',
             'display_name' => 'Manager IT',
             'description' => 'Manager departemen IT'
         ]);
 
         $managerKeuanganRole = Role::firstOrCreate(['name' => 'manager_keuangan'], [
-            'name' => 'manager_keuangan',
             'display_name' => 'Manager Keuangan',
             'description' => 'Manager departemen keuangan'
         ]);
 
         $direkturRole = Role::firstOrCreate(['name' => 'direktur'], [
-            'name' => 'direktur',
             'display_name' => 'Direktur RS',
             'description' => 'Direktur Rumah Sakit'
         ]);
 
-        $userRole = Role::firstOrCreate(['name' => 'user'], [
-            'name' => 'user',
-            'display_name' => 'Pengguna',
-            'description' => 'Role untuk pengguna umum'
+        $staffRole = Role::firstOrCreate(['name' => 'staff'], [
+            'display_name' => 'Staff',
+            'description' => 'Staff dengan akses dasar'
         ]);
 
         $purchasingRole = Role::firstOrCreate(['name' => 'purchasing'], [
-            'name' => 'purchasing',
             'display_name' => 'Purchasing',
             'description' => 'Role untuk staff purchasing'
         ]);
 
+        $kepalaRole = Role::firstOrCreate(['name' => 'kepala'], [
+            'display_name' => 'Kepala',
+            'description' => 'Kepala departemen/unit'
+        ]);
+
+        $presidentRole = Role::firstOrCreate(['name' => 'presiden_komisaris'], [
+            'display_name' => 'Presiden Komisaris',
+            'description' => 'Presiden Komisaris'
+        ]);
+
         // Assign permissions to roles
-        $adminRole->permissions()->sync(Permission::all()); // Admin gets all permissions
+        $adminRole->permissions()->sync(Permission::all());
         
         $technicalExpertRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals',
                 'view_dashboard',
             ])->get()
         );
@@ -108,7 +106,6 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals',
                 'manage_capex_unit',
                 'view_pending_release',
                 'view_dashboard',
@@ -119,7 +116,6 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals',
                 'manage_capex_unit',
                 'view_pending_release',
                 'view_dashboard',
@@ -130,11 +126,8 @@ class RolePermissionSeeder extends Seeder
             Permission::whereIn('name', [
                 'view_my_approvals',
                 'approval',
-                'manage_approvals',
                 'manage_vendor',
                 'manage_capex_unit',
-                // view_release_requests dihapus — Manager Keuangan tidak perlu lihat semua release requests
-                // view_pending_release tetap ada — Manager Keuangan masih bisa lihat pending release miliknya
                 'view_pending_release',
                 'view_process_purchasing',
                 'view_dashboard',
@@ -143,23 +136,18 @@ class RolePermissionSeeder extends Seeder
         
         $direkturRole->permissions()->sync(
             Permission::whereIn('name', [
-                // Hanya bisa menyetujui/menolak approval (Pending Approvals)
-                // TIDAK punya view_my_approvals (no My Requests menu)
-                // TIDAK punya manage_approvals (tidak bisa create request)
                 'approval',
                 'view_dashboard',
             ])->get()
         );
         
-        $userRole->permissions()->sync(
+        $staffRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_my_approvals',
-                'manage_approvals',
                 'view_dashboard',
             ])->get()
         );
         
-        // Purchasing role permissions (aligned to purchasing features)
         $purchasingRole->permissions()->sync(
             Permission::whereIn('name', [
                 'view_my_approvals',
@@ -170,6 +158,26 @@ class RolePermissionSeeder extends Seeder
                 'view_pending_release',
                 'view_process_purchasing',
                 'process_purchasing_item',
+            ])->get()
+        );
+
+        $kepalaRole->permissions()->sync(
+            Permission::whereIn('name', [
+                'view_my_approvals',
+                'approval',
+                'manage_capex_unit',
+                'view_pending_release',
+                'view_dashboard',
+            ])->get()
+        );
+
+        $presidentRole->permissions()->sync(
+            Permission::whereIn('name', [
+                'view_my_approvals',
+                'approval',
+                'manage_capex_unit',
+                'view_pending_release',
+                'view_dashboard',
             ])->get()
         );
     }

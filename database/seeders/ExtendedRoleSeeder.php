@@ -23,7 +23,6 @@ class ExtendedRoleSeeder extends Seeder
         // Get approval permission
         $approvalPerm = Permission::where('name', 'approval')->first();
         $viewMyApprovals = Permission::where('name', 'view_my_approvals')->first();
-        $manageApprovals = Permission::where('name', 'manage_approvals')->first();
         $viewReports = Permission::where('name', 'view_reports')->first();
         $managePurchasing = Permission::where('name', 'manage_purchasing')->first();
         $manageCapex = Permission::where('name', 'manage_capex')->first();
@@ -40,19 +39,19 @@ class ExtendedRoleSeeder extends Seeder
                 'name' => 'manager_pt',
                 'display_name' => 'Manager PT',
                 'description' => 'Manager PT - Approver dan Releaser',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports, $viewPendingRelease, $viewDashboard],
+                'permissions' => [$viewMyApprovals, $approvalPerm, $viewReports, $viewPendingRelease, $viewDashboard],
             ],
             [
                 'name' => 'purchasing',
                 'display_name' => 'Manager Pembelian',
                 'description' => 'Manager Pembelian/Purchasing - Approver dan Releaser',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $managePurchasing, $viewReports, $viewDashboard],
+                'permissions' => [$viewMyApprovals, $approvalPerm, $managePurchasing, $viewReports, $viewDashboard],
             ],
             [
                 'name' => 'direktur_pt',
                 'display_name' => 'Direktur PT',
                 'description' => 'Direktur PT - Final Releaser untuk nominal tinggi (> 50 Juta)',
-                'permissions' => [$viewMyApprovals, $manageApprovals, $approvalPerm, $viewReports, $viewDashboard],
+                'permissions' => [$viewMyApprovals, $approvalPerm, $viewReports, $viewDashboard],
             ],
             
             // Note: SPH role is part of Purchasing flow, not approval workflow

@@ -50,7 +50,15 @@ class UserImportController extends Controller
 
             $imported = 0;
             $errors = [];
-            $staffPermissions = Permission::whereIn('name', ['view_dashboard'])->pluck('id')->toArray();
+            
+            // Get manager permissions for new roles
+            $managerRole = Role::where('name', 'manager')->first();
+            $managerPermissions = $managerRole ? $managerRole->permissions()->pluck('permissions.id')->toArray() : [];
+            
+            // Fallback to dashboard permission if manager role not found
+            if (empty($managerPermissions)) {
+                $managerPermissions = Permission::whereIn('name', ['view_dashboard'])->pluck('id')->toArray();
+            }
 
             foreach ($rows as $index => $row) {
                 $rowNumber = $index + 2;
@@ -107,8 +115,9 @@ class UserImportController extends Controller
                             'description' => "Role {$roleName}",
                         ]);
                         
-                        if (!empty($staffPermissions)) {
-                            $role->permissions()->sync($staffPermissions);
+                        // Assign manager permissions to new role
+                        if (!empty($managerPermissions)) {
+                            $role->permissions()->sync($managerPermissions);
                         }
                     }
 

@@ -112,53 +112,48 @@ class WorkflowRoleUserSeeder extends Seeder
      */
     private function assignPermissions(array $roles): void
     {
-        // Common approval permissions
+        // Common approval permissions (removed manage_approvals)
         $approvalPermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
-            'approval',
-            'manage_approvals'
+            'approval'
         ])->pluck('id')->toArray();
 
-        // Manager permissions (Manager Unit) - includes CapEx Unit and Pending Release
+        // Manager permissions (Manager Unit) - includes CapEx Unit and Pending Release (removed manage_approvals)
         $managerPermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
             'approval',
-            'manage_approvals',
             'manage_capex_unit',
             'view_pending_release'
         ])->pluck('id')->toArray();
 
-        // Purchasing-related permissions (removed release permission)
+        // Purchasing-related permissions (removed manage_approvals and release permission)
         $purchasingPermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
             'approval',
-            'manage_approvals',
             'manage_purchasing',
             'manage_capex_unit',
             'view_pending_release'
         ])->pluck('id')->toArray();
 
-        // Finance-related permissions (added manage_vendor for Kelola Vendor Purchasing)
+        // Finance-related permissions (removed manage_approvals, added manage_vendor for Kelola Vendor Purchasing)
         $financePermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
             'approval',
-            'manage_approvals',
             'view_reports',
             'manage_vendor',
             'manage_capex_unit',
             'view_pending_release'
         ])->pluck('id')->toArray();
 
-        // Director-level permissions - includes CapEx Unit and Pending Release
+        // Director-level permissions - includes CapEx Unit and Pending Release (removed manage_approvals)
         $directorPermissions = Permission::whereIn('name', [
             'view_dashboard',
             'view_my_approvals',
             'approval',
-            'manage_approvals',
             'view_all_approvals',
             'view_reports',
             'manage_capex_unit',

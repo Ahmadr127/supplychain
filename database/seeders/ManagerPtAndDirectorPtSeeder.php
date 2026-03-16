@@ -45,7 +45,6 @@ class ManagerPtAndDirectorPtSeeder extends Seeder
             'view_dashboard',
             'view_my_approvals',
             'approval',
-            'manage_approvals',
             'view_pending_release',
             'manage_capex_unit',
         ])->pluck('id');
@@ -55,7 +54,6 @@ class ManagerPtAndDirectorPtSeeder extends Seeder
             'view_dashboard',
             'view_my_approvals',
             'approval',
-            'manage_approvals',
             'view_pending_release',
             'manage_capex_unit',
         ])->pluck('id');

@@ -30,7 +30,7 @@
 
         <!-- Table Filter Component -->
         <x-table-filter 
-            search-placeholder="Cari nama, username, atau email..."
+            search-placeholder="Cari nama, NIK, username, atau email..."
         />
 
         <div class="overflow-x-auto">
