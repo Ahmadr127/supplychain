@@ -119,7 +119,8 @@ Route::get('/auth/sso/callback', function (\Illuminate\Http\Request $request) {
             ->get(env('SSO_BASE_URL') . '/api/user');
         $ssoUser = $ssoUserResponse->json('data') ?? $ssoUserResponse->json();
 
-        if (empty($ssoUser['email'])) {
+        // Validasi: NIK harus ada di response SSO
+        if (empty($ssoUser['nik'])) {
             $errorBody = $ssoUserResponse->body();
             \Illuminate\Support\Facades\Log::error('SSO User Fetch failed', ['status' => $ssoUserResponse->status(), 'body' => $errorBody]);
             return redirect('/login')->withErrors(['sso' => 'Gagal mengambil data user dari SSO. Detail: ' . $errorBody]);
@@ -129,21 +130,22 @@ Route::get('/auth/sso/callback', function (\Illuminate\Http\Request $request) {
         return redirect('/login')->withErrors(['sso' => 'Koneksi ke SSO gagal: ' . $e->getMessage()]);
     }
 
-    // Find local user by email or username
-    $localUser = \App\Models\User::where('email', $ssoUser['email'])->first()
-        ?? \App\Models\User::where('username', $ssoUser['username'] ?? '')->first();
+    // Find local user by NIK only
+    $localUser = \App\Models\User::where('nik', $ssoUser['nik'])->first();
 
     if ($localUser) {
         // Update existing user data
         $localUser->update([
-            'name'  => $ssoUser['name'],
-            'email' => $ssoUser['email'],
+            'name'     => $ssoUser['name'],
+            'email'    => $ssoUser['email']    ?? $localUser->email,
+            'username' => $ssoUser['username'] ?? $localUser->username,
         ]);
     } else {
         // Create new user if not exists
         $localUser = \App\Models\User::create([
+            'nik'      => $ssoUser['nik'],
             'name'     => $ssoUser['name'],
-            'email'    => $ssoUser['email'],
+            'email'    => $ssoUser['email']    ?? null,
             'username' => $ssoUser['username'] ?? null,
             'password' => bcrypt(\Illuminate\Support\Str::random(32)),
         ]);
