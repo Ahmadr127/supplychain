@@ -37,16 +37,34 @@ class SsoController extends Controller
             // main-sso wraps data in {status, data: {...}}
             $ssoUserData = $ssoUser['data'] ?? $ssoUser;
 
-            // Find or update the user locally
-            $user = User::updateOrCreate(
-                ['email' => $ssoUserData['email']],
-                [
+            // Validasi: NIK wajib ada
+            if (empty($ssoUserData['nik'])) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'SSO user does not have a NIK. Cannot authenticate.',
+                ], 422);
+            }
+
+            // Cari user lokal berdasarkan NIK saja (konsisten dengan web SSO)
+            $user = User::where('nik', $ssoUserData['nik'])->first();
+
+            if ($user) {
+                // Update data supplementary jika ada
+                $user->update([
                     'name'     => $ssoUserData['name'],
-                    'username' => $ssoUserData['username'] ?? $ssoUserData['email'],
-                    // If you need to handle role mapping, it can be done here.
-                    // 'role_id' => ...
-                ]
-            );
+                    'email'    => $ssoUserData['email']    ?? $user->email,
+                    'username' => $ssoUserData['username'] ?? $user->username,
+                ]);
+            } else {
+                // Buat user baru
+                $user = User::create([
+                    'nik'      => $ssoUserData['nik'],
+                    'name'     => $ssoUserData['name'],
+                    'email'    => $ssoUserData['email']    ?? null,
+                    'username' => $ssoUserData['username'] ?? null,
+                    'password' => bcrypt(\Illuminate\Support\Str::random(32)),
+                ]);
+            }
 
             // Generate a local Sanctum token for the mobile app to use with supplychain API
             $token = $user->createToken('Supplychain API Token')->plainTextToken;
