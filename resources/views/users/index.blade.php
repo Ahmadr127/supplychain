@@ -3,13 +3,7 @@
 @section('title', 'Kelola Users')
 
 @section('content')
-<div class="w-full mx-auto" x-data="{
-    ...tableFilter({
-        search: '{{ request('search') }}',
-        dateFrom: '{{ request('date_from') }}',
-        dateTo: '{{ request('date_to') }}'
-    })
-}">
+<div class="w-full mx-auto">
     <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
         <div class="p-6 bg-white border-b border-gray-200">
             <div class="flex justify-between items-center mb-6">
@@ -29,9 +23,13 @@
         </div>
 
         <!-- Table Filter Component -->
-        <x-table-filter 
-            search-placeholder="Cari nama, NIK, username, atau email..."
-        />
+        <div x-data="tableFilter({}, window.rolesData)">
+            <x-table-filter 
+                search-placeholder="Cari nama, NIK, username, atau email..."
+                :show-role-filter="true"
+                :roles="$roles"
+            />
+        </div>
 
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
@@ -141,4 +139,128 @@
         @endif
     </div>
 </div>
+
+<script>
+// Store roles data globally before Alpine initializes
+window.rolesData = @json($roles ?? []);
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('tableFilter', (initialFilters = {}, rolesData = []) => ({
+        filters: {
+            search: initialFilters.search || '',
+            dateFrom: initialFilters.dateFrom || '',
+            dateTo: initialFilters.dateTo || '',
+            roleId: initialFilters.roleId || '',
+            ...initialFilters
+        },
+        roles: rolesData,
+        roleOpen: false,
+        roleSearch: '',
+
+        init() {
+            // Initialize filters from URL params
+            this.filters = {
+                search: new URLSearchParams(window.location.search).get('search') || '',
+                dateFrom: new URLSearchParams(window.location.search).get('date_from') || '',
+                dateTo: new URLSearchParams(window.location.search).get('date_to') || '',
+                roleId: new URLSearchParams(window.location.search).get('role_id') || '',
+                ...initialFilters
+            };
+        },
+
+        applyFilters() {
+            const params = new URLSearchParams();
+            
+            if (this.filters.search) params.set('search', this.filters.search);
+            if (this.filters.dateFrom) params.set('date_from', this.filters.dateFrom);
+            if (this.filters.dateTo) params.set('date_to', this.filters.dateTo);
+            if (this.filters.roleId) params.set('role_id', this.filters.roleId);
+            
+            const currentPage = new URLSearchParams(window.location.search).get('page');
+            if (currentPage) params.set('page', currentPage);
+            
+            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.location.href = newUrl;
+        },
+
+        clearFilters() {
+            this.filters = {
+                search: '',
+                dateFrom: '',
+                dateTo: '',
+                roleId: '',
+                ...initialFilters
+            };
+            this.roleSearch = '';
+            
+            const newUrl = window.location.pathname;
+            window.location.href = newUrl;
+        },
+
+        removeFilter(key) {
+            this.filters[key] = '';
+            this.applyFilters();
+        },
+
+        hasActiveFilters() {
+            return Object.values(this.filters).some(value => value !== '' && value !== null);
+        },
+
+        getActiveFilters() {
+            const active = {};
+            Object.entries(this.filters).forEach(([key, value]) => {
+                if (value !== '' && value !== null) {
+                    active[key] = value;
+                }
+            });
+            return active;
+        },
+
+        getFilterLabel(key, value) {
+            const labels = {
+                search: `Pencarian: "${value}"`,
+                dateFrom: `Dari: ${this.formatDate(value)}`,
+                dateTo: `Sampai: ${this.formatDate(value)}`,
+                roleId: `Role: ${this.getRoleLabel(value)}`
+            };
+            return labels[key] || `${key}: ${value}`;
+        },
+
+        getRoleLabel(roleId) {
+            const role = this.roles.find(r => r.id == roleId);
+            return role?.display_name || 'Unknown';
+        },
+
+        formatDate(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('id-ID', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+        },
+
+        filteredRoles() {
+            if (!this.roleSearch) return this.roles;
+            return this.roles.filter(role => {
+                const displayName = role?.display_name || '';
+                return displayName.toLowerCase().includes(this.roleSearch.toLowerCase());
+            });
+        },
+
+        selectRole(roleId) {
+            this.filters.roleId = roleId;
+            this.roleOpen = false;
+            this.applyFilters();
+        },
+
+        clearRole() {
+            this.filters.roleId = '';
+            this.roleSearch = '';
+            this.applyFilters();
+        }
+    }));
+});
+</script>
 @endsection

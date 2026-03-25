@@ -12,7 +12,7 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::with('role');
+        $query = User::with('role', 'departments');
 
         // Search filter
         if ($request->filled('search')) {
@@ -25,6 +25,11 @@ class UserController extends Controller
             });
         }
 
+        // Role filter
+        if ($request->filled('role_id')) {
+            $query->where('role_id', $request->role_id);
+        }
+
         // Date range filter
         if ($request->filled('date_from')) {
             $query->where('created_at', '>=', $request->date_from);
@@ -35,8 +40,9 @@ class UserController extends Controller
         }
 
         $users = $query->latest()->paginate(10)->withQueryString();
+        $roles = Role::all();
         
-        return view('users.index', compact('users'));
+        return view('users.index', compact('users', 'roles'));
     }
 
     public function create()
