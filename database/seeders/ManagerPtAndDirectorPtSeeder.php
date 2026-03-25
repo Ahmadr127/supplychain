@@ -91,7 +91,45 @@ class ManagerPtAndDirectorPtSeeder extends Seeder
             $this->command->info("  ✓ Department: {$data['name']}");
         }
 
+        // 4. Create Dummy Users for Testing
+        $this->createDummyUsers($roles, $departments);
+
         $this->command->info('✅ Manager PT & Direktur PT roles and departments seeded successfully!');
-        $this->command->info('NOTE: User creation is now handled by OrganizationUsersSeeder');
+    }
+
+    private function createDummyUsers(array $roles, array $departments): void
+    {
+        $this->command->info('');
+        $this->command->info('📝 Creating Dummy Manager PT User...');
+
+        // Dummy Manager PT User
+        $managerPtUser = User::firstOrCreate(
+            ['username' => 'manager.pt'],
+            [
+                'nik' => '32010199990001',
+                'name' => 'Budi Manager PT',
+                'email' => 'manager.pt@azra.com',
+                'password' => Hash::make('rsazra'),
+                'role_id' => $roles['manager_pt']->id,
+            ]
+        );
+
+        // Attach to Management PT department
+        if (isset($departments['management_pt'])) {
+            $managerPtUser->departments()->syncWithoutDetaching([
+                $departments['management_pt']->id => [
+                    'position' => 'Manager PT',
+                    'is_primary' => true,
+                    'is_manager' => false,
+                    'start_date' => now(),
+                ]
+            ]);
+        }
+
+        $this->command->info("  ✓ Dummy User: {$managerPtUser->name} (manager_pt)");
+        $this->command->info('');
+        $this->command->info('💡 Dummy User Credentials:');
+        $this->command->info('   Username: manager.pt');
+        $this->command->info('   Password: rsazra');
     }
 }
