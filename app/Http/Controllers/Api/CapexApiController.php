@@ -307,6 +307,59 @@ class CapexApiController extends Controller
         ]);
     }
 
+    /**
+     * GET /api/capex/budget-summary?department_id=X&year=2026
+     * Summary for dashboard widgets / validations.
+     */
+    public function budgetSummary(Request $request)
+    {
+        $this->requireCapexAccess();
+
+        $v = $request->validate([
+            'department_id' => 'required|exists:departments,id',
+            'year'          => 'nullable|integer|min:2020|max:2100',
+        ]);
+
+        $year = (int) ($v['year'] ?? date('Y'));
+        $capex = Capex::where('department_id', $v['department_id'])
+            ->where('fiscal_year', $year)
+            ->first();
+
+        if (!$capex) {
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'department_id'     => (int) $v['department_id'],
+                    'fiscal_year'       => $year,
+                    'capex_id'          => null,
+                    'status'            => null,
+                    'total_budget'      => 0,
+                    'total_used'        => 0,
+                    'remaining_budget'  => 0,
+                    'utilization_pct'   => 0,
+                ],
+            ]);
+        }
+
+        // Unit users can only see their own department's capex.
+        // Admin can see all. Reuse existing authorizeCapex.
+        $this->authorizeCapex($capex);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'department_id'     => $capex->department_id,
+                'fiscal_year'       => (int) $capex->fiscal_year,
+                'capex_id'          => $capex->id,
+                'status'            => $capex->status,
+                'total_budget'      => (float) $capex->total_budget,
+                'total_used'        => (float) $capex->total_used,
+                'remaining_budget'  => (float) $capex->remaining_budget,
+                'utilization_pct'   => (float) $capex->utilization_percent,
+            ],
+        ]);
+    }
+
     // ----------------------------------------------------------------
     // SHARED FORMATTERS
     // ----------------------------------------------------------------

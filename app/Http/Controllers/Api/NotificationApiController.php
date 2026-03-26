@@ -52,6 +52,24 @@ class NotificationApiController extends Controller
     }
 
     /**
+     * Get unread notification count for authenticated user
+     *
+     * GET /api/notifications/unread-count
+     */
+    public function unreadCount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $unreadCount = Notification::where('user_id', $user->id)->unread()->count();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'unread_count' => $unreadCount,
+            ],
+        ]);
+    }
+
+    /**
      * Mark a specific notification as read
      * 
      * PATCH /api/notifications/{id}/read

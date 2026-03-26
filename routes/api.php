@@ -65,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Named sub-routes FIRST to avoid {capex} wildcard matching them
         Route::get('/available',   [CapexApiController::class, 'availableItems']);
         Route::get('/departments', [CapexApiController::class, 'departments']);
+        Route::get('/budget-summary', [CapexApiController::class, 'budgetSummary']);
 
         Route::get('/',    [CapexApiController::class, 'index']);
         Route::post('/',   [CapexApiController::class, 'store']);
@@ -97,6 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Notification Management  (NotificationApiController)
     // ----------------------------------------------------------------
     Route::get('/notifications', [NotificationApiController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationApiController::class, 'unreadCount']);
     Route::put('/notifications/mark-all-read', [NotificationApiController::class, 'markAllAsRead']);
     Route::put('/notifications/{id}/read', [NotificationApiController::class, 'markAsRead']);
 
