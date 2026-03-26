@@ -7,6 +7,11 @@ use App\Http\Controllers\Api\ApprovalRequestApiController;
 use App\Http\Controllers\Api\ApprovalItemApiController;
 use App\Http\Controllers\Api\CapexApiController;
 use App\Http\Controllers\Api\CapexItemApiController;
+use App\Http\Controllers\Api\FirebaseTestController;
+use App\Http\Controllers\Api\FcmTokenController;
+use App\Http\Controllers\Api\NotificationApiController;
+use App\Http\Controllers\Api\PurchasingApiController;
+use App\Http\Controllers\Api\ReleaseApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,4 +87,43 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/',  [CapexItemApiController::class, 'update']);
         Route::delete('/', [CapexItemApiController::class, 'destroy']);
     });
+
+    // ----------------------------------------------------------------
+    // Firebase Test  (FirebaseTestController)
+    // ----------------------------------------------------------------
+    Route::get('/firebase/ping', [FirebaseTestController::class, 'ping']);
+
+    // ----------------------------------------------------------------
+    // Notification Management  (NotificationApiController)
+    // ----------------------------------------------------------------
+    Route::get('/notifications', [NotificationApiController::class, 'index']);
+    Route::put('/notifications/mark-all-read', [NotificationApiController::class, 'markAllAsRead']);
+    Route::put('/notifications/{id}/read', [NotificationApiController::class, 'markAsRead']);
+
+    // FCM Routes
+    Route::post('/fcm-token', [FcmTokenController::class, 'store']);
+    Route::delete('/fcm-token', [FcmTokenController::class, 'destroy']);
+    Route::post('/test-notification', [FcmTokenController::class, 'testNotification']);
+
+
+    // ----------------------------------------------------------------
+    // Purchasing Management  (PurchasingApiController)
+    // ----------------------------------------------------------------
+    Route::get('/purchasing/items', [PurchasingApiController::class, 'index']);
+    Route::get('/purchasing/items/{id}', [PurchasingApiController::class, 'show']);
+    Route::post('/purchasing/items/{id}/benchmark', [PurchasingApiController::class, 'saveBenchmarking']);
+    Route::post('/purchasing/items/{id}/select-vendor', [PurchasingApiController::class, 'selectPreferred']);
+    Route::post('/purchasing/items/{id}/issue-po', [PurchasingApiController::class, 'issuePO']);
+    Route::post('/purchasing/items/{id}/receive-grn', [PurchasingApiController::class, 'receiveGRN']);
+    Route::post('/purchasing/items/{id}/mark-done', [PurchasingApiController::class, 'markDone']);
+    Route::get('/purchasing/status-by-request', [PurchasingApiController::class, 'statusByRequest']);
+
+    // ----------------------------------------------------------------
+    // Release Management  (ReleaseApiController)
+    // ----------------------------------------------------------------
+    Route::get('/release/items', [ReleaseApiController::class, 'index']);
+    Route::get('/release/items/{id}', [ReleaseApiController::class, 'show']);
+    Route::post('/release/items/{id}/approve', [ReleaseApiController::class, 'approve']);
+    Route::post('/release/items/{id}/reject', [ReleaseApiController::class, 'reject']);
+    Route::get('/release/my-pending', [ReleaseApiController::class, 'myPending']);
 });

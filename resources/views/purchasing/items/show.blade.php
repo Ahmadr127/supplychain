@@ -82,7 +82,7 @@
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="px-3 py-2 border-b border-gray-200">
             <h3 class="text-sm font-semibold text-gray-900">PO & GRN</h3>
-{{ ... }}
+        </div>
         <div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
             @if(auth()->user()->hasPermission('manage_purchasing'))
             <form method="POST" action="{{ route('purchasing.items.po', $item) }}" class="space-y-2">

@@ -11,7 +11,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Register Firebase service as singleton
+        $this->app->singleton(\App\Services\FirebaseService::class, function ($app) {
+            return new \App\Services\FirebaseService();
+        });
     }
 
     /**

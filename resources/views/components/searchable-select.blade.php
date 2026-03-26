@@ -1,10 +1,10 @@
 @props([
-    'name',                  {{-- form input name --}}
-    'options',               {{-- Collection/array of objects with 'id' & 'label' keys --}}
-    'selected'   => '',      {{-- currently selected id --}}
-    'placeholder'=> 'Semua', {{-- label when nothing selected --}}
+    'name',                  // form input name
+    'options',               // Collection/array of objects with 'id' & 'label' keys
+    'selected'   => '',      // currently selected id
+    'placeholder'=> 'Semua', // label when nothing selected
     'searchPlaceholder' => 'Cari...',
-    'width'      => 'w-72', {{-- dropdown panel width --}}
+    'width'      => 'w-72',  // dropdown panel width
 ])
 
 @php

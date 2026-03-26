@@ -4,11 +4,18 @@ namespace App\Services\Purchasing;
 
 use App\Models\PurchasingItem;
 use App\Models\PurchasingItemVendor;
+use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PurchasingItemService
 {
+    private NotificationService $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
     /**
      * Save or replace benchmarking vendors for a purchasing item.
      * $vendors = [
@@ -17,7 +24,10 @@ class PurchasingItemService
      */
     public function saveBenchmarking(PurchasingItem $item, array $vendors): PurchasingItem
     {
-        DB::transaction(function() use ($item, $vendors) {
+        $oldStatus = $item->status;
+        $newStatus = $oldStatus;
+
+        DB::transaction(function() use ($item, $vendors, &$newStatus) {
             // Replace benchmarking set: delete existing then insert new
             $item->vendors()->delete();
 
@@ -50,7 +60,13 @@ class PurchasingItemService
         // refresh aggregated purchasing status
         $item->approvalRequest->refreshPurchasingStatus();
 
-        return $item->refresh(['vendors']);
+        $item = $item->refresh(['vendors']);
+
+        if ($oldStatus !== $newStatus) {
+            $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $newStatus);
+        }
+
+        return $item;
     }
 
     /**
@@ -59,6 +75,8 @@ class PurchasingItemService
      */
     public function selectPreferred(PurchasingItem $item, int $supplierId, ?float $unitPrice, ?float $totalPrice): PurchasingItem
     {
+        $oldStatus = $item->status;
+
         DB::transaction(function() use ($item, $supplierId, $unitPrice, $totalPrice) {
             // Ensure vendor exists in benchmarking; if not, create it with given prices
             $vendor = $item->vendors()->where('supplier_id', $supplierId)->first();
@@ -90,7 +108,13 @@ class PurchasingItemService
 
         $item->approvalRequest->refreshPurchasingStatus();
 
-        return $item->refresh(['vendors', 'preferredVendor']);
+        $item = $item->refresh(['vendors', 'preferredVendor']);
+
+        if ($oldStatus !== 'selected') {
+            $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'selected');
+        }
+
+        return $item;
     }
 
     /**
@@ -119,6 +143,9 @@ class PurchasingItemService
             'status' => 'pending',
         ]);
 
+        // Trigger notification for release approver
+        $this->notificationService->notifyReleaseApprover($firstReleaseStep);
+
         // Update approval request item status
         $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $item->approval_request_id)
             ->where('master_item_id', $item->master_item_id)
@@ -144,6 +171,8 @@ class PurchasingItemService
      */
     public function issuePO(PurchasingItem $item, string $poNumber): PurchasingItem
     {
+        $oldStatus = $item->status;
+
         // Determine if we should update status
         // If item is still before PO stage or PO not yet set, mark as po_issued.
         // Otherwise (already GRN received or DONE), keep current status.
@@ -159,6 +188,11 @@ class PurchasingItemService
             'status_changed_by' => auth()->id(),
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
+
+        if ($oldStatus !== $newStatus) {
+            $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $newStatus);
+        }
+
         return $item;
     }
 
@@ -167,6 +201,7 @@ class PurchasingItemService
      */
     public function receiveGRN(PurchasingItem $item, Carbon $grnDate): PurchasingItem
     {
+        $oldStatus = $item->status;
         $created = $item->created_at ?: now();
         $cycle = $grnDate->diffInDays($created);
         $item->update([
@@ -177,6 +212,11 @@ class PurchasingItemService
             'status_changed_by' => auth()->id(),
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
+
+        if ($oldStatus !== 'grn_received') {
+            $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'grn_received');
+        }
+
         return $item;
     }
 
@@ -185,6 +225,8 @@ class PurchasingItemService
      */
     public function markDone(PurchasingItem $item, ?string $notes = null): PurchasingItem
     {
+        $oldStatus = $item->status;
+
         $item->update([
             'status' => 'done',
             'status_changed_at' => now(),
@@ -192,6 +234,11 @@ class PurchasingItemService
             'done_notes' => $notes,
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
+
+        if ($oldStatus !== 'done') {
+            $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'done');
+        }
+
         return $item;
     }
 }

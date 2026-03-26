@@ -109,6 +109,18 @@ class User extends Authenticatable
         return $this->hasMany(ApprovalItemStep::class, 'approved_by');
     }
 
+    // Relasi dengan notifications
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
+
+    // Relasi dengan device tokens
+    public function deviceTokens()
+    {
+        return $this->hasMany(UserDeviceToken::class);
+    }
+
     // Method untuk check apakah user adalah manager di department tertentu
     public function isManagerOf($departmentId)
     {

@@ -412,6 +412,13 @@ class ApprovalRequestController extends Controller
         }
 
         // Upload lampiran dinonaktifkan
+        
+        // Notify first approvers
+        try {
+            app(\App\Services\NotificationService::class)->notifyApprovers($approvalRequest);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to send notification on request creation: ' . $e->getMessage());
+        }
 
         return redirect()->route('approval-requests.my-requests')
                         ->with('success', 'Approval request berhasil dibuat!');

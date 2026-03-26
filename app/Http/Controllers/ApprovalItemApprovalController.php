@@ -399,6 +399,11 @@ class ApprovalItemApprovalController extends Controller
                     
                     $item->refresh();
                     Log::info('🟩 Item status AFTER: ' . $item->status);
+                    
+                    // Notify next approver
+                    if (isset($nextApprovalStep)) {
+                        app(\App\Services\NotificationService::class)->notifyApprovers($approvalRequest);
+                    }
                 }
             }
 
@@ -408,6 +413,10 @@ class ApprovalItemApprovalController extends Controller
             
             $approvalRequest->refresh();
             Log::info('🟩 Request status: ' . $approvalRequest->status);
+
+            if ($approvalRequest->status === 'approved') {
+                app(\App\Services\NotificationService::class)->notifyRequesterApproved($approvalRequest);
+            }
 
             DB::commit();
             Log::info('🟩 Database transaction committed');
@@ -492,6 +501,11 @@ class ApprovalItemApprovalController extends Controller
 
             // Aggregate request status (will mark request as rejected if any item rejected)
             $approvalRequest->refreshStatus();
+            $approvalRequest->refresh();
+            
+            if ($approvalRequest->status === 'rejected') {
+                app(\App\Services\NotificationService::class)->notifyRequesterRejected($approvalRequest, $request->rejected_reason);
+            }
 
             DB::commit();
 
