@@ -99,6 +99,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // ----------------------------------------------------------------
     Route::get('/notifications', [NotificationApiController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationApiController::class, 'unreadCount']);
+    Route::post('/notifications/read-all', [NotificationApiController::class, 'markAllAsRead']);
+    Route::patch('/notifications/{id}/read', [NotificationApiController::class, 'markAsRead']);
+    // Backward compatibility aliases
     Route::put('/notifications/mark-all-read', [NotificationApiController::class, 'markAllAsRead']);
     Route::put('/notifications/{id}/read', [NotificationApiController::class, 'markAsRead']);
 

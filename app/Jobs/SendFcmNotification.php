@@ -47,6 +47,20 @@ class SendFcmNotification implements ShouldQueue
      */
     public function handle(FirebaseService $firebaseService): void
     {
+        // Filter out empty/placeholder/obviously-invalid tokens.
+        $filteredTokens = [];
+        foreach ($this->tokens as $token) {
+            if (!is_string($token)) {
+                continue;
+            }
+            $token = trim($token);
+            if ($token === '' || $token === 'YOUR_FCM_TOKEN_HERE' || strlen($token) < 50) {
+                continue;
+            }
+            $filteredTokens[] = $token;
+        }
+        $this->tokens = array_values(array_unique($filteredTokens));
+
         if (empty($this->tokens)) {
             Log::warning('SendFcmNotification: No tokens provided');
             return;
@@ -153,6 +167,9 @@ class SendFcmNotification implements ShouldQueue
             'invalid-registration-token',
             'invalid-argument',
             'registration token is invalid',
+            'not a valid fcm registration token',
+            'not a valid fcm registration',
+            'requested entity was not found',
         ];
 
         foreach ($invalidTokenPatterns as $pattern) {

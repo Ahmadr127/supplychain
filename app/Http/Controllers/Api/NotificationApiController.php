@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 
 class NotificationApiController extends Controller
 {
@@ -22,7 +21,7 @@ class NotificationApiController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request)
     {
         $user = $request->user();
         $perPage = $request->input('per_page', 15);
@@ -31,23 +30,10 @@ class NotificationApiController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
-        $unreadCount = Notification::where('user_id', $user->id)
-            ->unread()
-            ->count();
-
         return response()->json([
             'status' => 'success',
-            'message' => 'Notifikasi berhasil diambil',
-            'data' => [
-                'notifications' => $notifications->items(),
-                'unread_count' => $unreadCount,
-                'pagination' => [
-                    'total' => $notifications->total(),
-                    'per_page' => $notifications->perPage(),
-                    'current_page' => $notifications->currentPage(),
-                    'last_page' => $notifications->lastPage(),
-                ]
-            ]
+            'data'   => $notifications,
+            'unread_count' => Notification::where('user_id', $user->id)->unread()->count()
         ]);
     }
 
@@ -56,7 +42,7 @@ class NotificationApiController extends Controller
      *
      * GET /api/notifications/unread-count
      */
-    public function unreadCount(Request $request): JsonResponse
+    public function unreadCount(Request $request)
     {
         $user = $request->user();
         $unreadCount = Notification::where('user_id', $user->id)->unread()->count();
@@ -78,26 +64,19 @@ class NotificationApiController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function markAsRead($id, Request $request): JsonResponse
+    public function markAsRead($id, Request $request)
     {
         $user = $request->user();
         
         $notification = Notification::where('user_id', $user->id)
             ->where('id', $id)
-            ->first();
-
-        if (!$notification) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Notifikasi tidak ditemukan',
-            ], 404);
-        }
+            ->firstOrFail();
 
         $notification->markAsRead();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Notifikasi berhasil ditandai sudah dibaca',
+            'message' => 'Notifikasi ditandai sebagai sudah dibaca.',
         ]);
     }
 
@@ -109,20 +88,17 @@ class NotificationApiController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function markAllAsRead(Request $request): JsonResponse
+    public function markAllAsRead(Request $request)
     {
         $user = $request->user();
 
-        $updatedCount = Notification::where('user_id', $user->id)
+        Notification::where('user_id', $user->id)
             ->unread()
             ->update(['read_at' => now()]);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Semua notifikasi berhasil ditandai sudah dibaca',
-            'data' => [
-                'updated_count' => $updatedCount
-            ]
+            'message' => 'Semua notifikasi ditandai sebagai sudah dibaca.',
         ]);
     }
 }

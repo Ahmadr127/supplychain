@@ -31,15 +31,24 @@ class FcmTokenController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'device_token' => 'required|string|max:500',
+            'device_token' => 'required|string|min:50|max:500',
             'device_type' => ['nullable', Rule::in(['android', 'ios', 'web'])],
         ]);
 
         try {
+            $incomingToken = trim((string) $validated['device_token']);
+            $isPlaceholder = $incomingToken === 'YOUR_FCM_TOKEN_HERE';
+            if ($isPlaceholder) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'device_token masih placeholder. Ambil token asli dari Firebase Messaging di aplikasi.',
+                ], 422);
+            }
+
             // Use updateOrCreate to avoid duplicate tokens
             $deviceToken = UserDeviceToken::updateOrCreate(
                 [
-                    'device_token' => $validated['device_token'],
+                    'device_token' => $incomingToken,
                 ],
                 [
                     'user_id' => auth()->id(),
@@ -51,6 +60,8 @@ class FcmTokenController extends Controller
                 'user_id' => auth()->id(),
                 'device_type' => $validated['device_type'] ?? 'unknown',
                 'token_id' => $deviceToken->id,
+                'incoming_is_placeholder_exact' => $isPlaceholder,
+                'incoming_token_sha256_prefix' => substr(hash('sha256', $incomingToken), 0, 12),
             ]);
 
             return response()->json([
@@ -85,7 +96,8 @@ class FcmTokenController extends Controller
         ]);
 
         try {
-            $deleted = UserDeviceToken::where('device_token', $validated['device_token'])
+            $token = trim((string) $validated['device_token']);
+            $deleted = UserDeviceToken::where('device_token', $token)
                 ->where('user_id', auth()->id())
                 ->delete();
 
@@ -97,13 +109,15 @@ class FcmTokenController extends Controller
 
                 return response()->json([
                     'status' => 'success',
-                    'message' => 'FCM Token berhasil dihapus',
+                    'message' => 'FCM Token berhasil dihapus.',
+                    'deleted' => $deleted,
                 ]);
             }
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'FCM Token tidak ditemukan atau sudah dihapus',
+                'message' => 'FCM Token tidak ditemukan atau sudah dihapus.',
+                'deleted' => 0,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to remove FCM token', [
