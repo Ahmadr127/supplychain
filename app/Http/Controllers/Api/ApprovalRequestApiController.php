@@ -185,9 +185,11 @@ class ApprovalRequestApiController extends Controller
     {
         $approvalRequest->load([
             'requester',
-            'items.masterItem',
+            'items.masterItem.itemType',
+            'items.masterItem.itemCategory',
             'items.steps.approver',
             'items.capexItem',
+            'items.allocationDepartment',
         ]);
 
         $userId = Auth::id();
@@ -234,6 +236,12 @@ class ApprovalRequestApiController extends Controller
                 'total_price'     => $item->total_price,
                 'status'          => $item->status,
                 'fs_document'     => $item->fs_document,
+                'brand'           => $item->brand,
+                'specification'   => $item->specification,
+                'notes'           => $item->notes,
+                'vendor_alt'      => $item->alternative_vendor,
+                'reference_number' => $item->letter_number,
+                'unit_allocation'  => $item->allocationDepartment?->name,
                 'capex_item_id'   => $item->capex_item_id,
                 'funding_source'  => $fundingSource,
                 'capex_item'      => $capex ? [
