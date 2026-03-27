@@ -263,10 +263,29 @@ class CapexApiController extends Controller
 
         $year  = (int) $request->get('year', date('Y'));
         $capex = Capex::where('department_id', $deptId)
-            ->where('fiscal_year', $year)->where('status', 'active')->first();
+            ->where('fiscal_year', $year)
+            ->where('status', 'active')
+            ->first();
+
+        // If not found for the requested/current year, fallback to the latest active capex for that department.
+        // This avoids "empty dropdown" when unit has data in a different fiscal year.
+        $yearUsed = $year;
+        if (!$capex) {
+            $capex = Capex::where('department_id', $deptId)
+                ->where('status', 'active')
+                ->orderByDesc('fiscal_year')
+                ->first();
+            if ($capex) {
+                $yearUsed = (int) $capex->fiscal_year;
+            }
+        }
 
         if (!$capex) {
-            return response()->json(['status' => 'success', 'data' => [], 'meta' => compact('year')]);
+            return response()->json([
+                'status' => 'success',
+                'data' => [],
+                'meta' => ['year' => $yearUsed],
+            ]);
         }
 
         $query = $capex->items()->available()
@@ -296,7 +315,7 @@ class CapexApiController extends Controller
         return response()->json([
             'status' => 'success',
             'data'   => $items,
-            'meta'   => ['capex_id' => $capex->id, 'year' => $year, 'total' => $items->count()],
+            'meta'   => ['capex_id' => $capex->id, 'year' => $yearUsed, 'total' => $items->count()],
         ]);
     }
 
