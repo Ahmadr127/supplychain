@@ -145,7 +145,14 @@ class ApprovalItemApiController extends Controller
 
             // Handle price input
             if ($currentStep->required_action === 'input_price' && $request->has('unit_price')) {
-                $unitPrice = (float) str_replace('.', '', $request->unit_price);
+                $rawPrice = $request->unit_price;
+                // If it's already a clean numeric string (float/int from mobile), just use it
+                if (is_numeric($rawPrice)) {
+                    $unitPrice = (float) $rawPrice;
+                } else {
+                    // Indonesian format: 10.000.000 -> 10000000
+                    $unitPrice = (float) str_replace('.', '', $rawPrice);
+                }
 
                 if ($unitPrice <= 0) {
                     return response()->json(['status' => 'error', 'message' => 'Harga harus lebih dari 0.'], 422);
