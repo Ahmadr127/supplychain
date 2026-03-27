@@ -25,10 +25,9 @@ class CapexItemApiController extends Controller
 {
     private function requireCapexAccess(): void
     {
-        $user = Auth::user();
-        if (!$user->hasPermission('manage_capex') && !$user->hasPermission('manage_capex_unit')) {
-            abort(403, 'Anda tidak memiliki akses ke fitur CapEx.');
-        }
+        // No permission gate (as requested).
+        // Access is still scoped by authenticated user's department via authorizeCapex/authorizeItem.
+        return;
     }
 
     private function getUserDepartmentId(): ?int

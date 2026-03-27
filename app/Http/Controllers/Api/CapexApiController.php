@@ -30,10 +30,16 @@ class CapexApiController extends Controller
 {
     private function requireCapexAccess(): void
     {
-        $user = Auth::user();
-        if (!$user->hasPermission('manage_capex') && !$user->hasPermission('manage_capex_unit')) {
-            abort(403, 'Anda tidak memiliki akses ke fitur CapEx.');
-        }
+        // No permission gate (as requested).
+        // Access is still scoped by authenticated user's department throughout this controller.
+        return;
+    }
+
+    private function requireCapexReadAccess(): void
+    {
+        // No permission gate (as requested).
+        // Access is still scoped by authenticated user's department throughout this controller.
+        return;
     }
 
     private function getUserDepartmentId(): ?int
@@ -245,7 +251,7 @@ class CapexApiController extends Controller
      */
     public function availableItems(Request $request)
     {
-        $this->requireCapexAccess();
+        $this->requireCapexReadAccess();
         $request->validate(['department_id' => 'nullable|exists:departments,id']);
         $deptId = $this->getUserDepartmentId();
         if (!$deptId) {
@@ -300,7 +306,7 @@ class CapexApiController extends Controller
      */
     public function departments()
     {
-        $this->requireCapexAccess();
+        $this->requireCapexReadAccess();
         $deptId = $this->getUserDepartmentId();
         if (!$deptId) {
             return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
@@ -318,7 +324,7 @@ class CapexApiController extends Controller
      */
     public function budgetSummary(Request $request)
     {
-        $this->requireCapexAccess();
+        $this->requireCapexReadAccess();
         $deptId = $this->getUserDepartmentId();
         if (!$deptId) {
             return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
