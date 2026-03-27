@@ -86,35 +86,18 @@ class ApprovalRequestApiController extends Controller
         $userId = $user->id;
         $requestedStatus = $this->normalizeStatus($request->input('status'));
 
-        // Check if user is a manager of any department
-        $isManager = $user->departments()->wherePivot('is_manager', true)->exists();
-
         $allRequests = ApprovalRequest::with(['requester', 'items.steps.approver'])
-            ->whereHas('items.steps', function ($q) use ($user, $isManager) {
+            ->whereHas('items.steps', function ($q) use ($user) {
                 // Only consider approval-phase steps for "pending approvals".
                 $q->where(function ($phaseQ) {
                     $phaseQ->where('step_phase', 'approval')->orWhereNull('step_phase');
                 });
-
-                // Must be an eligible approver for the step
-                $q->where(function ($sq) use ($user, $isManager) {
-                    $sq->where(fn($s) => $s->where('approver_type', 'user')->where('approver_id', $user->id))
-                       ->orWhere(fn($s) => $s->where('approver_type', 'role')->where('approver_role_id', $user->role_id))
-                       ->orWhere(fn($s) => $s->where('approver_type', 'department')->where('approver_department_id', $user->department_id ?? null));
-                    
-                    if ($isManager) {
-                        $sq->orWhereIn('approver_type', [
-                            'department_manager',
-                            'requester_department_manager',
-                            'allocation_department_manager',
-                            'any_department_manager'
-                        ]);
-                    }
-                })
-                // And the step is either pending OR actioned by me
-                ->where(function ($sq) use ($user) {
-                    $sq->where('status', 'pending')
-                       ->orWhere('approved_by', $user->id);
+                // No "eligibility" pre-filter here:
+                // - approver resolution can depend on department manager relationships and allocation department
+                // - keep SQL broad, then use ApprovalItemStep::canApprove() in PHP filtering below
+                // Include steps that are pending (actionable candidates) OR already actioned by this user.
+                $q->where(function ($sq) use ($user) {
+                    $sq->where('status', 'pending')->orWhere('approved_by', $user->id);
                 });
             })
             ->orderBy('created_at', 'desc')
