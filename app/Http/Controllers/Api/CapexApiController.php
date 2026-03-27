@@ -252,11 +252,16 @@ class CapexApiController extends Controller
     public function availableItems(Request $request)
     {
         $this->requireCapexReadAccess();
-        $request->validate(['department_id' => 'nullable|exists:departments,id']);
-        // Use requested department_id if provided; fallback to user's primary department.
-        $deptId = $request->filled('department_id')
+        // Logic:
+        // 1. If user has 'manage_capex' (Admin), they can specify any department_id.
+        // 2. Otherwise, always use their internal primary department from the DB.
+        $user = Auth::user();
+        $isPickerAdmin = $user->role && $user->role->permissions->contains('name', 'manage_capex');
+
+        $deptId = ($isPickerAdmin && $request->filled('department_id'))
             ? (int) $request->department_id
             : $this->getUserDepartmentId();
+
         if (!$deptId) {
             return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
         }

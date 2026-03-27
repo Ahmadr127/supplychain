@@ -27,13 +27,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Current user info
     Route::get('/user', function (Request $request) {
-        $user = $request->user()->load('role.permissions');
+        $user = $request->user()->load(['role.permissions', 'primaryDepartment']);
+        $primaryDept = $user->primaryDepartment->first();
+
         return response()->json([
             'status' => 'success',
             'data'   => [
-                'user'        => $user,
-                'role'        => $user->role?->name,
-                'permissions' => $user->role?->permissions->pluck('name') ?? [],
+                'user'            => $user,
+                'role'            => $user->role?->name,
+                'permissions'     => $user->role?->permissions->pluck('name') ?? [],
+                'department_id'   => $primaryDept?->id,
+                'department_name' => $primaryDept?->name,
             ],
         ]);
     });

@@ -69,22 +69,26 @@ class SsoController extends Controller
             // Generate a local Sanctum token for the mobile app to use with supplychain API
             $token = $user->createToken('Supplychain API Token')->plainTextToken;
 
-            // Gather permissions for the user
+            // Gather permissions and department context for the user
             $permissions = $user->role
                 ? $user->role->permissions->pluck('name')->toArray()
                 : [];
+            
+            $primaryDept = $user->primaryDepartment()->first();
 
             return response()->json([
                 'status'  => 'success',
                 'message' => 'SSO Login successful',
                 'data'    => [
                     'user' => [
-                        'id'       => $user->id,
-                        'name'     => $user->name,
-                        'email'    => $user->email,
-                        'username' => $user->username,
-                        'nik'      => $user->nik ?? null,
-                        'role'     => $user->role?->name,
+                        'id'              => $user->id,
+                        'name'            => $user->name,
+                        'email'           => $user->email,
+                        'username'        => $user->username,
+                        'nik'             => $user->nik ?? null,
+                        'role'            => $user->role?->name,
+                        'department_id'   => $primaryDept?->id,
+                        'department_name' => $primaryDept?->name,
                     ],
                     'permissions'  => $permissions,
                     'access_token' => $token,
