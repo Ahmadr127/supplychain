@@ -262,35 +262,37 @@ class CapexApiController extends Controller
         }
 
         $year  = (int) $request->get('year', date('Y'));
+        // Match web `/unit/capex` behavior:
+        // - find capex by department + fiscal_year (no status=active filter)
+        // - do not fallback to a different year automatically
         $capex = Capex::where('department_id', $deptId)
             ->where('fiscal_year', $year)
-            ->where('status', 'active')
             ->first();
-
-        // If not found for the requested/current year, fallback to the latest active capex for that department.
-        // This avoids "empty dropdown" when unit has data in a different fiscal year.
-        $yearUsed = $year;
-        if (!$capex) {
-            $capex = Capex::where('department_id', $deptId)
-                ->where('status', 'active')
-                ->orderByDesc('fiscal_year')
-                ->first();
-            if ($capex) {
-                $yearUsed = (int) $capex->fiscal_year;
-            }
-        }
 
         if (!$capex) {
             return response()->json([
                 'status' => 'success',
                 'data' => [],
-                'meta' => ['year' => $yearUsed],
+                'meta' => ['year' => $year],
             ]);
         }
 
-        $query = $capex->items()->available()
-            ->select('id', 'capex_id_number', 'item_name', 'category', 'capex_type',
-                     'priority_scale', 'budget_amount', 'used_amount', 'pending_amount', 'month', 'pic');
+        // Match web `/unit/capex` items list behavior:
+        // - do not apply scopeAvailable(); return all items for that capex
+        $query = $capex->items()
+            ->select(
+                'id',
+                'capex_id_number',
+                'item_name',
+                'category',
+                'capex_type',
+                'priority_scale',
+                'budget_amount',
+                'used_amount',
+                'pending_amount',
+                'month',
+                'pic'
+            );
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
@@ -315,7 +317,7 @@ class CapexApiController extends Controller
         return response()->json([
             'status' => 'success',
             'data'   => $items,
-            'meta'   => ['capex_id' => $capex->id, 'year' => $yearUsed, 'total' => $items->count()],
+            'meta'   => ['capex_id' => $capex->id, 'year' => $year, 'total' => $items->count()],
         ]);
     }
 
