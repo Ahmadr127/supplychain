@@ -389,11 +389,9 @@ class ApprovalItemApiController extends Controller
     /**
      * View FS Document (Inline if PDF)
      */
-    public function viewFsDocument(ApprovalRequest $approvalRequest, ApprovalRequestItem $item)
+    public function viewFsDocument(ApprovalRequestItem $item)
     {
-        if ($item->approval_request_id !== $approvalRequest->id) {
-            return response()->json(['status' => 'error', 'message' => 'Item tidak cocok dengan request.'], 403);
-        }
+        $item->load('approvalRequest');
 
         if (empty($item->fs_document)) {
             return response()->json(['status' => 'error', 'message' => 'Dokumen FS tidak ditemukan.'], 404);
@@ -404,7 +402,8 @@ class ApprovalItemApiController extends Controller
         }
 
         $mime = Storage::disk('public')->mimeType($item->fs_document);
-        $filename = 'FS-' . $approvalRequest->request_number . '-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
+        $requestNumber = $item->approvalRequest->request_number ?? 'REQ-' . $item->approval_request_id;
+        $filename = 'FS-' . $requestNumber . '-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
 
         if ($mime !== 'application/pdf') {
             return Storage::disk('public')->download($item->fs_document, $filename);
@@ -422,17 +421,16 @@ class ApprovalItemApiController extends Controller
     /**
      * Download FS Document
      */
-    public function downloadFsDocument(ApprovalRequest $approvalRequest, ApprovalRequestItem $item)
+    public function downloadFsDocument(ApprovalRequestItem $item)
     {
-        if ($item->approval_request_id !== $approvalRequest->id) {
-            abort(403, 'Item tidak cocok dengan request.');
-        }
+        $item->load('approvalRequest');
 
         if (empty($item->fs_document) || !Storage::disk('public')->exists($item->fs_document)) {
             abort(404, 'Dokumen FS tidak ditemukan.');
         }
 
-        $filename = 'FS-' . $approvalRequest->request_number . '-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
+        $requestNumber = $item->approvalRequest->request_number ?? 'REQ-' . $item->approval_request_id;
+        $filename = 'FS-' . $requestNumber . '-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
         return Storage::disk('public')->download($item->fs_document, $filename);
     }
 }

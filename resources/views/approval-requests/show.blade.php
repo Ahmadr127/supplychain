@@ -152,7 +152,22 @@
                     <!-- Items Section -->
                     @if($approvalRequest->items->count() > 0)
                     <div class="bg-gray-50 rounded-lg p-2">
-                        <h3 class="text-base font-semibold text-gray-900 mb-3">Item yang Diminta</h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-base font-semibold text-gray-900">Item yang Diminta</h3>
+                            @if(isset($filterItemId) && $filterItemId)
+                                <a href="{{ route('approval-requests.show', $approvalRequest->id) }}" 
+                                   class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                    <i class="fas fa-list"></i> Tampilkan Semua Item
+                                </a>
+                            @endif
+                        </div>
+                        
+                        @if(isset($filterItemId) && $filterItemId)
+                        <div class="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
+                            <i class="fas fa-info-circle text-yellow-500"></i>
+                            Menampilkan item spesifik (ID: {{ $filterItemId }}).
+                        </div>
+                        @endif
                         
                         <!-- Items Cards (Visible) -->
                         <div class="space-y-3">

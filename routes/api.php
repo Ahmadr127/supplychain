@@ -68,9 +68,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/status',  [ApprovalItemApiController::class, 'status']);
         Route::post('/approve',[ApprovalItemApiController::class, 'approve']);
         Route::post('/reject', [ApprovalItemApiController::class, 'reject']);
-        Route::get('/view-fs', [ApprovalItemApiController::class, 'viewFsDocument']);
-        Route::get('/download-fs', [ApprovalItemApiController::class, 'downloadFsDocument']);
     });
+
+    // FS Document routes (Flattened to match standard attachments)
+    Route::get('approval-request-items/{item}/view-fs', [ApprovalItemApiController::class, 'viewFsDocument']);
+    Route::get('approval-request-items/{item}/download-fs', [ApprovalItemApiController::class, 'downloadFsDocument']);
 
     // ----------------------------------------------------------------
     // CapEx Headers  (CapexApiController)
