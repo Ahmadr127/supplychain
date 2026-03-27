@@ -201,9 +201,13 @@ Route::middleware('auth')->group(function () {
         Route::get('approval-requests', [ApprovalRequestController::class, 'index'])->name('approval-requests.index');
     });
     
-    Route::middleware('permission:manage_approvals')->group(function () {
-        Route::get('approval-requests/create', [ApprovalRequestController::class, 'create'])->name('approval-requests.create');
-        Route::post('approval-requests', [ApprovalRequestController::class, 'store'])->name('approval-requests.store');
+    // Create request: all authenticated users (no permission gate).
+    // Ownership checks for edit/update/destroy are enforced in ApprovalRequestController.
+    Route::get('approval-requests/create', [ApprovalRequestController::class, 'create'])->name('approval-requests.create');
+    Route::post('approval-requests', [ApprovalRequestController::class, 'store'])->name('approval-requests.store');
+
+    // Edit/update/delete: keep permission gate (plus controller ownership checks).
+    Route::middleware('permission:manage_approvals|view_my_approvals')->group(function () {
         Route::get('approval-requests/{approvalRequest}/edit', [ApprovalRequestController::class, 'edit'])->name('approval-requests.edit');
         Route::put('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'update'])->name('approval-requests.update');
         Route::delete('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'destroy'])->name('approval-requests.destroy');
@@ -225,7 +229,7 @@ Route::middleware('auth')->group(function () {
     });
     
     // Cancel request (keep at request level)
-    Route::middleware('permission:manage_approvals')->group(function () {
+    Route::middleware('permission:manage_approvals|view_my_approvals')->group(function () {
         Route::post('approval-requests/{approvalRequest}/cancel', [ApprovalRequestController::class, 'cancel'])->name('approval-requests.cancel');
     });
     
