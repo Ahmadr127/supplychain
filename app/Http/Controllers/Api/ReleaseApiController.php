@@ -14,6 +14,41 @@ class ReleaseApiController extends Controller
 {
     private NotificationService $notificationService;
 
+    /**
+     * For release "item list" endpoint (approval_request_items.status):
+     * - UI aliases like fulfilled/terpenuhi map to final item status approved.
+     */
+    private function normalizeItemStatus(?string $status): ?string
+    {
+        if (!$status) {
+            return null;
+        }
+
+        return match (strtolower(trim($status))) {
+            'all' => null,
+            'fulfilled', 'terpenuhi' => 'approved',
+            'released' => 'approved',
+            default => strtolower(trim($status)),
+        };
+    }
+
+    /**
+     * For release "my pending" endpoint (approval_item_steps.status):
+     * - UI alias fulfilled/terpenuhi represents step state pending_purchase.
+     */
+    private function normalizeStepStatus(?string $status): ?string
+    {
+        if (!$status) {
+            return null;
+        }
+
+        return match (strtolower(trim($status))) {
+            'all' => null,
+            'fulfilled', 'terpenuhi' => 'pending_purchase',
+            default => strtolower(trim($status)),
+        };
+    }
+
     public function __construct(NotificationService $notificationService)
     {
         $this->middleware('auth:sanctum');
@@ -26,6 +61,7 @@ class ReleaseApiController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $requestedStatus = $this->normalizeItemStatus($request->input('status'));
         
         $query = ApprovalRequestItem::with(['masterItem', 'approvalRequest', 'steps' => function ($q) {
             $q->where('step_phase', 'release');
@@ -41,10 +77,10 @@ class ReleaseApiController extends Controller
             });
         }
 
-        if ($status = $request->input('status')) {
-            $query->where('status', $status);
+        if ($requestedStatus) {
+            $query->where('status', $requestedStatus);
         } else {
-            $query->whereIn('status', ['in_purchasing', 'in_release']);
+            $query->whereIn('status', ['in_purchasing', 'in_release', 'approved']);
         }
 
         // Filter by user permissions (only items user can approve atau privileged roles)
@@ -243,10 +279,17 @@ class ReleaseApiController extends Controller
     public function myPending(Request $request): JsonResponse
     {
         $user = $request->user();
+        $requestedStatus = $this->normalizeStepStatus($request->input('status'));
 
         $query = ApprovalItemStep::with(['approvalRequest', 'masterItem'])
-            ->where('step_phase', 'release')
-            ->where('status', 'pending');
+            ->where('step_phase', 'release');
+
+        if ($requestedStatus) {
+            $query->where('status', $requestedStatus);
+        } else {
+            // Include "pending_purchase" (activated after purchasing).
+            $query->whereIn('status', ['pending', 'pending_purchase', 'approved']);
+        }
 
         $query->where(function ($q) use ($user) {
             $q->where('approver_type', 'user')->where('approver_id', $user->id)
@@ -266,6 +309,16 @@ class ReleaseApiController extends Controller
                       }
                   });
             });
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('approvalRequest', function ($q2) use ($search) {
+                    $q2->where('request_number', 'like', "%{$search}%");
+                })->orWhereHas('masterItem', function ($q2) use ($search) {
+                    $q2->where('item_name', 'like', "%{$search}%");
+                });
+            });
+        }
             
         $statusCounts = $statusCountsQuery->select('status', DB::raw('count(*) as count'))
             ->groupBy('status')

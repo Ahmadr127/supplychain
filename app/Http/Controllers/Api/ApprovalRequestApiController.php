@@ -20,6 +20,19 @@ use Illuminate\Support\Facades\Storage;
  */
 class ApprovalRequestApiController extends Controller
 {
+    private function normalizeStatus(?string $status): ?string
+    {
+        if (!$status) {
+            return null;
+        }
+
+        return match (strtolower(trim($status))) {
+            'all' => null,
+            'fulfilled', 'terpenuhi', 'released' => 'approved',
+            default => strtolower(trim($status)),
+        };
+    }
+
     /**
      * GET /api/approval-requests
      * All approval requests. Supports ?search=, ?status=, ?date_from=, ?date_to=, ?per_page=
@@ -36,7 +49,8 @@ class ApprovalRequestApiController extends Controller
             });
         }
 
-        if ($request->status)    $query->where('status', $request->status);
+        $requestedStatus = $this->normalizeStatus($request->input('status'));
+        if ($requestedStatus)    $query->where('status', $requestedStatus);
         if ($request->date_from) $query->whereDate('created_at', '>=', $request->date_from);
         if ($request->date_to)   $query->whereDate('created_at', '<=', $request->date_to);
 
@@ -56,7 +70,8 @@ class ApprovalRequestApiController extends Controller
             ->where('requester_id', Auth::id())
             ->orderBy('created_at', 'desc');
 
-        if ($request->status) $query->where('status', $request->status);
+        $requestedStatus = $this->normalizeStatus($request->input('status'));
+        if ($requestedStatus) $query->where('status', $requestedStatus);
         if ($request->search) $query->where('request_number', 'like', "%{$request->search}%");
 
         return response()->json([
@@ -69,6 +84,7 @@ class ApprovalRequestApiController extends Controller
     {
         $user = Auth::user();
         $userId = $user->id;
+        $requestedStatus = $this->normalizeStatus($request->input('status'));
 
         // Check if user is a manager of any department
         $isManager = $user->departments()->wherePivot('is_manager', true)->exists();
@@ -93,7 +109,7 @@ class ApprovalRequestApiController extends Controller
                 // And the step is either pending OR actioned by me
                 ->where(function ($sq) use ($user) {
                     $sq->where('status', 'pending')
-                       ->orWhere('approver_id', $user->id);
+                       ->orWhere('approved_by', $user->id);
                 });
             })
             ->orderBy('created_at', 'desc')
@@ -105,7 +121,8 @@ class ApprovalRequestApiController extends Controller
                 $isPendingForMe = $step && $step->canApprove($userId);
                 
                 $hasActioned = $item->steps->contains(function ($s) use ($userId) {
-                    return $s->approver_id === $userId && in_array($s->status, ['approved', 'rejected']);
+                    return (int) $s->approved_by === (int) $userId
+                        && in_array($s->status, ['approved', 'rejected'], true);
                 });
                 
                 return $isPendingForMe || $hasActioned;
@@ -114,7 +131,9 @@ class ApprovalRequestApiController extends Controller
             if ($myItems->isEmpty()) return null;
 
             $isPending = $myItems->contains(fn($i) => $i->getCurrentPendingStep() && $i->getCurrentPendingStep()->canApprove($userId));
-            $isRejected = $myItems->contains(fn($i) => $i->steps->where('approver_id', $userId)->where('status', 'rejected')->isNotEmpty());
+            $isRejected = $myItems->contains(
+                fn($i) => $i->steps->where('approved_by', $userId)->where('status', 'rejected')->isNotEmpty()
+            );
             
             $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');
 
@@ -123,8 +142,8 @@ class ApprovalRequestApiController extends Controller
             return $req;
         })->filter();
 
-        if ($request->filled('status') && $request->status !== 'all') {
-            $filtered = $filtered->where('status', $request->status);
+        if ($requestedStatus) {
+            $filtered = $filtered->where('status', $requestedStatus);
         }
 
         if ($request->filled('search')) {

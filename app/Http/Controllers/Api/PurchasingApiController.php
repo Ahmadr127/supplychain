@@ -16,6 +16,20 @@ class PurchasingApiController extends Controller
 {
     private PurchasingItemService $purchasingItemService;
 
+    private function normalizeStatus(?string $status): ?string
+    {
+        if (!$status) {
+            return null;
+        }
+
+        return match (strtolower(trim($status))) {
+            'all' => null,
+            // Backward-compatible aliases used by older clients
+            'fulfilled', 'terpenuhi', 'approved' => 'done',
+            default => strtolower(trim($status)),
+        };
+    }
+
     public function __construct(PurchasingItemService $purchasingItemService)
     {
         $this->middleware('auth:sanctum');
@@ -27,6 +41,7 @@ class PurchasingApiController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $requestedStatus = $this->normalizeStatus($request->input('status'));
         $query = PurchasingItem::with(['approvalRequest', 'masterItem', 'preferredVendor', 'statusChanger']);
 
         if ($search = $request->input('search')) {
@@ -39,8 +54,8 @@ class PurchasingApiController extends Controller
             });
         }
 
-        if ($status = $request->input('status')) {
-            $query->where('status', $status);
+        if ($requestedStatus) {
+            $query->where('status', $requestedStatus);
         }
 
         // Calculate status counts for all statuses without the status filter applied
