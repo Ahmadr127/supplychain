@@ -359,6 +359,10 @@ Route::middleware('auth')->group(function () {
     Route::get('approval-requests/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');
     Route::get('approval-requests/attachments/{attachment}/view', [ApprovalRequestController::class, 'viewAttachment'])->name('approval-requests.view-attachment');
 
+    // FS Document routes
+    Route::get('approval-requests/items/{item}/view-fs', [ApprovalRequestController::class, 'viewFsDocument'])->name('approval-requests.view-fs');
+    Route::get('approval-requests/items/{item}/download-fs', [ApprovalRequestController::class, 'downloadFsDocument'])->name('approval-requests.download-fs');
+
     // -----------------------------------------------------------------------
     // Import Engine Routes
     // -----------------------------------------------------------------------

@@ -1930,4 +1930,46 @@ class ApprovalRequestController extends Controller
             ])
             ->with('success', $message);
     }
+
+    /**
+     * View FS Document (Inline if PDF) - Web version
+     */
+    public function viewFsDocument(\App\Models\ApprovalRequestItem $item)
+    {
+        if (empty($item->fs_document)) {
+            abort(404, 'Dokumen FS tidak ditemukan.');
+        }
+
+        if (!Storage::disk('public')->exists($item->fs_document)) {
+            abort(404, 'File fisik tidak ditemukan di server.');
+        }
+
+        $mime = Storage::disk('public')->mimeType($item->fs_document);
+        $filename = 'FS-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
+
+        if ($mime !== 'application/pdf') {
+            return Storage::disk('public')->download($item->fs_document, $filename);
+        }
+
+        $stream = Storage::disk('public')->readStream($item->fs_document);
+        return response()->stream(function() use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.addslashes($filename).'"'
+        ]);
+    }
+
+    /**
+     * Download FS Document - Web version
+     */
+    public function downloadFsDocument(\App\Models\ApprovalRequestItem $item)
+    {
+        if (empty($item->fs_document) || !Storage::disk('public')->exists($item->fs_document)) {
+            abort(404, 'Dokumen FS tidak ditemukan.');
+        }
+
+        $filename = 'FS-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
+        return Storage::disk('public')->download($item->fs_document, $filename);
+    }
 }

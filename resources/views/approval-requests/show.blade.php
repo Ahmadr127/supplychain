@@ -449,13 +449,12 @@
                                             Dokumen FS Item
                                         </div>
                                         <div class="flex gap-2">
-                                            <a href="{{ Storage::url($item->fs_document) }}" 
+                                            <a href="{{ route('approval-requests.view-fs', $item->id) }}" 
                                                target="_blank"
                                                class="text-xs text-blue-600 hover:text-blue-800 hover:underline">
                                                 <i class="fas fa-eye mr-1"></i>Lihat
                                             </a>
-                                            <a href="{{ Storage::url($item->fs_document) }}" 
-                                               download
+                                            <a href="{{ route('approval-requests.download-fs', $item->id) }}" 
                                                class="text-xs text-gray-600 hover:text-gray-800 hover:underline">
                                                 <i class="fas fa-download mr-1"></i>Download
                                             </a>

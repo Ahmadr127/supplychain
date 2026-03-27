@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Approval Item API — Per-item approval & rejection actions + status check.
@@ -383,5 +384,55 @@ class ApprovalItemApiController extends Controller
                 'rejected_reason' => $s->rejected_reason,
             ]),
         ];
+    }
+
+    /**
+     * View FS Document (Inline if PDF)
+     */
+    public function viewFsDocument(ApprovalRequest $approvalRequest, ApprovalRequestItem $item)
+    {
+        if ($item->approval_request_id !== $approvalRequest->id) {
+            return response()->json(['status' => 'error', 'message' => 'Item tidak cocok dengan request.'], 403);
+        }
+
+        if (empty($item->fs_document)) {
+            return response()->json(['status' => 'error', 'message' => 'Dokumen FS tidak ditemukan.'], 404);
+        }
+
+        if (!Storage::disk('public')->exists($item->fs_document)) {
+            return response()->json(['status' => 'error', 'message' => 'File fisik tidak ditemukan di server.'], 404);
+        }
+
+        $mime = Storage::disk('public')->mimeType($item->fs_document);
+        $filename = 'FS-' . $approvalRequest->request_number . '-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
+
+        if ($mime !== 'application/pdf') {
+            return Storage::disk('public')->download($item->fs_document, $filename);
+        }
+
+        $stream = Storage::disk('public')->readStream($item->fs_document);
+        return response()->stream(function () use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+        ]);
+    }
+
+    /**
+     * Download FS Document
+     */
+    public function downloadFsDocument(ApprovalRequest $approvalRequest, ApprovalRequestItem $item)
+    {
+        if ($item->approval_request_id !== $approvalRequest->id) {
+            abort(403, 'Item tidak cocok dengan request.');
+        }
+
+        if (empty($item->fs_document) || !Storage::disk('public')->exists($item->fs_document)) {
+            abort(404, 'Dokumen FS tidak ditemukan.');
+        }
+
+        $filename = 'FS-' . $approvalRequest->request_number . '-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
+        return Storage::disk('public')->download($item->fs_document, $filename);
     }
 }
