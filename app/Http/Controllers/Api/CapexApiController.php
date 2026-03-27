@@ -253,12 +253,12 @@ class CapexApiController extends Controller
     {
         $this->requireCapexReadAccess();
         $request->validate(['department_id' => 'nullable|exists:departments,id']);
-        $deptId = $this->getUserDepartmentId();
+        // Use requested department_id if provided; fallback to user's primary department.
+        $deptId = $request->filled('department_id')
+            ? (int) $request->department_id
+            : $this->getUserDepartmentId();
         if (!$deptId) {
             return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
-        }
-        if ($request->filled('department_id') && (int) $request->department_id !== (int) $deptId) {
-            return response()->json(['status' => 'error', 'message' => 'Akses department tidak diizinkan.'], 403);
         }
 
         $year  = (int) $request->get('year', date('Y'));
