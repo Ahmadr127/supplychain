@@ -28,11 +28,6 @@ use Illuminate\Support\Facades\Auth;
  */
 class CapexApiController extends Controller
 {
-    private function isAdmin(): bool
-    {
-        return Auth::user()->hasPermission('manage_capex');
-    }
-
     private function requireCapexAccess(): void
     {
         $user = Auth::user();
@@ -48,7 +43,6 @@ class CapexApiController extends Controller
 
     private function authorizeCapex(Capex $capex): void
     {
-        if ($this->isAdmin()) return;
         $deptId = $this->getUserDepartmentId();
         if (!$deptId || $capex->department_id !== $deptId) {
             abort(403, 'Anda tidak dapat mengelola CapEx dari unit lain.');
@@ -66,22 +60,17 @@ class CapexApiController extends Controller
     public function index(Request $request)
     {
         $this->requireCapexAccess();
+        $deptId = $this->getUserDepartmentId();
+        if (!$deptId) {
+            return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
+        }
 
-        $query = Capex::with('department')->where('fiscal_year', $request->get('year', date('Y')));
+        $query = Capex::with('department')
+            ->where('department_id', $deptId)
+            ->where('fiscal_year', $request->get('year', date('Y')));
 
-        if ($this->isAdmin()) {
-            if ($request->filled('department_id')) $query->where('department_id', $request->department_id);
-            if ($request->filled('status'))        $query->where('status', $request->status);
-            if ($request->filled('search')) {
-                $search = '%' . $request->search . '%';
-                $query->whereHas('department', fn($q) => $q->where('name', 'like', $search)->orWhere('code', 'like', $search));
-            }
-        } else {
-            $deptId = $this->getUserDepartmentId();
-            if (!$deptId) {
-                return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
-            }
-            $query->where('department_id', $deptId);
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
         }
 
         $capexes = $query->paginate($request->get('per_page', 20));
@@ -91,26 +80,31 @@ class CapexApiController extends Controller
     }
 
     /**
-     * POST /api/capex — Admin only.
-     * Body: department_id*, fiscal_year*, notes
+     * POST /api/capex — scoped to login user's department.
+     * Body: fiscal_year*, notes
      */
     public function store(Request $request)
     {
-        if (!$this->isAdmin()) {
-            return response()->json(['status' => 'error', 'message' => 'Hanya admin yang dapat membuat CapEx baru.'], 403);
+        $this->requireCapexAccess();
+        $deptId = $this->getUserDepartmentId();
+        if (!$deptId) {
+            return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
         }
 
         $v = $request->validate([
-            'department_id' => 'required|exists:departments,id',
             'fiscal_year'   => 'required|integer|min:2020|max:2100',
             'notes'         => 'nullable|string|max:500',
         ]);
 
-        if (Capex::where('department_id', $v['department_id'])->where('fiscal_year', $v['fiscal_year'])->exists()) {
+        if (Capex::where('department_id', $deptId)->where('fiscal_year', $v['fiscal_year'])->exists()) {
             return response()->json(['status' => 'error', 'message' => 'CapEx untuk departemen dan tahun ini sudah ada.'], 422);
         }
 
-        $capex = Capex::create(array_merge($v, ['status' => 'active', 'created_by' => Auth::id()]));
+        $capex = Capex::create(array_merge($v, [
+            'department_id' => $deptId,
+            'status' => 'active',
+            'created_by' => Auth::id(),
+        ]));
         $capex->load('department');
 
         return response()->json(['status' => 'success', 'message' => 'CapEx berhasil dibuat.', 'data' => $this->summary($capex)], 201);
@@ -161,14 +155,13 @@ class CapexApiController extends Controller
     }
 
     /**
-     * PATCH /api/capex/{capex} — Admin only.
+     * PATCH /api/capex/{capex} — scoped to login user's department.
      * Body: fiscal_year*, status* (draft|active|closed), notes
      */
     public function update(Request $request, Capex $capex)
     {
-        if (!$this->isAdmin()) {
-            return response()->json(['status' => 'error', 'message' => 'Hanya admin yang dapat mengubah CapEx.'], 403);
-        }
+        $this->requireCapexAccess();
+        $this->authorizeCapex($capex);
 
         $v = $request->validate([
             'fiscal_year' => 'required|integer|min:2020|max:2100',
@@ -192,13 +185,13 @@ class CapexApiController extends Controller
     }
 
     /**
-     * DELETE /api/capex/{capex} — Admin only. Fails if any item has been used.
+     * DELETE /api/capex/{capex} — scoped to login user's department.
+     * Fails if any item has been used.
      */
     public function destroy(Capex $capex)
     {
-        if (!$this->isAdmin()) {
-            return response()->json(['status' => 'error', 'message' => 'Hanya admin yang dapat menghapus CapEx.'], 403);
-        }
+        $this->requireCapexAccess();
+        $this->authorizeCapex($capex);
 
         if ($capex->items()->where('used_amount', '>', 0)->exists()) {
             return response()->json(['status' => 'error', 'message' => 'CapEx tidak dapat dihapus karena ada item yang sudah terpakai.'], 422);
@@ -253,10 +246,17 @@ class CapexApiController extends Controller
     public function availableItems(Request $request)
     {
         $this->requireCapexAccess();
-        $request->validate(['department_id' => 'required|exists:departments,id']);
+        $request->validate(['department_id' => 'nullable|exists:departments,id']);
+        $deptId = $this->getUserDepartmentId();
+        if (!$deptId) {
+            return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
+        }
+        if ($request->filled('department_id') && (int) $request->department_id !== (int) $deptId) {
+            return response()->json(['status' => 'error', 'message' => 'Akses department tidak diizinkan.'], 403);
+        }
 
         $year  = (int) $request->get('year', date('Y'));
-        $capex = Capex::where('department_id', $request->department_id)
+        $capex = Capex::where('department_id', $deptId)
             ->where('fiscal_year', $year)->where('status', 'active')->first();
 
         if (!$capex) {
@@ -301,9 +301,14 @@ class CapexApiController extends Controller
     public function departments()
     {
         $this->requireCapexAccess();
+        $deptId = $this->getUserDepartmentId();
+        if (!$deptId) {
+            return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
+        }
+
         return response()->json([
             'status' => 'success',
-            'data'   => Department::where('code', '!=', 'DIR')->orderBy('name')->get(['id', 'name', 'code']),
+            'data'   => Department::where('id', $deptId)->get(['id', 'name', 'code']),
         ]);
     }
 
@@ -314,14 +319,21 @@ class CapexApiController extends Controller
     public function budgetSummary(Request $request)
     {
         $this->requireCapexAccess();
+        $deptId = $this->getUserDepartmentId();
+        if (!$deptId) {
+            return response()->json(['status' => 'error', 'message' => 'Akun Anda tidak terhubung dengan departemen manapun.'], 403);
+        }
 
         $v = $request->validate([
-            'department_id' => 'required|exists:departments,id',
+            'department_id' => 'nullable|exists:departments,id',
             'year'          => 'nullable|integer|min:2020|max:2100',
         ]);
+        if (isset($v['department_id']) && (int) $v['department_id'] !== (int) $deptId) {
+            return response()->json(['status' => 'error', 'message' => 'Akses department tidak diizinkan.'], 403);
+        }
 
         $year = (int) ($v['year'] ?? date('Y'));
-        $capex = Capex::where('department_id', $v['department_id'])
+        $capex = Capex::where('department_id', $deptId)
             ->where('fiscal_year', $year)
             ->first();
 
@@ -329,7 +341,7 @@ class CapexApiController extends Controller
             return response()->json([
                 'status' => 'success',
                 'data' => [
-                    'department_id'     => (int) $v['department_id'],
+                    'department_id'     => (int) $deptId,
                     'fiscal_year'       => $year,
                     'capex_id'          => null,
                     'status'            => null,
@@ -341,8 +353,6 @@ class CapexApiController extends Controller
             ]);
         }
 
-        // Unit users can only see their own department's capex.
-        // Admin can see all. Reuse existing authorizeCapex.
         $this->authorizeCapex($capex);
 
         return response()->json([

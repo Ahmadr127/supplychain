@@ -91,6 +91,11 @@ class ApprovalRequestApiController extends Controller
 
         $allRequests = ApprovalRequest::with(['requester', 'items.steps.approver'])
             ->whereHas('items.steps', function ($q) use ($user, $isManager) {
+                // Only consider approval-phase steps for "pending approvals".
+                $q->where(function ($phaseQ) {
+                    $phaseQ->where('step_phase', 'approval')->orWhereNull('step_phase');
+                });
+
                 // Must be an eligible approver for the step
                 $q->where(function ($sq) use ($user, $isManager) {
                     $sq->where(fn($s) => $s->where('approver_type', 'user')->where('approver_id', $user->id))
@@ -117,11 +122,17 @@ class ApprovalRequestApiController extends Controller
 
         $filtered = $allRequests->map(function ($req) use ($userId) {
             $myItems = $req->items->filter(function ($item) use ($userId) {
-                $step = $item->getCurrentPendingStep();
+                // Use only pending steps in approval phase (ignore release-phase pending steps).
+                $step = $item->steps->first(function ($s) {
+                    $phase = $s->step_phase ?? 'approval';
+                    return $phase === 'approval' && $s->status === 'pending';
+                });
                 $isPendingForMe = $step && $step->canApprove($userId);
                 
                 $hasActioned = $item->steps->contains(function ($s) use ($userId) {
+                    $phase = $s->step_phase ?? 'approval';
                     return (int) $s->approved_by === (int) $userId
+                        && $phase === 'approval'
                         && in_array($s->status, ['approved', 'rejected'], true);
                 });
                 
@@ -130,9 +141,19 @@ class ApprovalRequestApiController extends Controller
 
             if ($myItems->isEmpty()) return null;
 
-            $isPending = $myItems->contains(fn($i) => $i->getCurrentPendingStep() && $i->getCurrentPendingStep()->canApprove($userId));
+            $isPending = $myItems->contains(function ($i) use ($userId) {
+                $step = $i->steps->first(function ($s) {
+                    $phase = $s->step_phase ?? 'approval';
+                    return $phase === 'approval' && $s->status === 'pending';
+                });
+                return $step && $step->canApprove($userId);
+            });
             $isRejected = $myItems->contains(
-                fn($i) => $i->steps->where('approved_by', $userId)->where('status', 'rejected')->isNotEmpty()
+                fn($i) => $i->steps
+                    ->where('approved_by', $userId)
+                    ->where('status', 'rejected')
+                    ->where(fn($s) => ($s->step_phase ?? 'approval') === 'approval')
+                    ->isNotEmpty()
             );
             
             $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');

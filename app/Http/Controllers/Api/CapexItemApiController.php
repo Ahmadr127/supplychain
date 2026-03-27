@@ -31,11 +31,6 @@ class CapexItemApiController extends Controller
         }
     }
 
-    private function isAdmin(): bool
-    {
-        return Auth::user()->hasPermission('manage_capex');
-    }
-
     private function getUserDepartmentId(): ?int
     {
         return Auth::user()->primaryDepartment()->first()?->id;
@@ -43,7 +38,6 @@ class CapexItemApiController extends Controller
 
     private function authorizeItem(CapexItem $item): void
     {
-        if ($this->isAdmin()) return;
         $item->loadMissing('capex');
         $deptId = $this->getUserDepartmentId();
         if (!$deptId || $item->capex->department_id !== $deptId) {
@@ -53,7 +47,6 @@ class CapexItemApiController extends Controller
 
     private function authorizeCapex(Capex $capex): void
     {
-        if ($this->isAdmin()) return;
         $deptId = $this->getUserDepartmentId();
         if (!$deptId || $capex->department_id !== $deptId) {
             abort(403, 'Anda tidak dapat mengelola CapEx dari unit lain.');
