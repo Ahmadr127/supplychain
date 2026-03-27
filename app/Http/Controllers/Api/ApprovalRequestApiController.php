@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\ApprovalRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Approval Request API — Read only (list & detail).
@@ -233,6 +235,31 @@ class ApprovalRequestApiController extends Controller
             ];
         });
 
+        $itemFiles = DB::table('approval_request_item_files')
+            ->where('approval_request_id', $approvalRequest->id)
+            ->get()
+            ->groupBy('master_item_id');
+
+        $items = $items->map(function ($itemData) use ($itemFiles) {
+            $masterItemId = data_get($itemData, 'master_item.id');
+            $files = $masterItemId
+                ? ($itemFiles->get($masterItemId) ?? collect())
+                : collect();
+
+            $itemData['supporting_documents'] = $files->map(function ($f) {
+                return [
+                    'id' => $f->id,
+                    'original_name' => $f->original_name,
+                    'mime' => $f->mime,
+                    'size' => (int) $f->size,
+                    'view_url' => url("/api/approval-request-attachments/{$f->id}/view"),
+                    'download_url' => url("/api/approval-request-attachments/{$f->id}/download"),
+                ];
+            })->values();
+
+            return $itemData;
+        });
+
         return response()->json([
             'status' => 'success',
             'data'   => [
@@ -246,6 +273,41 @@ class ApprovalRequestApiController extends Controller
                 'created_at'     => $approvalRequest->created_at,
                 'items'          => $items,
             ],
+        ]);
+    }
+
+    public function downloadAttachment($attachmentId)
+    {
+        $file = DB::table('approval_request_item_files')->where('id', $attachmentId)->first();
+        if (!$file) {
+            return response()->json(['status' => 'error', 'message' => 'File tidak ditemukan.'], 404);
+        }
+        if (!Storage::disk('public')->exists($file->path)) {
+            return response()->json(['status' => 'error', 'message' => 'Path file tidak ditemukan.'], 404);
+        }
+        return Storage::disk('public')->download($file->path, $file->original_name);
+    }
+
+    public function viewAttachment($attachmentId)
+    {
+        $file = DB::table('approval_request_item_files')->where('id', $attachmentId)->first();
+        if (!$file) {
+            return response()->json(['status' => 'error', 'message' => 'File tidak ditemukan.'], 404);
+        }
+        if (!Storage::disk('public')->exists($file->path)) {
+            return response()->json(['status' => 'error', 'message' => 'Path file tidak ditemukan.'], 404);
+        }
+
+        $mime = $file->mime ?: Storage::disk('public')->mimeType($file->path);
+        if ($mime !== 'application/pdf') {
+            return Storage::disk('public')->download($file->path, $file->original_name);
+        }
+        $stream = Storage::disk('public')->readStream($file->path);
+        return response()->stream(function () use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . addslashes($file->original_name) . '"',
         ]);
     }
 

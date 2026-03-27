@@ -47,6 +47,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/',        [ApprovalRequestApiController::class, 'index']);
         Route::get('/{approvalRequest}', [ApprovalRequestApiController::class, 'show']);
     });
+    Route::get(
+        '/approval-request-attachments/{attachmentId}/view',
+        [ApprovalRequestApiController::class, 'viewAttachment']
+    );
+    Route::get(
+        '/approval-request-attachments/{attachmentId}/download',
+        [ApprovalRequestApiController::class, 'downloadAttachment']
+    );
 
     // ----------------------------------------------------------------
     // Approval Items  (ApprovalItemApiController)
