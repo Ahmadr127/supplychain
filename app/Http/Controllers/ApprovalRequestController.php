@@ -1548,7 +1548,9 @@ class ApprovalRequestController extends Controller
         if (!\Storage::disk('public')->exists($file->path)) {
             abort(404, 'Path file tidak ditemukan.');
         }
-        return \Storage::disk('public')->download($file->path, $file->original_name);
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = \Storage::disk('public');
+        return $disk->download($file->path, $file->original_name);
     }
 
     public function viewAttachment($attachmentId)
@@ -1564,7 +1566,9 @@ class ApprovalRequestController extends Controller
         // Only allow inline view for PDFs; others fallback to download
         $mime = $file->mime ?: \Storage::disk('public')->mimeType($file->path);
         if ($mime !== 'application/pdf') {
-            return \Storage::disk('public')->download($file->path, $file->original_name);
+            /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+            $disk = \Storage::disk('public');
+            return $disk->download($file->path, $file->original_name);
         }
         $stream = \Storage::disk('public')->readStream($file->path);
         return response()->stream(function() use ($stream) {
@@ -1948,7 +1952,9 @@ class ApprovalRequestController extends Controller
         $filename = 'FS-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
 
         if ($mime !== 'application/pdf') {
-            return Storage::disk('public')->download($item->fs_document, $filename);
+            /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+            $disk = Storage::disk('public');
+            return $disk->download($item->fs_document, $filename);
         }
 
         $stream = Storage::disk('public')->readStream($item->fs_document);
@@ -1970,6 +1976,8 @@ class ApprovalRequestController extends Controller
         }
 
         $filename = 'FS-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
-        return Storage::disk('public')->download($item->fs_document, $filename);
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+        return $disk->download($item->fs_document, $filename);
     }
 }

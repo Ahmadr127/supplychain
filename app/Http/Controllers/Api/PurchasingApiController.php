@@ -41,6 +41,27 @@ class PurchasingApiController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // 1. Auto-resolve missing purchasing items for legacy or lazily resolved items.
+        // This ensures the Mobile API returns items that technically reached purchasing phase 
+        // but haven't been clicked "Proses" on the Web UI yet.
+        $readyItems = \App\Models\ApprovalRequestItem::whereIn('status', ['in_purchasing', 'approved', 'in_release'])
+            ->whereNotExists(function($query) {
+                $query->select(\Illuminate\Support\Facades\DB::raw(1))
+                      ->from('purchasing_items')
+                      ->whereColumn('purchasing_items.approval_request_id', 'approval_request_items.approval_request_id')
+                      ->whereColumn('purchasing_items.master_item_id', 'approval_request_items.master_item_id');
+            })
+            ->get();
+            
+        foreach ($readyItems as $readyItem) {
+            \App\Models\PurchasingItem::create([
+                'approval_request_id' => $readyItem->approval_request_id,
+                'master_item_id' => $readyItem->master_item_id,
+                'quantity' => $readyItem->quantity,
+                'status' => 'unprocessed',
+            ]);
+        }
+
         $requestedStatus = $this->normalizeStatus($request->input('status'));
         $query = PurchasingItem::with(['approvalRequest', 'masterItem', 'preferredVendor', 'statusChanger']);
 
@@ -79,12 +100,12 @@ class PurchasingApiController extends Controller
         // Format the items to include ISO 8601 dates
         $formattedItems = collect($items->items())->map(function ($item) {
             $itemArray = $item->toArray();
-            $itemArray['created_at'] = $item->created_at ? $item->created_at->toIso8601String() : null;
-            $itemArray['updated_at'] = $item->updated_at ? $item->updated_at->toIso8601String() : null;
-            $itemArray['status_changed_at'] = $item->status_changed_at ? $item->status_changed_at->toIso8601String() : null;
-            $itemArray['grn_date'] = $item->grn_date ? $item->grn_date->toIso8601String() : null;
+            $itemArray['created_at'] = $item->created_at ? \Carbon\Carbon::parse($item->created_at)->toIso8601String() : null;
+            $itemArray['updated_at'] = $item->updated_at ? \Carbon\Carbon::parse($item->updated_at)->toIso8601String() : null;
+            $itemArray['status_changed_at'] = $item->status_changed_at ? \Carbon\Carbon::parse($item->status_changed_at)->toIso8601String() : null;
+            $itemArray['grn_date'] = $item->grn_date ? \Carbon\Carbon::parse($item->grn_date)->toIso8601String() : null;
             return $itemArray;
-        });
+        })->values()->all();
 
         return response()->json([
             'status' => 'success',
@@ -123,10 +144,10 @@ class PurchasingApiController extends Controller
         }
 
         $itemArray = $item->toArray();
-        $itemArray['created_at'] = $item->created_at ? $item->created_at->toIso8601String() : null;
-        $itemArray['updated_at'] = $item->updated_at ? $item->updated_at->toIso8601String() : null;
-        $itemArray['status_changed_at'] = $item->status_changed_at ? $item->status_changed_at->toIso8601String() : null;
-        $itemArray['grn_date'] = $item->grn_date ? $item->grn_date->toIso8601String() : null;
+        $itemArray['created_at'] = $item->created_at ? \Carbon\Carbon::parse($item->created_at)->toIso8601String() : null;
+        $itemArray['updated_at'] = $item->updated_at ? \Carbon\Carbon::parse($item->updated_at)->toIso8601String() : null;
+        $itemArray['status_changed_at'] = $item->status_changed_at ? \Carbon\Carbon::parse($item->status_changed_at)->toIso8601String() : null;
+        $itemArray['grn_date'] = $item->grn_date ? \Carbon\Carbon::parse($item->grn_date)->toIso8601String() : null;
 
         return response()->json([
             'status' => 'success',
