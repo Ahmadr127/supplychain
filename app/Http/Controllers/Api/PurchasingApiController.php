@@ -265,6 +265,8 @@ class PurchasingApiController extends Controller
     {
         $validated = $request->validate([
             'supplier_id' => 'required|exists:suppliers,id',
+            'unit_price'  => 'nullable|numeric|min:0',
+            'total_price' => 'nullable|numeric|min:0',
         ]);
 
         $item = PurchasingItem::find($id);
@@ -299,11 +301,15 @@ class PurchasingApiController extends Controller
         }
 
         try {
+            // Use provided prices, fallback to benchmarking prices if not provided
+            $unitPrice  = $validated['unit_price']  ?? $supplierInBenchmarking->unit_price;
+            $totalPrice = $validated['total_price'] ?? $supplierInBenchmarking->total_price;
+
             $updatedItem = $this->purchasingItemService->selectPreferred(
                 $item, 
                 $validated['supplier_id'], 
-                $supplierInBenchmarking->unit_price, 
-                $supplierInBenchmarking->total_price
+                $unitPrice, 
+                $totalPrice
             );
             
             return response()->json([
@@ -366,10 +372,11 @@ class PurchasingApiController extends Controller
     {
         // Permission check: hanya manage_purchasing
         if (!Auth::user()->hasPermission('manage_purchasing') && !Auth::user()->hasPermission('process_purchasing_item')) {
-            return response()->json(['status' => 'error', 'message' => 'Akses ditolak. Hanya tim purchasing yang dapat input GRN.'], 403);
+            return response()->json(['status' => 'error', 'message' => 'Akses ditolak. Hanya tim purchasing yang dapat input GRN \u0026 Invoice.'], 403);
         }
 
         $validated = $request->validate([
+            'invoice_number' => 'required|string|max:100',
             'grn_date' => 'required|date',
         ]);
 
@@ -383,20 +390,22 @@ class PurchasingApiController extends Controller
         if (empty($item->po_number)) {
             return response()->json([
                 'status'  => 'error',
-                'message' => 'PO Number (Step 4) harus diisi terlebih dahulu sebelum input GRN.',
+                'message' => 'PO Number (Step 4) harus diisi terlebih dahulu sebelum input GRN \u0026 Invoice.',
             ], 422);
         }
 
         try {
             $grnDate     = Carbon::parse($validated['grn_date']);
             $updatedItem = $this->purchasingItemService->receiveGRN($item, $grnDate);
+            $item->update(['invoice_number' => $validated['invoice_number']]);
+
             return response()->json([
                 'status'  => 'success',
-                'message' => 'GRN Date berhasil disimpan',
-                'data'    => $updatedItem,
+                'message' => 'Invoice dan GRN berhasil disimpan',
+                'data'    => $updatedItem->fresh(),
             ]);
         } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => 'Gagal menyimpan GRN Date: ' . $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => 'Gagal menyimpan GRN \u0026 Invoice: ' . $e->getMessage()], 500);
         }
     }
 
