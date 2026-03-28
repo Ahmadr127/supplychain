@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\FcmTokenController;
 use App\Http\Controllers\Api\NotificationApiController;
 use App\Http\Controllers\Api\PurchasingApiController;
 use App\Http\Controllers\Api\ReleaseApiController;
+use App\Http\Controllers\SupplierLookupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -140,6 +141,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/purchasing/items/{id}/receive-grn', [PurchasingApiController::class, 'receiveGRN']);
     Route::post('/purchasing/items/{id}/mark-done', [PurchasingApiController::class, 'markDone']);
     Route::get('/purchasing/status-by-request', [PurchasingApiController::class, 'statusByRequest']);
+
+    // ----------------------------------------------------------------
+    // Supplier Lookup
+    // ----------------------------------------------------------------
+    Route::prefix('suppliers')->group(function () {
+        Route::get('/suggest', [SupplierLookupController::class, 'suggest']);
+        Route::post('/resolve', [SupplierLookupController::class, 'resolve']);
+    });
 
     // ----------------------------------------------------------------
     // Release Management  (ReleaseApiController)

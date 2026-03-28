@@ -338,10 +338,6 @@ Route::middleware('auth')->group(function () {
     Route::get('api/items/suggest', [ItemLookupController::class, 'suggest'])->name('api.items.suggest');
     Route::post('api/items/resolve', [ItemLookupController::class, 'resolve'])->name('api.items.resolve');
 
-    // Supplier lookup endpoints
-    Route::get('api/suppliers/suggest', [SupplierLookupController::class, 'suggest'])->name('api.suppliers.suggest');
-    Route::post('api/suppliers/resolve', [SupplierLookupController::class, 'resolve'])->name('api.suppliers.resolve');
-
     // Purchasing item lookup endpoints (now handled by ReportController)
     Route::get('api/purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'showPurchasingItemJson'])
         ->name('api.purchasing.items.show');
