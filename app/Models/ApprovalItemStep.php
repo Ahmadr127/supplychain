@@ -229,12 +229,9 @@ class ApprovalItemStep extends Model
      */
     public function canApprove(int $userId): bool
     {
-        if ($this->status !== 'pending') {
-            return false;
-        }
-
         $user = User::find($userId);
-        if (!$user) return false;
+        if (!$user)
+            return false;
 
         if ($this->isPurchasingPhase() || $this->step_type === 'purchasing') {
             return false;
@@ -249,25 +246,27 @@ class ApprovalItemStep extends Model
 
         switch ($this->approver_type) {
             case 'user':
-                return (int)$this->approver_id === (int)$userId;
+                return (int) $this->approver_id === (int) $userId;
             case 'role':
-                return $user->role && (int)$user->role->id === (int)$this->approver_role_id;
+                return $user->role && (int) $user->role->id === (int) $this->approver_role_id;
             case 'department_manager':
                 $dept = Department::find($this->approver_department_id);
-                return $dept && (int)$dept->manager_id === (int)$userId;
+                return $dept && (int) $dept->manager_id === (int) $userId;
             case 'requester_department_manager':
-                if (!$this->approvalRequest || !$this->approvalRequest->requester) return false;
+                if (!$this->approvalRequest || !$this->approvalRequest->requester)
+                    return false;
                 $primary = $this->approvalRequest->requester->departments()->wherePivot('is_primary', true)->first();
-                return $primary && (int)$primary->manager_id === (int)$userId;
+                return $primary && (int) $primary->manager_id === (int) $userId;
             case 'allocation_department_manager':
                 // Find the item related to this step
                 $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $this->approval_request_id)
-                   ->where('master_item_id', $this->master_item_id)
-                   ->first();
-                
-                if (!$requestItem || !$requestItem->allocationDepartment) return false;
-                
-                return (int)$requestItem->allocationDepartment->manager_id === (int)$userId;
+                    ->where('master_item_id', $this->master_item_id)
+                    ->first();
+
+                if (!$requestItem || !$requestItem->allocationDepartment)
+                    return false;
+
+                return (int) $requestItem->allocationDepartment->manager_id === (int) $userId;
             case 'any_department_manager':
                 return $user->departments()->wherePivot('is_manager', true)->exists();
             default:
@@ -306,7 +305,7 @@ class ApprovalItemStep extends Model
     {
         return $query->where(function ($q) {
             $q->where('step_phase', 'approval')
-              ->orWhereNull('step_phase');
+                ->orWhereNull('step_phase');
         });
     }
 
@@ -365,7 +364,7 @@ class ApprovalItemStep extends Model
                 'approved_by' => auth()->id() ?? 1, // fallback to System
                 'approved_at' => now(),
             ]);
-            
+
             // Find next step to activate
             $nextStep = static::where('approval_request_id', $approvalRequestId)
                 ->where('master_item_id', $masterItemId)
@@ -374,7 +373,7 @@ class ApprovalItemStep extends Model
                 ->where('status', 'pending_purchase')
                 ->orderBy('step_number')
                 ->first();
-                
+
             if ($nextStep && $nextStep->step_phase === 'purchasing') {
                 $nextStep->update(['status' => 'pending']);
             }
