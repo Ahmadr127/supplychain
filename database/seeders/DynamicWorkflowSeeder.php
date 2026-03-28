@@ -250,13 +250,13 @@ class DynamicWorkflowSeeder extends Seeder
             $this->requesterManagerStep(1, 'Manager Unit', 'Verifikasi & Input Harga', 'input_price'),
             $this->approverStep(2, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
             $this->approverStep(3, 'Manager PT', $roles['manager_pt'], null, 'approve'),
-            $this->approverStep(4, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
+            $this->approverStep(4, 'Purchasing', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING ═══
             ...$this->getPurchasingSteps(5, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(11, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(11, 'Purchasing', $roles['purchasing']),
             $this->releaserStep(12, 'Manager PT', $roles['manager_pt']),
         ];
     }
@@ -286,13 +286,13 @@ class DynamicWorkflowSeeder extends Seeder
             $this->financeFsStep(2, 'Manager Keuangan', $roles['manager_keuangan'], 'Pembuatan FS', 50000000),
             $this->approverStep(3, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
             $this->approverStep(4, 'Manager PT', $roles['manager_pt'], null, 'approve'),
-            $this->approverStep(5, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
+            $this->approverStep(5, 'Purchasing', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
             ...$this->getPurchasingSteps(6, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(12, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(12, 'Purchasing', $roles['purchasing']),
             $this->releaserStep(13, 'Manager PT', $roles['manager_pt']),
             $this->releaserStep(14, 'Direktur PT', $roles['direktur_pt']),
         ];
@@ -315,13 +315,13 @@ class DynamicWorkflowSeeder extends Seeder
             // ═══ PHASE 1: APPROVAL ═══
             $this->requesterManagerStep(1, 'Manager Unit', 'Verifikasi & Input Harga', 'input_price'),
             $this->approverStep(2, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
-            $this->approverStep(3, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
+            $this->approverStep(3, 'Purchasing', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING ═══
             ...$this->getPurchasingSteps(4, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(10, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(10, 'Purchasing', $roles['purchasing']),
         ];
     }
 
@@ -339,13 +339,13 @@ class DynamicWorkflowSeeder extends Seeder
             $this->requesterManagerStep(1, 'Manager Unit', 'Pemilihan ID Number CapEx', 'select_capex'),
             $this->approverStep(2, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
             $this->approverStep(3, 'Manager PT', $roles['manager_pt'], null, 'approve'),
-            $this->approverStep(4, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
+            $this->approverStep(4, 'Purchasing', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING ═══
             ...$this->getPurchasingSteps(5, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(11, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(11, 'Purchasing', $roles['purchasing']),
             $this->releaserStep(12, 'Manager PT', $roles['manager_pt']),
         ];
     }
@@ -366,13 +366,13 @@ class DynamicWorkflowSeeder extends Seeder
             $this->financeFsStep(2, 'Manager Keuangan', $roles['manager_keuangan'], 'Pembuatan FS', 50000000),
             $this->approverStep(3, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
             $this->approverStep(4, 'Manager PT', $roles['manager_pt'], null, 'approve'),
-            $this->approverStep(5, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
+            $this->approverStep(5, 'Purchasing', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
             ...$this->getPurchasingSteps(6, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(12, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(12, 'Purchasing', $roles['purchasing']),
             $this->releaserStep(13, 'Manager PT', $roles['manager_pt']),
             $this->releaserStep(14, 'Direktur PT', $roles['direktur_pt']),
         ];
