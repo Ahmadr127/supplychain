@@ -16,6 +16,38 @@ class PurchasingItemService
     {
         $this->notificationService = $notificationService;
     }
+
+    /**
+     * Step 1: Set received date and transition to benchmarking
+     */
+    public function setReceivedDate(PurchasingItem $item, Carbon $date): PurchasingItem
+    {
+        $oldStatus = $item->status;
+        
+        DB::transaction(function() use ($item, $date) {
+            $item->approvalRequest->update(['received_at' => $date]);
+            
+            // Advance status if it was unprocessed
+            if ($item->status === 'unprocessed') {
+                $item->update([
+                    'status' => 'benchmarking',
+                    'status_changed_at' => now(),
+                    'status_changed_by' => auth()->id(),
+                ]);
+            }
+        });
+
+        $item->approvalRequest->refreshPurchasingStatus();
+        $item = $item->refresh();
+
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_receive_doc');
+
+        // Notify requester about progress
+        $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $item->status);
+
+        return $item;
+    }
+
     /**
      * Save or replace benchmarking vendors for a purchasing item.
      * $vendors = [
@@ -67,6 +99,17 @@ class PurchasingItemService
 
         if ($oldStatus !== $newStatus) {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $newStatus);
+            
+            // If benchmarking data exists, notify Manager Keuangan (Step 3)
+            if ($newStatus === 'benchmarking' && $item->vendors()->exists()) {
+                $this->notificationService->notifyRole(
+                    'manager_keuangan',
+                    'Pilih Preferred Vendor Diperlukan',
+                    sprintf('Benchmarking untuk %s (%s) telah selesai. Silakan pilih vendor.', 
+                        $item->masterItem->name ?? 'Item',
+                        $item->approvalRequest->request_number)
+                );
+            }
         }
 
         return $item;
@@ -115,6 +158,15 @@ class PurchasingItemService
 
         if ($oldStatus !== 'selected') {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'selected');
+            
+            // Notify Purchasing team to proceed to PO (Step 4)
+            $this->notificationService->notifyRole(
+                'purchasing',
+                'Proses PO Diperlukan',
+                sprintf('Vendor untuk %s (%s) telah dipilih. Silakan proses PO.', 
+                    $item->masterItem->name ?? 'Item',
+                    $item->approvalRequest->request_number)
+            );
         }
 
         return $item;

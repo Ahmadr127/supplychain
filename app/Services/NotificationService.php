@@ -94,6 +94,32 @@ class NotificationService
     }
 
     /**
+     * Send notification to all users with a specific role
+     *
+     * @param string $roleName The role name (slug) to notify
+     * @param string $title
+     * @param string $body
+     * @param array $data
+     * @return void
+     */
+    public function notifyRole(
+        string $roleName,
+        string $title,
+        string $body,
+        array $data = []
+    ): void {
+        $users = User::whereHas('role', function ($q) use ($roleName) {
+            $q->where('name', $roleName);
+        })->get();
+
+        if ($users->isNotEmpty()) {
+            $this->notifyUsers($users, $title, $body, $data);
+        } else {
+            Log::warning('NotificationService: No users found for role: ' . $roleName);
+        }
+    }
+
+    /**
      * Notify approvers when approval is needed
      * Sends notification to the next pending approver(s) for an approval request
      *

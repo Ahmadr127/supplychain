@@ -429,12 +429,11 @@ class PurchasingApiController extends Controller
         }
 
         try {
-            $item->approvalRequest->update([
-                'received_at' => Carbon::parse($validated['received_at']),
-            ]);
+            $updatedItem = $this->purchasingItemService->setReceivedDate($item, Carbon::parse($validated['received_at']));
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Tanggal dokumen berhasil disimpan',
+                'data'    => $updatedItem,
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);

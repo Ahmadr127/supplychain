@@ -80,7 +80,7 @@ class ReleaseApiController extends Controller
         if ($requestedStatus) {
             $query->where('status', $requestedStatus);
         } else {
-            $query->whereIn('status', ['in_purchasing', 'in_release', 'approved']);
+            $query->whereIn('status', ['in_release', 'approved']);
         }
 
         // Filter by user permissions (only items user can approve atau privileged roles)
@@ -287,8 +287,9 @@ class ReleaseApiController extends Controller
         if ($requestedStatus) {
             $query->where('status', $requestedStatus);
         } else {
-            // Include "pending_purchase" (activated after purchasing).
-            $query->whereIn('status', ['pending', 'pending_purchase', 'approved']);
+            // Only show 'pending' (ready for action) or 'approved' (past action).
+            // Exclude 'pending_purchase' as it's not yet ready for the release phase view.
+            $query->whereIn('status', ['pending', 'approved']);
         }
 
         $query->where(function ($q) use ($user) {
