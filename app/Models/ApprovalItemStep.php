@@ -229,6 +229,10 @@ class ApprovalItemStep extends Model
      */
     public function canApprove(int $userId): bool
     {
+        if ($this->status !== 'pending') {
+            return false;
+        }
+
         $user = User::find($userId);
         if (!$user) return false;
 
