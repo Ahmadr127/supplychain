@@ -66,9 +66,12 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
     
     $needsFsUpload = $requiresFsUpload && $totalPrice >= $fsThreshold;
 
-    // Get PurchasingItem for release phase info
+    // Check if current pending step is a PURCHASING phase step
+    $isPurchasingStep = $currentPendingStep && ($currentPendingStep->step_phase === 'purchasing' || $currentPendingStep->step_type === 'purchasing');
+
+    // Get PurchasingItem for release phase info AND for purchasing step redirect
     $purchasingItem = null;
-    if ($isReleaseStep || $currentPhase === 'purchasing') {
+    if ($isReleaseStep || $currentPhase === 'purchasing' || $isPurchasingStep) {
         $purchasingItem = \App\Models\PurchasingItem::where('approval_request_id', $approvalRequest->id)
             ->where('master_item_id', $item->master_item_id)
             ->first();
@@ -95,6 +98,45 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
             </div>
         </div>
     </div>
+
+@elseif($isPurchasingStep)
+    {{-- ===== PURCHASING PHASE: Redirect card, NO approval form here ===== --}}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-sm">
+        <div class="flex items-center gap-2 mb-2">
+            <i class="fas fa-shopping-cart text-amber-600"></i>
+            <h3 class="text-sm font-semibold text-amber-900">Proses Purchasing</h3>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">
+                Step {{ $currentPendingStep->step_number }}
+            </span>
+        </div>
+        <div class="bg-white rounded-md p-2 mb-3 border border-amber-100">
+            <p class="text-xs font-semibold text-gray-800">{{ $currentPendingStep->step_name }}</p>
+            @if($currentPendingStep->scope_process)
+                <p class="text-[10px] text-gray-500 mt-0.5">
+                    <i class="fas fa-tasks mr-1"></i>{{ $currentPendingStep->scope_process }}
+                </p>
+            @endif
+        </div>
+        <p class="text-[11px] text-amber-800 mb-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            Step ini diproses melalui modul <strong>Purchasing</strong>, bukan di halaman ini.
+            Silakan buka halaman Purchasing untuk melanjutkan proses.
+        </p>
+        @if(auth()->check() && (auth()->user()->hasPermission('process_purchasing_item') || auth()->user()->hasPermission('view_process_purchasing')))
+            @if($purchasingItem)
+                <a href="{{ route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $purchasingItem->id]) }}"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md transition-colors">
+                    <i class="fas fa-arrow-right"></i> Buka Modul Purchasing
+                </a>
+            @else
+                <a href="{{ route('reports.approval-requests') }}"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md transition-colors">
+                    <i class="fas fa-arrow-right"></i> Buka Modul Purchasing
+                </a>
+            @endif
+        @endif
+    </div>
+
 @elseif($itemSteps->count() > 0 && $currentPendingStep && $currentPendingStep->canApprove($userId))
     {{-- Approval Action Card - Simple & Professional --}}
     <div class="bg-white border {{ $isReleaseStep ? 'border-purple-200' : 'border-gray-200' }} rounded-lg p-3 shadow-sm">

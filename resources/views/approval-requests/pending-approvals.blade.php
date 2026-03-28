@@ -104,7 +104,6 @@
                         <th class="w-1/2 text-left">Progress</th>
                     @endif
                     <th class="w-20 text-left">Status</th>
-                    <th class="w-40 text-left">Status Purchasing</th>
                     <th class="w-20 text-left">Aksi</th>
                 </tr>
             </thead>
@@ -160,9 +159,6 @@
                         {{-- Status is already transformed in controller --}}
                         <x-approval-status-badge :status="$row->step->status" />
                     </td>
-                    <td class="w-40">
-                        <x-purchasing-status-badge :item="$row->itemData" :request="$row->request" />
-                    </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
                             <a href="{{ route('approval-requests.show', ['approvalRequest' => $row->request->id, 'item_id' => $row->itemData->id]) }}" 
@@ -175,21 +171,6 @@
         </table>
     </div>
 </x-responsive-table>
-
-<!-- Purchasing Status Modal -->
-<div id="ps-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
-    <div class="absolute inset-0 bg-black bg-opacity-40" onclick="closePurchasingStatusModal()"></div>
-    <div class="relative bg-white rounded-lg shadow-lg w-full max-w-md mx-3">
-        <div class="px-4 py-3 border-b flex items-center justify-between">
-            <h3 class="text-sm font-semibold">Detail Status Purchasing</h3>
-            <button class="text-gray-500 hover:text-gray-700" onclick="closePurchasingStatusModal()">&times;</button>
-        </div>
-        <div id="ps-modal-body" class="px-4 py-3"></div>
-        <div class="px-4 py-3 border-t flex justify-end">
-            <button class="px-3 py-1.5 text-sm rounded bg-gray-800 text-white" onclick="closePurchasingStatusModal()">Tutup</button>
-        </div>
-    </div>
-</div>
 
 <script src="{{ asset('js/approval-requests-common.js') }}"></script>
 

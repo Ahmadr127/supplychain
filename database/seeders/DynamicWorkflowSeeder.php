@@ -175,26 +175,34 @@ class DynamicWorkflowSeeder extends Seeder
         $this->command->info('');
         $this->command->info('✅ Dynamic workflows seeded successfully!');
         $this->command->newLine();
-        $this->command->info('📋 Flow Urutan:');
-        $this->command->info('   1. APPROVAL: Maker → Approvers');
-        $this->command->info('   2. PURCHASING: SPH 1, SPH 2 (existing system)');
-        $this->command->info('   3. RELEASE: Releasers (after purchasing complete)');
+        $this->command->info('📋 Flow Urutan (Sequential):');
+        $this->command->info('   1. APPROVAL  : Maker → Approvers (input harga, verifikasi budget)');
+        $this->command->info('   2. PURCHASING : Tim Purchasing → 6 Langkah Sequential');
+        $this->command->info('      Step 1: Terima Dokumen (set tgl diterima)');
+        $this->command->info('      Step 2: Benchmarking Vendor (SPH)');
+        $this->command->info('      Step 3: Preferred Vendor ← Manager Keuangan (manage_vendor)');
+        $this->command->info('      Step 4: Issue PO');
+        $this->command->info('      Step 5: Invoice & GRN');
+        $this->command->info('      Step 6: Mark Done');
+        $this->command->info('   3. RELEASE   : Releasers → Final Release');
         $this->command->newLine();
         
         $this->command->table(
-            ['Workflow', 'Type', 'Nominal', 'Approval Steps', 'Release Steps'],
+            ['Workflow', 'Type', 'Nominal', 'Approval Steps', 'Purchasing Steps', 'Release Steps'],
             ApprovalWorkflow::whereNotNull('procurement_type_id')
                 ->with('procurementType')
                 ->get()
                 ->map(function ($w) {
                     $steps = $w->steps ?? [];
-                    $approvalSteps = collect($steps)->filter(fn($s) => in_array($s->step_type ?? 'approver', ['maker', 'approver']))->count();
-                    $releaseSteps = collect($steps)->filter(fn($s) => ($s->step_type ?? '') === 'releaser')->count();
+                    $approvalSteps  = collect($steps)->filter(fn($s) => in_array($s->step_type ?? 'approver', ['maker', 'approver']))->count();
+                    $purchasingSteps = collect($steps)->filter(fn($s) => ($s->step_type ?? '') === 'purchasing')->count();
+                    $releaseSteps   = collect($steps)->filter(fn($s) => ($s->step_type ?? '') === 'releaser')->count();
                     return [
                         $w->name,
                         $w->procurementType->code ?? '-',
                         $w->nominal_range,
                         $approvalSteps,
+                        $purchasingSteps > 0 ? "✅ {$purchasingSteps}" : '❌ 0',
                         $releaseSteps,
                     ];
                 })->toArray()
@@ -244,12 +252,12 @@ class DynamicWorkflowSeeder extends Seeder
             $this->approverStep(3, 'Manager PT', $roles['manager_pt'], null, 'approve'),
             $this->approverStep(4, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
             
-            // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
-            // SPH 1, SPH 2 - tidak perlu step, akan auto-create PurchasingItem
+            // ═══ PHASE 2: PURCHASING ═══
+            ...$this->getPurchasingSteps(5, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(5, 'Manager Pembelian', $roles['purchasing']),
-            $this->releaserStep(6, 'Manager PT', $roles['manager_pt']),
+            $this->releaserStep(11, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(12, 'Manager PT', $roles['manager_pt']),
         ];
     }
 
@@ -281,11 +289,12 @@ class DynamicWorkflowSeeder extends Seeder
             $this->approverStep(5, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            ...$this->getPurchasingSteps(6, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(6, 'Manager Pembelian', $roles['purchasing']),
-            $this->releaserStep(7, 'Manager PT', $roles['manager_pt']),
-            $this->releaserStep(8, 'Direktur PT', $roles['direktur_pt']),
+            $this->releaserStep(12, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(13, 'Manager PT', $roles['manager_pt']),
+            $this->releaserStep(14, 'Direktur PT', $roles['direktur_pt']),
         ];
     }
 
@@ -308,10 +317,11 @@ class DynamicWorkflowSeeder extends Seeder
             $this->approverStep(2, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
             $this->approverStep(3, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
             
-            // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            // ═══ PHASE 2: PURCHASING ═══
+            ...$this->getPurchasingSteps(4, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(4, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(10, 'Manager Pembelian', $roles['purchasing']),
         ];
     }
 
@@ -331,11 +341,12 @@ class DynamicWorkflowSeeder extends Seeder
             $this->approverStep(3, 'Manager PT', $roles['manager_pt'], null, 'approve'),
             $this->approverStep(4, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
             
-            // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            // ═══ PHASE 2: PURCHASING ═══
+            ...$this->getPurchasingSteps(5, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(5, 'Manager Pembelian', $roles['purchasing']),
-            $this->releaserStep(6, 'Manager PT', $roles['manager_pt']),
+            $this->releaserStep(11, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(12, 'Manager PT', $roles['manager_pt']),
         ];
     }
 
@@ -358,11 +369,12 @@ class DynamicWorkflowSeeder extends Seeder
             $this->approverStep(5, 'Manager Pembelian', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
+            ...$this->getPurchasingSteps(6, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(6, 'Manager Pembelian', $roles['purchasing']),
-            $this->releaserStep(7, 'Manager PT', $roles['manager_pt']),
-            $this->releaserStep(8, 'Direktur PT', $roles['direktur_pt']),
+            $this->releaserStep(12, 'Manager Pembelian', $roles['purchasing']),
+            $this->releaserStep(13, 'Manager PT', $roles['manager_pt']),
+            $this->releaserStep(14, 'Direktur PT', $roles['direktur_pt']),
         ];
     }
 
@@ -510,6 +522,110 @@ class DynamicWorkflowSeeder extends Seeder
             'required_action' => 'release',
             'can_insert_step' => false,
             'is_conditional' => false,
+        ];
+    }
+
+    /**
+     * Generate 6 sequential purchasing steps (Phase 2).
+     * Starts at $startStep number.
+     *
+     * Step offset:  0 = Terima Dokumen (purchasing)
+     *               1 = Benchmarking Vendor (purchasing)
+     *               2 = Preferred Vendor (manager_keuangan via manage_vendor)
+     *               3 = Input PO (purchasing)
+     *               4 = Input Invoice & GRN (purchasing)
+     *               5 = Mark Done (purchasing)
+     */
+    private function getPurchasingSteps(int $startStep, array $roles): array
+    {
+        $purchasing     = $roles['purchasing']  ?? null;
+        $mgrKeuangan    = $roles['manager_keuangan'] ?? null;
+
+        return [
+            (object) [
+                'step_number'    => $startStep,
+                'step_name'      => 'Terima Dokumen',
+                'step_type'      => 'purchasing',
+                'step_phase'     => 'purchasing',
+                'approver_type'  => 'role',
+                'approver_id'    => null,
+                'approver_role_id'         => $purchasing?->id,
+                'approver_department_id'   => null,
+                'scope_process'  => 'Set tanggal dokumen diterima',
+                'required_action'=> 'purchasing_receive_doc',
+                'can_insert_step'=> false,
+                'is_conditional' => false,
+            ],
+            (object) [
+                'step_number'    => $startStep + 1,
+                'step_name'      => 'Benchmarking Vendor (SPH)',
+                'step_type'      => 'purchasing',
+                'step_phase'     => 'purchasing',
+                'approver_type'  => 'role',
+                'approver_id'    => null,
+                'approver_role_id'         => $purchasing?->id,
+                'approver_department_id'   => null,
+                'scope_process'  => 'Input minimal 1 vendor (SPH)',
+                'required_action'=> 'purchasing_benchmarking',
+                'can_insert_step'=> false,
+                'is_conditional' => false,
+            ],
+            (object) [
+                'step_number'    => $startStep + 2,
+                'step_name'      => 'Pilih Preferred Vendor',
+                'step_type'      => 'purchasing',
+                'step_phase'     => 'purchasing',
+                'approver_type'  => 'role',
+                'approver_id'    => null,
+                'approver_role_id'         => $mgrKeuangan?->id,
+                'approver_department_id'   => null,
+                'scope_process'  => 'Manager Keuangan pilih vendor terbaik',
+                'required_action'=> 'purchasing_preferred_vendor',
+                'can_insert_step'=> false,
+                'is_conditional' => false,
+            ],
+            (object) [
+                'step_number'    => $startStep + 3,
+                'step_name'      => 'Input PO',
+                'step_type'      => 'purchasing',
+                'step_phase'     => 'purchasing',
+                'approver_type'  => 'role',
+                'approver_id'    => null,
+                'approver_role_id'         => $purchasing?->id,
+                'approver_department_id'   => null,
+                'scope_process'  => 'Input nomor Purchase Order',
+                'required_action'=> 'purchasing_po',
+                'can_insert_step'=> false,
+                'is_conditional' => false,
+            ],
+            (object) [
+                'step_number'    => $startStep + 4,
+                'step_name'      => 'Input Invoice & GRN',
+                'step_type'      => 'purchasing',
+                'step_phase'     => 'purchasing',
+                'approver_type'  => 'role',
+                'approver_id'    => null,
+                'approver_role_id'         => $purchasing?->id,
+                'approver_department_id'   => null,
+                'scope_process'  => 'Input nomor invoice dan tanggal GRN',
+                'required_action'=> 'purchasing_invoice',
+                'can_insert_step'=> false,
+                'is_conditional' => false,
+            ],
+            (object) [
+                'step_number'    => $startStep + 5,
+                'step_name'      => 'Tandai Selesai (DONE)',
+                'step_type'      => 'purchasing',
+                'step_phase'     => 'purchasing',
+                'approver_type'  => 'role',
+                'approver_id'    => null,
+                'approver_role_id'         => $purchasing?->id,
+                'approver_department_id'   => null,
+                'scope_process'  => 'Tutup proses purchasing',
+                'required_action'=> 'purchasing_done',
+                'can_insert_step'=> false,
+                'is_conditional' => false,
+            ],
         ];
     }
 }

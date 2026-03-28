@@ -4,6 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
+use App\Models\Department;
+use App\Models\CapexItem;
+use App\Models\PurchasingItem;
+use App\Models\ApprovalRequestItem;
 
 class ApprovalItemStep extends Model
 {
@@ -93,7 +98,7 @@ class ApprovalItemStep extends Model
 
     public function selectedCapex()
     {
-        return $this->belongsTo(CapexIdNumber::class, 'selected_capex_id');
+        return $this->belongsTo(CapexItem::class, 'selected_capex_id');
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -145,6 +150,14 @@ class ApprovalItemStep extends Model
     }
 
     /**
+     * Check if this step belongs to purchasing phase
+     */
+    public function isPurchasingPhase(): bool
+    {
+        return ($this->step_phase ?? 'approval') === 'purchasing';
+    }
+
+    /**
      * Check if this step is waiting for purchasing to complete
      */
     public function isPendingPurchase(): bool
@@ -167,8 +180,8 @@ class ApprovalItemStep extends Model
             ->where('master_item_id', $this->master_item_id)
             ->first();
 
-        // Purchasing must be "selected" (vendor chosen) before release can begin
-        return $purchasingItem && in_array($purchasingItem->status, ['selected', 'po_issued', 'grn_received', 'done']);
+        // Purchasing must be completely "done" before release can begin
+        return $purchasingItem && $purchasingItem->status === 'done';
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -218,6 +231,10 @@ class ApprovalItemStep extends Model
     {
         $user = User::find($userId);
         if (!$user) return false;
+
+        if ($this->isPurchasingPhase() || $this->step_type === 'purchasing') {
+            return false;
+        }
 
         // Release phase: check if step can be activated first
         if ($this->isReleasePhase() && $this->isPendingPurchase()) {
@@ -319,6 +336,45 @@ class ApprovalItemStep extends Model
     public function scopeActionable($query)
     {
         return $query->whereIn('status', ['pending']);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PURCHASING SYNC HELPER
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Synchronize the workflow progress tracker with purchasing actions.
+     * Marks the specific purchasing step as approved and activates the next purchasing step.
+     */
+    public static function syncPurchasingStep(int $approvalRequestId, int $masterItemId, string $requiredAction)
+    {
+        $step = static::where('approval_request_id', $approvalRequestId)
+            ->where('master_item_id', $masterItemId)
+            ->where('step_phase', 'purchasing')
+            ->where('required_action', $requiredAction)
+            ->whereIn('status', ['pending', 'pending_purchase'])
+            ->first();
+
+        if ($step) {
+            $step->update([
+                'status' => 'approved',
+                'approved_by' => auth()->id() ?? 1, // fallback to System
+                'approved_at' => now(),
+            ]);
+            
+            // Find next step to activate
+            $nextStep = static::where('approval_request_id', $approvalRequestId)
+                ->where('master_item_id', $masterItemId)
+                ->where('step_number', '>', $step->step_number)
+                ->whereIn('step_phase', ['purchasing', 'release'])
+                ->where('status', 'pending_purchase')
+                ->orderBy('step_number')
+                ->first();
+                
+            if ($nextStep && $nextStep->step_phase === 'purchasing') {
+                $nextStep->update(['status' => 'pending']);
+            }
+        }
     }
 }
 

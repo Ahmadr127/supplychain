@@ -57,10 +57,13 @@ class PurchasingItemService
             ]);
         });
 
-        // refresh aggregated purchasing status
         $item->approvalRequest->refreshPurchasingStatus();
 
-        $item = $item->refresh(['vendors']);
+        $item = $item->refresh();
+
+        if ($item->vendors()->exists()) {
+            \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_benchmarking');
+        }
 
         if ($oldStatus !== $newStatus) {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $newStatus);
@@ -102,13 +105,13 @@ class PurchasingItemService
                 'status_changed_by' => auth()->id(),
             ]);
             
-            // 3-Phase Workflow: Activate release steps
-            $this->activateReleaseSteps($item);
         });
 
         $item->approvalRequest->refreshPurchasingStatus();
 
-        $item = $item->refresh(['vendors', 'preferredVendor']);
+        $item = $item->refresh();
+
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_preferred_vendor');
 
         if ($oldStatus !== 'selected') {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'selected');
@@ -189,6 +192,10 @@ class PurchasingItemService
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
 
+        if ($newStatus === 'po_issued' || !empty($item->po_number)) {
+            \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_po');
+        }
+
         if ($oldStatus !== $newStatus) {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $newStatus);
         }
@@ -203,7 +210,7 @@ class PurchasingItemService
     {
         $oldStatus = $item->status;
         $created = $item->created_at ?: now();
-        $cycle = $grnDate->diffInDays($created);
+        $cycle = (int) $grnDate->copy()->startOfDay()->diffInDays($created->copy()->startOfDay());
         $item->update([
             'grn_date' => $grnDate->toDateString(),
             'proc_cycle_days' => $cycle,
@@ -212,6 +219,8 @@ class PurchasingItemService
             'status_changed_by' => auth()->id(),
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
+
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_invoice');
 
         if ($oldStatus !== 'grn_received') {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'grn_received');
@@ -234,6 +243,11 @@ class PurchasingItemService
             'done_notes' => $notes,
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
+
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_done');
+
+        // 3-Phase Workflow: Activate release steps once fully done
+        $this->activateReleaseSteps($item);
 
         if ($oldStatus !== 'done') {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'done');

@@ -103,7 +103,6 @@
                     <th class="w-32 text-left">Pengaju</th>
                     <th class="w-1/3 text-left">Progress</th>
                     <th class="w-20 text-left">Status</th>
-                    <th class="w-40 text-left">Status Purchasing</th>
                     <th class="w-20 text-left">Aksi</th>
                 </tr>
             </thead>
@@ -153,9 +152,6 @@
                     </td>
                     <td class="w-20">
                         <x-approval-status-badge :status="$row->itemData->status" />
-                    </td>
-                    <td class="w-40">
-                        <x-purchasing-status-badge :item="$row->itemData" :request="$row->request" />
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">

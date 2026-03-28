@@ -69,36 +69,12 @@
                     <div class="bg-gray-50 rounded-lg p-3">
                         <h3 class="text-base font-semibold text-gray-900 mb-3">Informasi Request</h3>
                         
-                        @php
-                            $ps = $approvalRequest->purchasing_status ?? 'unprocessed';
-                            $psText = match($ps){
-                                'unprocessed' => 'Belum diproses',
-                                'benchmarking' => 'Pemilihan vendor',
-                                'selected' => 'Proses PR & PO',
-                                'po_issued' => 'Proses di vendor',
-                                'grn_received' => 'Barang sudah diterima',
-                                'done' => 'Selesai',
-                                default => strtoupper($ps),
-                            };
-                            $psColor = match($ps){
-                                'unprocessed' => 'bg-gray-100 text-gray-700',
-                                'benchmarking' => 'bg-yellow-100 text-yellow-800',
-                                'selected' => 'bg-blue-100 text-blue-800',
-                                'po_issued' => 'bg-indigo-100 text-indigo-800',
-                                'grn_received' => 'bg-teal-100 text-teal-800',
-                                'done' => 'bg-green-100 text-green-800',
-                                default => 'bg-gray-100 text-gray-700',
-                            };
-                        @endphp
+
                         
                         <!-- 2 Column Layout -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-xs">
                             <!-- Column 1 -->
                             <div class="space-y-2">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-gray-600 w-32">Status Purchasing:</span>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $psColor }}">{{ $psText }}</span>
-                                </div>
                                 
                                 <div class="flex items-center gap-2">
                                     <span class="text-gray-600 w-32">Workflow:</span>

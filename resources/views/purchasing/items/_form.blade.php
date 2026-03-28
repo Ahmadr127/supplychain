@@ -6,11 +6,16 @@
 
 @if(auth()->user()->hasPermission('manage_vendor'))
     <!-- Benchmarking Vendors -->
-    <div class="bg-white border border-gray-200 rounded-lg">
-        <div class="px-3 py-2 border-b border-gray-200 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900">Vendor Benchmarking</h3>
-            <div class="text-xs text-gray-500 flex items-center gap-2">Qty:
-                <input type="text" class="h-6 w-16 text-center border border-gray-200 rounded bg-gray-50" value="{{ (int) $item->quantity }}" disabled>
+    <div class="bg-white border border-gray-200 shadow-sm rounded-lg">
+        <div class="bg-emerald-600 border-b border-emerald-700 rounded-t-lg px-3 py-2 flex items-center justify-between text-white">
+            <div class="flex items-center gap-2">
+                <div class="bg-emerald-500 text-white rounded-full p-1 shadow-sm">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h3 class="text-sm font-semibold text-white">Vendor Benchmarking</h3>
+            </div>
+            <div class="text-xs text-white bg-emerald-800 bg-opacity-50 px-2 py-0.5 rounded-full flex items-center gap-1 font-medium shadow-inner">
+                Qty: <span class="font-bold">{{ (int) $item->quantity }}</span>
             </div>
         </div>
         <div class="p-3">
@@ -60,9 +65,13 @@
     <!-- Benchmarking Notes removed: merged into main benchmarking form above -->
 
     <!-- Preferred Vendor -->
-    <div class="bg-white border border-gray-200 rounded-lg">
-        <div class="px-3 py-2 border-b border-gray-200">
-            <h3 class="text-sm font-semibold text-gray-900">Preferred Vendor</h3>
+    <div class="bg-white border border-gray-200 shadow-sm rounded-lg mt-3">
+        <div class="bg-purple-600 border-b border-purple-700 rounded-t-lg px-3 py-2 flex items-center gap-2 text-white">
+            <div class="bg-purple-500 text-white rounded-full p-1 shadow-sm">
+                <span class="w-4 h-4 flex items-center justify-center text-xs font-bold leading-none">3</span>
+            </div>
+            <h3 class="text-sm font-semibold text-white">Preferred Vendor</h3>
+            <span class="text-xs font-medium text-white bg-purple-800 bg-opacity-50 px-2 py-0.5 rounded-full shadow-inner">Manager Keuangan</span>
         </div>
         <div class="p-3">
             @if(($disableBenchmarking ?? false) && (($item->vendors?->count() ?? 0) === 0))

@@ -24,7 +24,7 @@
 @endphp
 
 <div class="min-w-0">
-    <div class="flex flex-nowrap gap-1 overflow-x-auto">
+    <div class="flex flex-wrap gap-1">
         @foreach($workflowSteps as $step)
             @php
                 // Check if this is an actual step (from database) or template step
@@ -95,26 +95,15 @@
                     }
                 }
             @endphp
-            <div class="flex flex-col flex-shrink-0">
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap {{ $stepColor }} cursor-pointer step-badge hover:opacity-80 transition-opacity" 
-                      data-step-name="{{ $stepName }}" 
-                      data-step-status="{{ $stepStatusText }}" 
-                      data-step-number="{{ $step->step_number }}" 
-                      data-request-id="{{ $requestId }}"
-                      onclick="showStepStatus('{{ $stepName }}', '{{ $stepStatusText }}', '{{ $step->step_number }}', '{{ $requestId }}', '{{ $stepData ? $stepData->master_item_id : '' }}')"
-                      title="Klik untuk melihat detail status{{ $isActualStep && $step->is_dynamic ? ' (Step dinamis)' : '' }}">
-                    {{ $stepName }}
-                </span>
-                @if($stepData || $showMetadata)
-                    <div class="mt-0.5 text-[11px] text-gray-600 step-meta" 
-                         data-request-id="{{ $requestId }}" 
-                         data-step-number="{{ $step->step_number }}"
-                         data-master-item-id="{{ $stepData ? $stepData->master_item_id : '' }}"
-                         data-item-id="{{ $stepData ? $stepData->id : '' }}">
-                        <!-- info disisipkan via JS: status, oleh, pada -->
-                    </div>
-                @endif
-            </div>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap {{ $stepColor }} cursor-pointer step-badge hover:opacity-80 transition-opacity" 
+                  data-step-name="{{ $stepName }}" 
+                  data-step-status="{{ $stepStatusText }}" 
+                  data-step-number="{{ $step->step_number }}" 
+                  data-request-id="{{ $requestId }}"
+                  onclick="showStepStatus('{{ $stepName }}', '{{ $stepStatusText }}', '{{ $step->step_number }}', '{{ $requestId }}', '{{ $stepData ? $stepData->master_item_id : '' }}')"
+                  title="Klik untuk melihat detail status{{ $isActualStep && $step->is_dynamic ? ' (Step dinamis)' : '' }}">
+                {{ $stepName }}
+            </span>
         @endforeach
     </div>
 </div>

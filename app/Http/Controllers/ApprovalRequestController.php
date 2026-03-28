@@ -1056,6 +1056,10 @@ class ApprovalRequestController extends Controller
             'received_at' => $data['received_at'],
         ]);
 
+        foreach ($approvalRequest->items as $item) {
+            \App\Models\ApprovalItemStep::syncPurchasingStep($approvalRequest->id, $item->master_item_id, 'purchasing_receive_doc');
+        }
+
         return redirect()->back()->with('success', 'Tanggal diterima berhasil disimpan.');
     }
 

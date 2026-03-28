@@ -685,8 +685,8 @@ class ReportController extends Controller
 
     public function selectPreferred(Request $request, PurchasingItem $purchasingItem)
     {
-        if (!(auth()->user()?->hasPermission('manage_vendor') || auth()->user()?->hasPermission('manage_purchasing'))) {
-            abort(403, 'Unauthorized action.');
+        if (!auth()->user()?->hasPermission('manage_vendor')) {
+            abort(403, 'Hanya Manager Keuangan (manage_vendor) yang dapat memilih preferred vendor.');
         }
         $data = $request->validate([
             'supplier_id' => 'required|integer|exists:suppliers,id',
@@ -720,13 +720,17 @@ class ReportController extends Controller
     public function receiveGRN(Request $request, PurchasingItem $purchasingItem)
     {
         $data = $request->validate([
+            'invoice_number' => 'required|string|max:100',
             'grn_date' => 'required|date',
         ]);
 
         $service = app(PurchasingItemService::class);
         $service->receiveGRN($purchasingItem, \Carbon\Carbon::parse($data['grn_date']));
         
-        return back()->with('success', 'GRN Date berhasil disimpan.');
+        // Also save invoice number
+        $purchasingItem->update(['invoice_number' => $data['invoice_number']]);
+        
+        return back()->with('success', 'Nomor Invoice & Tanggal GRN berhasil disimpan.');
     }
 
     public function markDone(Request $request, PurchasingItem $purchasingItem)
@@ -761,6 +765,8 @@ class ReportController extends Controller
             $purchasingItem->update(['invoice_number' => (string) $data['invoice_number']]);
         }
         
+        \App\Models\ApprovalItemStep::syncPurchasingStep($purchasingItem->approval_request_id, $purchasingItem->master_item_id, 'purchasing_invoice');
+
         return back()->with('success', 'Invoice Number berhasil disimpan.');
     }
 

@@ -1,5 +1,7 @@
 @php
     $isEdit = ($mode ?? 'create') === 'edit';
+    $itemExtras = $itemExtras ?? collect();
+    $itemFiles  = $itemFiles  ?? collect();
 @endphp
 
 <div class="space-y-2 max-w-full overflow-hidden">

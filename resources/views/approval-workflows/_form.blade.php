@@ -251,16 +251,22 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Fase Step</label>
                     <select name="workflow_steps[${stepNumber}][step_type]" required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            onchange="handleStepTypeChange(this, ${stepNumber})">
                         <option value="approver" ${data.step_type === 'approver' ? 'selected' : ''}>Approver (Sebelum Purchasing)</option>
+                        <option value="purchasing" ${data.step_type === 'purchasing' ? 'selected' : ''} style="color:#2563eb;font-weight:600;">🛒 Purchasing (Proses Pembelian)</option>
                         <option value="releaser" ${data.step_type === 'releaser' ? 'selected' : ''}>Releaser (Setelah Purchasing)</option>
                     </select>
+                    <p id="purchasing_note_${stepNumber}" class="mt-1 text-xs text-blue-600 ${data.step_type === 'purchasing' ? '' : 'hidden'}">
+                        ℹ️ Step ini diproses oleh tim Purchasing (6 langkah: Terima Dok → Benchmarking → Vendor → PO → Invoice → Done)
+                    </p>
                 </div>
 
-                <div>
+                <div id="approver_type_section_${stepNumber}">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Tipe Approver</label>
-                    <select name="workflow_steps[${stepNumber}][approver_type]" required
+                    <select name="workflow_steps[${stepNumber}][approver_type]"
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            id="approver_type_select_${stepNumber}"
                             onchange="toggleApproverFields(this, ${stepNumber})">
                         <option value="">-- Pilih Tipe Approver --</option>
                         <option value="user" ${approverType === 'user' ? 'selected' : ''}>User Spesifik</option>
@@ -446,6 +452,27 @@
         });
     }
 
+    // Handle step type change (show/hide approver section for purchasing)
+    function handleStepTypeChange(select, stepNumber) {
+        const stepType = select.value;
+        const approverSection = document.getElementById(`approver_type_section_${stepNumber}`);
+        const purchasingNote = document.getElementById(`purchasing_note_${stepNumber}`);
+        const approverTypeSelect = document.getElementById(`approver_type_select_${stepNumber}`);
+
+        if (stepType === 'purchasing') {
+            // Hide approver section — purchasing is handled by purchasing system
+            if (approverSection) approverSection.style.display = 'none';
+            if (purchasingNote) purchasingNote.classList.remove('hidden');
+            // Clear approver_type value so it doesn't conflict
+            if (approverTypeSelect) approverTypeSelect.value = '';
+            // Hide all approver-specific fields
+            document.querySelectorAll(`[id^="approver_"][id$="_${stepNumber}"]`).forEach(f => f.style.display = 'none');
+        } else {
+            if (approverSection) approverSection.style.display = '';
+            if (purchasingNote) purchasingNote.classList.add('hidden');
+        }
+    }
+
     // Toggle approver fields
     function toggleApproverFields(select, stepNumber) {
         const approverType = select.value;
@@ -504,6 +531,7 @@
         stepItems.forEach((item) => {
             const nameInput = item.querySelector('input[name*="[name]"]');
             const typeSelect = item.querySelector('select[name*="[approver_type]"]');
+            const stepTypeSelect = item.querySelector('select[name*="[step_type]"]');
 
             if (!nameInput.value.trim()) {
                 isValid = false;
@@ -512,10 +540,12 @@
                 nameInput.classList.remove('border-red-500');
             }
 
-            if (!typeSelect.value) {
+            // approver_type is not required for purchasing steps
+            const isPurchasingStep = stepTypeSelect && stepTypeSelect.value === 'purchasing';
+            if (!isPurchasingStep && typeSelect && !typeSelect.value) {
                 isValid = false;
                 typeSelect.classList.add('border-red-500');
-            } else {
+            } else if (typeSelect) {
                 typeSelect.classList.remove('border-red-500');
             }
         });
