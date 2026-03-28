@@ -160,6 +160,11 @@ class ReleaseApiController extends Controller
         $itemArray['purchasing_info'] = $purchasingItem ? $purchasingItem->toArray() : null;
         $itemArray['current_step'] = $currentStep ? $currentStep->toArray() : null;
         $itemArray['next_step'] = $nextStep ? $nextStep->toArray() : null;
+        
+        $itemArray['waiting_for_me'] = false;
+        if ($currentStep && $currentStep->canApprove(auth()->id())) {
+            $itemArray['waiting_for_me'] = true;
+        }
 
         return response()->json([
             'status' => 'success',

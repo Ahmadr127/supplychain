@@ -20,9 +20,20 @@
     {{-- Status Counts --}}
     @if(isset($statusCounts))
     <div class="flex flex-wrap gap-2 mb-4">
-        <x-approval-status-badge status="pending" :count="$statusCounts['pending']" variant="solid" />
-        <x-approval-status-badge status="approved" :count="$statusCounts['approved']" variant="solid" />
-        <x-approval-status-badge status="rejected" :count="$statusCounts['rejected']" variant="solid" />
+        <a href="{{ route('release-requests.my-pending', ['status' => 'pending', 'search' => request('search')]) }}">
+            <x-approval-status-badge status="pending" :count="$statusCounts['pending']" variant="{{ !request('status') || request('status') === 'pending' ? 'solid' : 'subtle' }}" />
+        </a>
+        <a href="{{ route('release-requests.my-pending', ['status' => 'approved', 'search' => request('search')]) }}">
+            <x-approval-status-badge status="approved" :count="$statusCounts['approved']" variant="{{ request('status') === 'approved' ? 'solid' : 'subtle' }}" />
+        </a>
+        <a href="{{ route('release-requests.my-pending', ['status' => 'rejected', 'search' => request('search')]) }}">
+            <x-approval-status-badge status="rejected" :count="$statusCounts['rejected']" variant="{{ request('status') === 'rejected' ? 'solid' : 'subtle' }}" />
+        </a>
+        @if(request('status'))
+        <a href="{{ route('release-requests.my-pending', ['search' => request('search')]) }}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
+            <i class="fas fa-times mr-1"></i>Clear Status
+        </a>
+        @endif
     </div>
     @endif
 
@@ -36,6 +47,9 @@
                     <input type="text" name="search" value="{{ request('search') }}"
                         class="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                         placeholder="Request number, nama item...">
+                    @if(request('status'))
+                        <input type="hidden" name="status" value="{{ request('status') }}">
+                    @endif
                 </div>
             </div>
             <button type="submit" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors">

@@ -106,18 +106,38 @@ class ReleaseRequestController extends Controller
     /**
      * Get release items pending for current user.
      */
-    public function myPendingReleases()
+    public function myPendingReleases(Request $request)
     {
         $user = auth()->user();
         
-        // Get release steps where this user can approve
-        $pendingReleaseSteps = ApprovalItemStep::where('step_phase', 'release')
-            ->where('status', 'pending')
+        $query = ApprovalItemStep::where('step_phase', 'release')
             ->where(function($q) use ($user) {
                 $q->where('approver_id', $user->id)
                   ->orWhere('approver_role_id', $user->role_id);
-            })
-            ->with(['approvalRequest', 'masterItem'])
+            });
+
+        // Search
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->whereHas('masterItem', function($q2) use ($search) {
+                    $q2->where('name', 'like', "%{$search}%");
+                })
+                ->orWhereHas('approvalRequest', function($q2) use ($search) {
+                    $q2->where('request_number', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        } else {
+            // Default: show both pending and approved items to satisfy user request
+            $query->whereIn('status', ['pending', 'approved']);
+        }
+
+        $pendingReleaseSteps = $query->with(['approvalRequest', 'masterItem'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
