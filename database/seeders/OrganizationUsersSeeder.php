@@ -97,7 +97,6 @@ class OrganizationUsersSeeder extends Seeder
         // Get or create roles
         $adminRole = Role::firstOrCreate(['name' => 'admin'], ['display_name' => 'Administrator']);
         $managerRole = Role::firstOrCreate(['name' => 'manager'], ['display_name' => 'Manager']);
-        $directorRole = Role::firstOrCreate(['name' => 'direktur'], ['display_name' => 'Direktur']);
         $hospitalDirectorRole = Role::firstOrCreate(['name' => 'hospital_director'], ['display_name' => 'Hospital Director']);
         $presidentRole = Role::firstOrCreate(['name' => 'presiden_komisaris'], ['display_name' => 'Presiden Komisaris']);
         $headRole = Role::firstOrCreate(['name' => 'kepala'], ['display_name' => 'Kepala']);

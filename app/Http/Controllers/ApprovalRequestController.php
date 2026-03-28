@@ -1828,7 +1828,7 @@ class ApprovalRequestController extends Controller
         ]);
 
         // Update the item status and data
-        $approvalRequestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $validated['approval_request_id'])
+        $approvalRequestItem = ApprovalRequestItem::where('approval_request_id', $validated['approval_request_id'])
             ->where('master_item_id', $validated['master_item_id'])
             ->first();
 
@@ -1885,7 +1885,7 @@ class ApprovalRequestController extends Controller
         }
 
         // Update request-level status based on all items
-        $approvalRequest = \App\Models\ApprovalRequest::findOrFail($validated['approval_request_id']);
+        $approvalRequest = ApprovalRequest::findOrFail($validated['approval_request_id']);
         $allItems = $approvalRequest->items;
 
         $allItemsApproved = $allItems->every(fn($item) => $item->status === 'approved');
@@ -1934,7 +1934,7 @@ class ApprovalRequestController extends Controller
     /**
      * View FS Document (Inline if PDF) - Web version
      */
-    public function viewFsDocument(\App\Models\ApprovalRequestItem $item)
+    public function viewFsDocument(ApprovalRequestItem $item)
     {
         if (empty($item->fs_document)) {
             abort(404, 'Dokumen FS tidak ditemukan.');
@@ -1963,7 +1963,7 @@ class ApprovalRequestController extends Controller
     /**
      * Download FS Document - Web version
      */
-    public function downloadFsDocument(\App\Models\ApprovalRequestItem $item)
+    public function downloadFsDocument(ApprovalRequestItem $item)
     {
         if (empty($item->fs_document) || !Storage::disk('public')->exists($item->fs_document)) {
             abort(404, 'Dokumen FS tidak ditemukan.');

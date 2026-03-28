@@ -66,7 +66,7 @@ class RolePermissionSeeder extends Seeder
             'description' => 'Manager departemen keuangan'
         ]);
 
-        $direkturRole = Role::firstOrCreate(['name' => 'direktur'], [
+        $hospitalDirectorRole = Role::firstOrCreate(['name' => 'hospital_director'], [
             'display_name' => 'Direktur RS',
             'description' => 'Direktur Rumah Sakit'
         ]);
@@ -134,7 +134,7 @@ class RolePermissionSeeder extends Seeder
             ])->get()
         );
         
-        $direkturRole->permissions()->sync(
+        $hospitalDirectorRole->permissions()->sync(
             Permission::whereIn('name', [
                 'approval',
                 'view_dashboard',
