@@ -162,9 +162,21 @@ class ReleaseApiController extends Controller
         $itemArray['next_step'] = $nextStep ? $nextStep->toArray() : null;
         
         $itemArray['waiting_for_me'] = false;
-        if ($currentStep && $currentStep->canApprove(auth()->id())) {
-            $itemArray['waiting_for_me'] = true;
+        
+        // Buttons should only show if item is not yet approved/rejected and we have a pending step
+        if ($item->status !== 'approved' && $item->status !== 'rejected') {
+            if ($currentStep && $currentStep->canApprove(auth()->id())) {
+                $itemArray['waiting_for_me'] = true;
+            }
         }
+
+        // Add latest release note explicitly
+        $latestActionedStep = $item->steps->where('status', '!=', 'pending')
+            ->where('status', '!=', 'pending_purchase')
+            ->sortByDesc('step_number')
+            ->first();
+        
+        $itemArray['release_note'] = $latestActionedStep?->comments ?? $latestActionedStep?->rejected_reason ?? $item->notes;
 
         return response()->json([
             'status' => 'success',
