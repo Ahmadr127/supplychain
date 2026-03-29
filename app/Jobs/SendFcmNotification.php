@@ -84,7 +84,21 @@ class SendFcmNotification implements ShouldQueue
                     // Create message with notification and data
                     $message = CloudMessage::new()
                         ->withNotification($notification)
-                        ->withData($this->data);
+                        ->withData($this->data)
+                        ->withAndroidConfig([
+                            'priority' => 'high',
+                            'notification' => [
+                                'sound' => 'default',
+                                'channel_id' => $this->data['source'] === 'sc' ? 'sc_notifications' : 'pum_notifications',
+                            ],
+                        ])
+                        ->withApnsConfig([
+                            'payload' => [
+                                'aps' => [
+                                    'sound' => 'default',
+                                ],
+                            ],
+                        ]);
 
                     // Send multicast message
                     $report = $messaging->sendMulticast($message, $batch);
