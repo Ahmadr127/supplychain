@@ -21,12 +21,12 @@ class FcmTokenController extends Controller
     }
 
     /**
-     * Register FCM device token for the authenticated user
-     * 
+     * Register FCM device token for the authenticated user.
+     *
+     * Multi-device: satu user boleh punya banyak token (tiap HP/install = token berbeda).
+     * Unik per `device_token`; push mengirim ke semua token milik user.
+     *
      * POST /api/fcm-token
-     * 
-     * @param Request $request
-     * @return JsonResponse
      */
     public function store(Request $request): JsonResponse
     {
@@ -56,10 +56,13 @@ class FcmTokenController extends Controller
                 ]
             );
 
+            $tokensRegistered = UserDeviceToken::where('user_id', auth()->id())->count();
+
             Log::info('FCM token registered', [
                 'user_id' => auth()->id(),
                 'device_type' => $validated['device_type'] ?? 'unknown',
                 'token_id' => $deviceToken->id,
+                'tokens_registered_for_user' => $tokensRegistered,
                 'incoming_is_placeholder_exact' => $isPlaceholder,
                 'incoming_token_sha256_prefix' => substr(hash('sha256', $incomingToken), 0, 12),
             ]);
@@ -67,6 +70,10 @@ class FcmTokenController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'FCM Token berhasil didaftarkan',
+                'data' => [
+                    'tokens_registered_for_user' => $tokensRegistered,
+                    'token_id' => $deviceToken->id,
+                ],
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to register FCM token', [
