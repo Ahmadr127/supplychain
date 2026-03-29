@@ -89,7 +89,7 @@ class SendFcmNotification implements ShouldQueue
                             'priority' => 'high',
                             'notification' => [
                                 'sound' => 'default',
-                                'channel_id' => $this->data['source'] === 'sc' ? 'sc_notifications' : 'pum_notifications',
+                                'channel_id' => ($this->data['source'] ?? '') === 'sc' ? 'sc_notifications' : 'pum_notifications',
                             ],
                         ])
                         ->withApnsConfig([
