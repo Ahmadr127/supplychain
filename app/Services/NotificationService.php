@@ -171,6 +171,7 @@ class NotificationService
 
         $data = [
             'type' => 'approval_required',
+            'source' => 'sc',
             'approval_request_id' => (string)$request->id,
             'request_number' => $request->request_number,
         ];
@@ -202,6 +203,7 @@ class NotificationService
 
         $data = [
             'type' => 'request_approved',
+            'source' => 'sc',
             'approval_request_id' => (string)$request->id,
             'request_number' => $request->request_number,
         ];
@@ -240,6 +242,7 @@ class NotificationService
 
         $data = [
             'type' => 'request_rejected',
+            'source' => 'sc',
             'approval_request_id' => (string)$request->id,
             'request_number' => $request->request_number,
             'rejection_reason' => $reason,
@@ -297,6 +300,7 @@ class NotificationService
         // Prepare data payload with purchasing item details
         $data = [
             'type' => 'purchasing_status_change',
+            'source' => 'sc',
             'purchasing_item_id' => (string)$item->id,
             'approval_request_id' => (string)$item->approval_request_id,
             'request_number' => $item->approvalRequest->request_number,
@@ -390,6 +394,7 @@ class NotificationService
         // Prepare data payload with release step details
         $data = [
             'type' => 'release_approval_required',
+            'source' => 'sc',
             'approval_request_id' => (string)$step->approval_request_id,
             'request_number' => $requestNumber,
             'item_id' => (string)($step->approval_request_item_id ?? $step->requestItem->id ?? ''),
@@ -487,6 +492,7 @@ class NotificationService
         // Prepare data payload
         $data = [
             'type' => $dataType,
+            'source' => 'sc',
             'approval_request_id' => (string)$item->approval_request_id,
             'request_number' => $requestNumber,
             'item_id' => (string)$item->id,
