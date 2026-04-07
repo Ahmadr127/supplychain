@@ -17,7 +17,7 @@ class WorkflowRoleUserSeeder extends Seeder
      * - koordinator: Maker (requester's department)
      * - manager_unit: Approver 1 - Pemilihan ID Number CapEx
      * - hospital_director (direktur): Approver - Hospital Director
-     * - manager_pt: Approver - Manager PT
+     * - general_manager_pt: Approver - General Manager PT
      * - purchasing: Approver/Releaser - Manager Pembelian
      * - manager_keuangan: Approver - Manager Keuangan (FS) - High workflows only
      * - direktur_pt: Releaser - Direktur PT - High workflows only
@@ -70,9 +70,9 @@ class WorkflowRoleUserSeeder extends Seeder
                 'display_name' => 'Direktur RS',
                 'description' => 'Direktur Rumah Sakit - Approver dalam workflow'
             ],
-            'manager_pt' => [
-                'display_name' => 'Manager PT',
-                'description' => 'Manager level PT - Approver dan Releaser dalam workflow'
+            'general_manager_pt' => [
+                'display_name' => 'General Manager PT',
+                'description' => 'General Manager PT - Approver dan Releaser dalam workflow'
             ],
             'purchasing' => [
                 'display_name' => 'Manager Pembelian',
@@ -165,7 +165,7 @@ class WorkflowRoleUserSeeder extends Seeder
             'koordinator' => $approvalPermissions,
             'manager_unit' => $managerPermissions,
             'hospital_director' => $directorPermissions,
-            'manager_pt' => $directorPermissions,
+            'general_manager_pt' => $directorPermissions,
             'purchasing' => $purchasingPermissions,
             'manager_keuangan' => $financePermissions,
             'direktur_pt' => $directorPermissions,

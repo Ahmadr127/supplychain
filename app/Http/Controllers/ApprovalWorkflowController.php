@@ -61,7 +61,7 @@ class ApprovalWorkflowController extends Controller
             'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
-            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser',
+            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser,purchasing,maker',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
             'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
@@ -127,7 +127,7 @@ class ApprovalWorkflowController extends Controller
             'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
-            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser',
+            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser,purchasing,maker',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
             'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
@@ -353,6 +353,8 @@ class ApprovalWorkflowController extends Controller
                     if (empty($processedStep['required_action'])) {
                         $processedStep['required_action'] = 'release';
                     }
+                } elseif ($step['step_type'] === 'purchasing') {
+                    $processedStep['step_phase'] = 'purchasing';
                 } else {
                     $processedStep['step_phase'] = 'approval';
                 }

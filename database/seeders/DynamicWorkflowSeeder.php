@@ -41,7 +41,8 @@ class DynamicWorkflowSeeder extends Seeder
             'koordinator' => Role::where('name', 'koordinator')->first(),
             'manager_unit' => Role::where('name', 'manager_unit')->first(),
             'hospital_director' => Role::where('name', 'hospital_director')->first(),
-            'manager_pt' => Role::where('name', 'manager_pt')->first(),
+            'general_manager_pt' => Role::where('name', 'general_manager_pt')->first(),
+            'manager_fatp' => Role::where('name', 'manager_fatp')->first(),
             'purchasing' => Role::where('name', 'purchasing')->first(),
             'manager_keuangan' => Role::where('name', 'manager_keuangan')->first(),
             'direktur_pt' => Role::where('name', 'direktur_pt')->first(),
@@ -115,7 +116,7 @@ class DynamicWorkflowSeeder extends Seeder
                 'type' => 'procurement_high',
                 'procurement_type_id' => $barangBaru->id,
                 'nominal_min' => 50000000,
-                'nominal_max' => null,
+                'nominal_max' => 999999999999,
                 'nominal_range' => 'high',
                 'priority' => 30,
                 'is_active' => true,
@@ -163,7 +164,7 @@ class DynamicWorkflowSeeder extends Seeder
                 'type' => 'renewal_high',
                 'procurement_type_id' => $peremajaan->id,
                 'nominal_min' => 50000000,
-                'nominal_max' => null,
+                'nominal_max' => 999999999999,
                 'nominal_range' => 'high',
                 'priority' => 30,
                 'is_active' => true,
@@ -249,7 +250,7 @@ class DynamicWorkflowSeeder extends Seeder
             // ═══ PHASE 1: APPROVAL ═══
             $this->requesterManagerStep(1, 'Manager Unit', 'Verifikasi & Input Harga', 'input_price'),
             $this->approverStep(2, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
-            $this->approverStep(3, 'Manager PT', $roles['manager_pt'], null, 'approve'),
+            $this->approverStep(3, 'General Manager PT', $roles['general_manager_pt'], null, 'approve'),
             $this->approverStep(4, 'Purchasing', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING ═══
@@ -257,7 +258,7 @@ class DynamicWorkflowSeeder extends Seeder
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
             $this->releaserStep(11, 'Purchasing', $roles['purchasing']),
-            $this->releaserStep(12, 'Manager PT', $roles['manager_pt']),
+            $this->releaserStep(12, 'General Manager PT', $roles['general_manager_pt']),
         ];
     }
 
@@ -285,16 +286,16 @@ class DynamicWorkflowSeeder extends Seeder
             // FS wajib untuk nominal > 50jt (sesuai panduan)
             $this->financeFsStep(2, 'Manager Keuangan', $roles['manager_keuangan'], 'Pembuatan FS', 50000000),
             $this->approverStep(3, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
-            $this->approverStep(4, 'Manager PT', $roles['manager_pt'], null, 'approve'),
-            $this->approverStep(5, 'Purchasing', $roles['purchasing'], null, 'approve'),
+            $this->approverStep(4, 'General Manager PT', $roles['general_manager_pt'], null, 'approve'),
+            $this->approverStep(5, 'Manager FATP', $roles['manager_fatp'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
             ...$this->getPurchasingSteps(6, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(12, 'Purchasing', $roles['purchasing']),
-            $this->releaserStep(13, 'Manager PT', $roles['manager_pt']),
-            $this->releaserStep(14, 'Direktur PT', $roles['direktur_pt']),
+            $this->releaserStep(12, 'General Manager PT', $roles['general_manager_pt']),
+            $this->releaserStep(13, 'Direktur PT', $roles['direktur_pt']),
+            $this->releaserStep(14, 'Manager FATP', $roles['manager_fatp']),
         ];
     }
 
@@ -338,7 +339,7 @@ class DynamicWorkflowSeeder extends Seeder
             // ═══ PHASE 1: APPROVAL ═══
             $this->requesterManagerStep(1, 'Manager Unit', 'Pemilihan ID Number CapEx', 'select_capex'),
             $this->approverStep(2, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
-            $this->approverStep(3, 'Manager PT', $roles['manager_pt'], null, 'approve'),
+            $this->approverStep(3, 'General Manager PT', $roles['general_manager_pt'], null, 'approve'),
             $this->approverStep(4, 'Purchasing', $roles['purchasing'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING ═══
@@ -346,7 +347,7 @@ class DynamicWorkflowSeeder extends Seeder
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
             $this->releaserStep(11, 'Purchasing', $roles['purchasing']),
-            $this->releaserStep(12, 'Manager PT', $roles['manager_pt']),
+            $this->releaserStep(12, 'General Manager PT', $roles['general_manager_pt']),
         ];
     }
 
@@ -365,16 +366,16 @@ class DynamicWorkflowSeeder extends Seeder
             // FS wajib untuk nominal > 50jt (sesuai panduan)
             $this->financeFsStep(2, 'Manager Keuangan', $roles['manager_keuangan'], 'Pembuatan FS', 50000000),
             $this->approverStep(3, 'Hospital Director', $roles['hospital_director'], null, 'approve'),
-            $this->approverStep(4, 'Manager PT', $roles['manager_pt'], null, 'approve'),
-            $this->approverStep(5, 'Purchasing', $roles['purchasing'], null, 'approve'),
+            $this->approverStep(4, 'General Manager PT', $roles['general_manager_pt'], null, 'approve'),
+            $this->approverStep(5, 'Manager FATP', $roles['manager_fatp'], null, 'approve'),
             
             // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
             ...$this->getPurchasingSteps(6, $roles),
             
             // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(12, 'Purchasing', $roles['purchasing']),
-            $this->releaserStep(13, 'Manager PT', $roles['manager_pt']),
-            $this->releaserStep(14, 'Direktur PT', $roles['direktur_pt']),
+            $this->releaserStep(12, 'General Manager PT', $roles['general_manager_pt']),
+            $this->releaserStep(13, 'Direktur PT', $roles['direktur_pt']),
+            $this->releaserStep(14, 'Manager FATP', $roles['manager_fatp']),
         ];
     }
 
@@ -471,9 +472,9 @@ class DynamicWorkflowSeeder extends Seeder
             'scope_process' => $scopeProcess,
             'required_action' => 'verify_budget',
             'can_insert_step' => false,
-            'is_conditional' => true,
+            'is_conditional' => false, // Dinonaktifkan karena workflow ini hanya untuk > 50 Juta
             'condition_type' => 'total_price',
-            'condition_value' => $thresholdValue,
+            'condition_value' => $thresholdValue, // Diperlukan agar form UI memunculkan FS upload dengan threshold yang benar
         ];
     }
 

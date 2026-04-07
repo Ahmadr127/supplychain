@@ -103,7 +103,7 @@ class OrganizationUsersSeeder extends Seeder
         $staffRole = Role::firstOrCreate(['name' => 'staff'], ['display_name' => 'Staff']);
         $managerKeuanganRole = Role::firstOrCreate(['name' => 'manager_keuangan'], ['display_name' => 'Manager Keuangan']);
         $purchasingRole = Role::firstOrCreate(['name' => 'purchasing'], ['display_name' => 'Manager Pembelian']);
-        $managerPtRole = Role::firstOrCreate(['name' => 'manager_pt'], ['display_name' => 'Manager PT']);
+        $managerPtRole = Role::firstOrCreate(['name' => 'general_manager_pt'], ['display_name' => 'General Manager PT']);
         $direkturPtRole = Role::firstOrCreate(['name' => 'direktur_pt'], ['display_name' => 'Direktur PT']);
 
         $usersData = [

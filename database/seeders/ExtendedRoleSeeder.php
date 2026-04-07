@@ -36,9 +36,15 @@ class ExtendedRoleSeeder extends Seeder
 
 
             [
-                'name' => 'manager_pt',
-                'display_name' => 'Manager PT',
-                'description' => 'Manager PT - Approver dan Releaser',
+                'name' => 'general_manager_pt',
+                'display_name' => 'General Manager PT',
+                'description' => 'General Manager PT - Approver dan Releaser',
+                'permissions' => [$viewMyApprovals, $approvalPerm, $viewReports, $viewPendingRelease, $viewDashboard],
+            ],
+            [
+                'name' => 'manager_fatp',
+                'display_name' => 'Manager FATP',
+                'description' => 'Manager FATP - Approver dan Releaser',
                 'permissions' => [$viewMyApprovals, $approvalPerm, $viewReports, $viewPendingRelease, $viewDashboard],
             ],
             [
@@ -79,8 +85,8 @@ class ExtendedRoleSeeder extends Seeder
         $this->command->info('');
         $this->command->info('📋 Extended roles seeded successfully!');
         $this->command->info('   - Maker roles: koordinator, kepala, supervisor');
-        $this->command->info('   - Approver roles: manager_unit, hospital_director, manager_pt, manager_pembelian');
-        $this->command->info('   - Releaser roles: manager_pembelian, manager_pt, direktur_pt');
+        $this->command->info('   - Approver roles: manager_unit, hospital_director, general_manager_pt, manager_fatp, manager_pembelian');
+        $this->command->info('   - Releaser roles: manager_pembelian, general_manager_pt, manager_fatp, direktur_pt');
         $this->command->info('');
         $this->command->info('   Note: SPH/Procurement uses existing "purchasing" role');
 
