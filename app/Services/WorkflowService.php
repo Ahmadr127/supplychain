@@ -110,7 +110,7 @@ class WorkflowService
                     if ((int)($step->step_number ?? 0) <= 1) continue;
 
                     $stepPhase = $step->step_phase ?? 'approval';
-                    $initialStatus = ($stepPhase === 'release') ? 'pending_purchase' : 'pending';
+                    $initialStatus = 'pending_purchase'; // All regenerated steps wait for sequential activation
 
                     ApprovalItemStep::create([
                         'approval_request_id' => $request->id,
@@ -173,7 +173,7 @@ class WorkflowService
                 if ($step->step_number <= $currentStepNumber) continue;
 
                 $stepPhase = $step->step_phase ?? 'approval';
-                $initialStatus = ($stepPhase === 'release') ? 'pending_purchase' : 'pending';
+                $initialStatus = 'pending_purchase'; // All regenerated steps wait for sequential activation
 
                 ApprovalItemStep::create([
                     'approval_request_id' => $request->id,

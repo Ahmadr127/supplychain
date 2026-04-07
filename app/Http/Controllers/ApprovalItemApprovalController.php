@@ -274,137 +274,50 @@ class ApprovalItemApprovalController extends Controller
                 $this->handleQuickInsertStep($item, $currentStep);
             }
 
-            // Determine if current step is in release phase
-            $isReleasePhase = ($currentStep->step_phase ?? 'approval') === 'release';
-            
-            if ($isReleasePhase) {
-                // RELEASE PHASE: Check for next release step
-                Log::info('🟦 Current step is RELEASE PHASE - checking for next release steps...');
-                
-                $nextReleaseStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                    ->where('approval_request_item_id', $item->id)
-                    ->where('step_number', '>', $currentStep->step_number)
-                    ->where('step_phase', 'release')
-                    ->whereIn('status', ['pending', 'pending_purchase'])
-                    ->orderBy('step_number')
-                    ->first();
+            // ─── SEQUENTIAL STEP ACTIVATION: Find next step by step_number ───
+            // step_phase is now metadata only — routing follows step_number order.
+            Log::info('🟦 Finding next step after step: ' . $currentStep->step_number);
 
-                if (!$nextReleaseStep) {
-                    // All RELEASE steps complete - Item is FULLY APPROVED!
-                    Log::info('🟩 All release steps complete - item FULLY APPROVED!');
-                    Log::info('🟦 Item status BEFORE: ' . $item->status);
-                    
-                    $item->update([
-                        'status'      => 'approved',
-                        'approved_by' => auth()->id(),
-                        'approved_at' => now(),
-                    ]);
-                    $item->refresh();
+            $nextStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                ->where('approval_request_item_id', $item->id)
+                ->where('step_number', '>', $currentStep->step_number)
+                ->orderBy('step_number')
+                ->first();
 
-                    // Confirm CapEx allocation (pending → used)
-                    if ($item->capex_item_id) {
-                        app(CapexAllocationService::class)->confirmAllocation($item);
-                        Log::info('🟩 CapEx allocation confirmed', ['capex_item_id' => $item->capex_item_id]);
-                    }
-                    
-                } else {
-                    // Activate next release step
-                    Log::info('🟨 Next release step found: Step ' . $nextReleaseStep->step_number . ' - ' . $nextReleaseStep->step_name);
-                    
-                    // If next step is pending_purchase, activate it
-                    if ($nextReleaseStep->status === 'pending_purchase') {
-                        $nextReleaseStep->update(['status' => 'pending']);
-                        Log::info('🟩 Next release step activated');
-                    }
-                    
-                    $item->update(['status' => 'in_release']);
-                    $item->refresh();
-                    Log::info('🟩 Item status: ' . $item->status);
+            if (!$nextStep) {
+                // No more steps → item is fully approved
+                Log::info('🟩 No more steps → item FULLY APPROVED!');
+                $item->update([
+                    'status'      => 'approved',
+                    'approved_by' => auth()->id(),
+                    'approved_at' => now(),
+                ]);
+                $item->refresh();
+
+                if ($item->capex_item_id) {
+                    app(CapexAllocationService::class)->confirmAllocation($item);
+                    Log::info('🟩 CapEx allocation confirmed');
                 }
-                
+
+            } elseif ($nextStep->step_type === 'purchasing') {
+                // Next step is purchasing → trigger purchasing
+                Log::info('🟨 Next step is PURCHASING → activating purchasing step & creating item');
+                $nextStep->update(['status' => 'pending']);
+                $item->update(['status' => 'in_purchasing']);
+                $item->refresh();
+                $this->createPurchasingItem($item);
+
             } else {
-                // APPROVAL PHASE: Check for next approval step
-                Log::info('🟦 Current step is APPROVAL PHASE - checking for next approval steps...');
-                
-                // Get next pending step in approval phase
-                $nextApprovalStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                    ->where('approval_request_item_id', $item->id)
-                    ->where('step_number', '>', $currentStep->step_number)
-                    ->where('status', 'pending')
-                    ->where(function($q) {
-                        $q->where('step_phase', 'approval')
-                          ->orWhereNull('step_phase');
-                    })
-                    ->orderBy('step_number')
-                    ->first();
+                // Next step is any other type (approver, releaser, post-purchasing approver, etc.)
+                Log::info('🟨 Activating step ' . $nextStep->step_number . ' - ' . $nextStep->step_name . ' (' . ($nextStep->step_type ?? 'approver') . ')');
+                $nextStep->update(['status' => 'pending']);
 
-                if (!$nextApprovalStep) {
-                    // All APPROVAL PHASE steps are complete
-                    // Check if there are RELEASE PHASE steps waiting
-                    $hasReleaseSteps = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                        ->where('approval_request_item_id', $item->id)
-                        ->where('step_phase', 'release')
-                        ->exists();
+                $itemStatus = ($nextStep->step_type === 'releaser') ? 'in_release' : 'on progress';
+                $item->update(['status' => $itemStatus]);
+                $item->refresh();
+                Log::info('🟩 Item status set to: ' . $itemStatus);
 
-                    if ($hasReleaseSteps) {
-                        // 3-Phase workflow: All approval done → Go to Purchasing
-                        Log::info('🟨 All approval steps complete - item entering PURCHASING phase');
-                        Log::info('🟦 Item status BEFORE: ' . $item->status);
-                        
-                        $item->update([
-                            'status' => 'in_purchasing', // New status: waiting for purchasing
-                        ]);
-                        
-                        $item->refresh();
-                        Log::info('🟩 Item status AFTER: ' . $item->status);
-
-                        // Create purchasing item immediately
-                        $this->createPurchasingItem($item);
-
-                        Log::info('🟩 Item approved for purchasing, awaiting vendor selection', ['item_id' => $item->id]);
-                        
-                        // Note: Release steps will be activated when purchasing is complete (vendor selected)
-                        // This is handled in PurchasingItemService::activateReleaseSteps()
-                        
-                    } else {
-                    // Old workflow (no release steps) - mark as fully approved immediately
-                    Log::info('🟨 No release steps - marking item as fully approved');
-                    Log::info('🟦 Item status BEFORE: ' . $item->status);
-                    
-                    $item->update([
-                        'status'      => 'approved',
-                        'approved_by' => auth()->id(),
-                        'approved_at' => now(),
-                    ]);
-                    $item->refresh();
-                    Log::info('🟩 Item status AFTER: ' . $item->status);
-
-                    // Confirm CapEx allocation (pending → used)
-                    if ($item->capex_item_id) {
-                        app(CapexAllocationService::class)->confirmAllocation($item);
-                        Log::info('🟩 CapEx allocation confirmed', ['capex_item_id' => $item->capex_item_id]);
-                    }
-
-                        // Create purchasing item immediately
-                        $this->createPurchasingItem($item);
-
-                        Log::info('🟩 Item fully approved', ['item_id' => $item->id]);
-                    }
-                } else {
-                    // Move to next approval step
-                    Log::info('🟨 Next approval step found: Step ' . $nextApprovalStep->step_number . ' - ' . $nextApprovalStep->step_name);
-                    Log::info('🟦 Item status BEFORE: ' . $item->status);
-                    
-                    $item->update(['status' => 'on progress']);
-                    
-                    $item->refresh();
-                    Log::info('🟩 Item status AFTER: ' . $item->status);
-                    
-                    // Notify next approver
-                    if (isset($nextApprovalStep)) {
-                        app(\App\Services\NotificationService::class)->notifyApprovers($approvalRequest);
-                    }
-                }
+                app(\App\Services\NotificationService::class)->notifyApprovers($approvalRequest);
             }
 
             // Aggregate request status

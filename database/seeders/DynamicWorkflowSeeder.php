@@ -292,9 +292,10 @@ class DynamicWorkflowSeeder extends Seeder
             // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
             ...$this->getPurchasingSteps(6, $roles),
             
-            // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(12, 'General Manager PT', $roles['general_manager_pt']),
-            $this->releaserStep(13, 'Direktur PT', $roles['direktur_pt']),
+            // ═══ PHASE 3: POST-PURCHASING (after purchasing complete) ═══
+            // GM PT and Direktur PT are now Approvers after purchasing
+            $this->approverStep(12, 'General Manager PT (Post-Purchasing)', $roles['general_manager_pt'], 'Verifikasi Hasil Pengadaan', 'approve'),
+            $this->approverStep(13, 'Direktur PT (Final Approval)', $roles['direktur_pt'], 'Final Approval', 'approve'),
             $this->releaserStep(14, 'Manager FATP', $roles['manager_fatp']),
         ];
     }
@@ -372,9 +373,10 @@ class DynamicWorkflowSeeder extends Seeder
             // ═══ PHASE 2: PURCHASING (handled by existing PurchasingItem system) ═══
             ...$this->getPurchasingSteps(6, $roles),
             
-            // ═══ PHASE 3: RELEASE (after purchasing complete) ═══
-            $this->releaserStep(12, 'General Manager PT', $roles['general_manager_pt']),
-            $this->releaserStep(13, 'Direktur PT', $roles['direktur_pt']),
+            // ═══ PHASE 3: POST-PURCHASING (after purchasing complete) ═══
+            // GM PT and Direktur PT are now Approvers after purchasing
+            $this->approverStep(12, 'General Manager PT (Post-Purchasing)', $roles['general_manager_pt'], 'Verifikasi Hasil Pengadaan', 'approve'),
+            $this->approverStep(13, 'Direktur PT (Final Approval)', $roles['direktur_pt'], 'Final Approval', 'approve'),
             $this->releaserStep(14, 'Manager FATP', $roles['manager_fatp']),
         ];
     }

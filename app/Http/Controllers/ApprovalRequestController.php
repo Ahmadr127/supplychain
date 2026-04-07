@@ -1749,11 +1749,12 @@ class ApprovalRequestController extends Controller
         $releaseStepCount = 0;
         
         foreach ($workflowSteps as $step) {
-            // Determine initial status based on phase
-            // - Approval phase: 'pending' (can be approved immediately)
-            // - Release phase: 'pending_purchase' (waiting for purchasing to complete)
+            // NEW: Sequential activation — only step 1 is active (pending).
+            // All others wait (pending_purchase) until predecessor is approved.
+            // step_phase is now metadata only; routing is purely by step_number.
             $stepPhase = $step->step_phase ?? 'approval';
-            $initialStatus = ($stepPhase === 'release') ? 'pending_purchase' : 'pending';
+            $stepNumber = $step->step_number ?? 99;
+            $initialStatus = ($stepNumber <= 1) ? 'pending' : 'pending_purchase';
             
             \App\Models\ApprovalItemStep::create([
                 'approval_request_id' => $approvalRequest->id,

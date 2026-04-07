@@ -191,43 +191,33 @@ class ApprovalItemApiController extends Controller
                 }
             }
 
-            // Advance item status
-            $isReleasePhase = ($currentStep->step_phase ?? 'approval') === 'release';
+            // Sequential step activation — find next step by step_number
+            $nextStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                ->where('approval_request_item_id', $item->id)
+                ->where('step_number', '>', $currentStep->step_number)
+                ->orderBy('step_number')
+                ->first();
 
-            if ($isReleasePhase) {
-                $nextRelease = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                    ->where('approval_request_item_id', $item->id)
-                    ->where('step_number', '>', $currentStep->step_number)
-                    ->where('step_phase', 'release')
-                    ->whereIn('status', ['pending', 'pending_purchase'])
-                    ->orderBy('step_number')->first();
-
-                if (!$nextRelease) {
-                    $item->update(['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()]);
-                } else {
-                    if ($nextRelease->status === 'pending_purchase') $nextRelease->update(['status' => 'pending']);
-                    $item->update(['status' => 'in_release']);
+            if (!$nextStep) {
+                $item->update(['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()]);
+            } elseif ($nextStep->step_type === 'purchasing') {
+                $nextStep->update(['status' => 'pending']);
+                $item->update(['status' => 'in_purchasing']);
+                // Create purchasing item if not exists
+                $exists = \App\Models\PurchasingItem::where('approval_request_id', $approvalRequest->id)
+                    ->where('master_item_id', $item->master_item_id)->exists();
+                if (!$exists) {
+                    \App\Models\PurchasingItem::create([
+                        'approval_request_id' => $approvalRequest->id,
+                        'master_item_id'      => $item->master_item_id,
+                        'quantity'            => $item->quantity,
+                        'status'              => 'unprocessed',
+                    ]);
                 }
             } else {
-                $nextApproval = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                    ->where('approval_request_item_id', $item->id)
-                    ->where('step_number', '>', $currentStep->step_number)
-                    ->where('status', 'pending')
-                    ->where(fn($q) => $q->where('step_phase', 'approval')->orWhereNull('step_phase'))
-                    ->orderBy('step_number')->first();
-
-                if (!$nextApproval) {
-                    $hasRelease = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                        ->where('approval_request_item_id', $item->id)
-                        ->where('step_phase', 'release')->exists();
-
-                    $item->update($hasRelease
-                        ? ['status' => 'in_purchasing']
-                        : ['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()]
-                    );
-                } else {
-                    $item->update(['status' => 'on progress']);
-                }
+                $nextStep->update(['status' => 'pending']);
+                $itemStatus = ($nextStep->step_type === 'releaser') ? 'in_release' : 'on progress';
+                $item->update(['status' => $itemStatus]);
             }
 
             $approvalRequest->refreshStatus();

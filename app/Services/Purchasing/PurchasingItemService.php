@@ -172,54 +172,6 @@ class PurchasingItemService
         return $item;
     }
 
-    /**
-     * Activate release phase steps when vendor is selected.
-     * Changes release step status from 'pending_purchase' to 'pending'.
-     * This is the transition from Phase 2 (Purchasing) to Phase 3 (Release).
-     */
-    public function activateReleaseSteps(PurchasingItem $item): bool
-    {
-        $releaseSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
-            ->where('master_item_id', $item->master_item_id)
-            ->where('step_phase', 'release')
-            ->where('status', 'pending_purchase')
-            ->get();
-
-        if ($releaseSteps->isEmpty()) {
-            \Illuminate\Support\Facades\Log::info('No release steps to activate', [
-                'purchasing_item_id' => $item->id,
-            ]);
-            return false;
-        }
-
-        // Activate first release step only (sequential approval)
-        $firstReleaseStep = $releaseSteps->sortBy('step_number')->first();
-        $firstReleaseStep->update([
-            'status' => 'pending',
-        ]);
-
-        // Trigger notification for release approver
-        $this->notificationService->notifyReleaseApprover($firstReleaseStep);
-
-        // Update approval request item status
-        $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $item->approval_request_id)
-            ->where('master_item_id', $item->master_item_id)
-            ->first();
-
-        if ($requestItem) {
-            $requestItem->update([
-                'status' => 'in_release', // New status: in release phase
-            ]);
-        }
-
-        \Illuminate\Support\Facades\Log::info('Release phase activated', [
-            'purchasing_item_id' => $item->id,
-            'release_steps_count' => $releaseSteps->count(),
-            'first_release_step' => $firstReleaseStep->step_name,
-        ]);
-
-        return true;
-    }
 
     /**
      * Issue PO for an item.
@@ -298,13 +250,70 @@ class PurchasingItemService
 
         \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_done');
 
-        // 3-Phase Workflow: Activate release steps once fully done
-        $this->activateReleaseSteps($item);
+        // Sequential workflow: activate next step by step_number (not phase-based)
+        $this->activateNextStepAfterPurchasing($item);
 
         if ($oldStatus !== 'done') {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'done');
         }
 
         return $item;
+    }
+
+    /**
+     * Activate the next step after all purchasing sub-steps complete.
+     * Finds next step by step_number (any type: releaser, approver, etc.)
+     */
+    public function activateNextStepAfterPurchasing(PurchasingItem $item): bool
+    {
+        $lastPurchasingStep = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->where('step_type', 'purchasing')
+            ->orderBy('step_number', 'desc')
+            ->first();
+
+        if (!$lastPurchasingStep) {
+            \Illuminate\Support\Facades\Log::warning('No purchasing step found', ['purchasing_item_id' => $item->id]);
+            return false;
+        }
+
+        $nextStep = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->where('step_number', '>', $lastPurchasingStep->step_number)
+            ->orderBy('step_number')
+            ->first();
+
+        if (!$nextStep) {
+            \Illuminate\Support\Facades\Log::info('No more steps after purchasing', ['purchasing_item_id' => $item->id]);
+            $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $item->approval_request_id)
+                ->where('master_item_id', $item->master_item_id)->first();
+            if ($requestItem) $requestItem->update(['status' => 'approved']);
+            return false;
+        }
+
+        $nextStep->update(['status' => 'pending']);
+
+        $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)->first();
+        if ($requestItem) {
+            $newStatus = ($nextStep->step_type === 'releaser') ? 'in_release' : 'on progress';
+            $requestItem->update(['status' => $newStatus]);
+        }
+
+        $this->notificationService->notifyReleaseApprover($nextStep);
+
+        \Illuminate\Support\Facades\Log::info('Next step after purchasing activated', [
+            'next_step_number' => $nextStep->step_number,
+            'next_step_name'   => $nextStep->step_name,
+            'next_step_type'   => $nextStep->step_type,
+        ]);
+
+        return true;
+    }
+
+    /** @deprecated Use activateNextStepAfterPurchasing() instead. */
+    public function activateReleaseSteps(PurchasingItem $item): bool
+    {
+        return $this->activateNextStepAfterPurchasing($item);
     }
 }
