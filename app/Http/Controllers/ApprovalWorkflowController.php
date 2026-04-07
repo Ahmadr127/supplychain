@@ -287,15 +287,15 @@ class ApprovalWorkflowController extends Controller
             }
             
             // Add conditional step settings
-            if (isset($step['is_conditional']) && $step['is_conditional']) {
-                $processedStep['is_conditional'] = true;
-                if (!empty($step['condition_type'])) {
-                    $processedStep['condition_type'] = $step['condition_type'];
-                }
-                if (!empty($step['condition_value'])) {
-                    // Remove dots from formatted number
-                    $processedStep['condition_value'] = (int) str_replace('.', '', $step['condition_value']);
-                }
+            $processedStep['is_conditional'] = isset($step['is_conditional']) && $step['is_conditional'];
+            
+            // ALWAYS save condition_type and value (since it is also used as threshold for FS)
+            if (!empty($step['condition_type'])) {
+                $processedStep['condition_type'] = $step['condition_type'];
+            }
+            if (isset($step['condition_value']) && $step['condition_value'] !== '') {
+                // Remove dots from formatted number
+                $processedStep['condition_value'] = (int) str_replace('.', '', $step['condition_value']);
             }
             
         // Add dynamic step insertion support (NEW)

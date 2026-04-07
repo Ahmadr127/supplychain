@@ -290,6 +290,7 @@
                         Required Action
                     </label>
                     <select name="workflow_steps[${stepNumber}][required_action]"
+                            onchange="handleRequiredActionChange(this, ${stepNumber})"
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="">Tidak ada aksi khusus</option>
                         <option value="input_price" ${data.required_action === 'input_price' ? 'selected' : ''}>Input Harga (Manager)</option>
@@ -355,9 +356,9 @@
                         <span class="ml-2 text-sm font-medium text-gray-700">Step Conditional (skip jika kondisi tidak terpenuhi)</span>
                     </label>
 
-                    <div id="conditional_fields_${stepNumber}" class="grid grid-cols-2 gap-4 ${isConditional ? '' : 'hidden'}">
+                    <div id="conditional_fields_${stepNumber}" class="grid grid-cols-2 gap-4 ${isConditional || data.required_action === 'verify_budget' ? '' : 'hidden'}">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipe Kondisi</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipe Kondisi / Threshold FS</label>
                             <select name="workflow_steps[${stepNumber}][condition_type]"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 <option value="">Pilih Kondisi</option>
@@ -366,10 +367,10 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Nilai Threshold (Rp)</label>
-                            <input type="text" name="workflow_steps[${stepNumber}][condition_value]"
+                            <input type="text" id="condition_value_${stepNumber}" name="workflow_steps[${stepNumber}][condition_value]"
                                    value="${data.condition_value ? data.condition_value.toLocaleString('id-ID') : ''}"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                   placeholder="100000000"
+                                   placeholder="Contoh: 50.000.000"
                                    oninput="formatCurrency(this)">
                         </div>
                     </div>
@@ -489,10 +490,29 @@
         }
     }
 
+    // Handle required action change
+    function handleRequiredActionChange(select, stepNumber) {
+        const conditionalFields = document.getElementById(`conditional_fields_${stepNumber}`);
+        const conditionType = document.querySelector(`select[name="workflow_steps[${stepNumber}][condition_type]"]`);
+        const checkbox = document.querySelector(`input[name="workflow_steps[${stepNumber}][is_conditional]"]`);
+        
+        if (select.value === 'verify_budget') {
+            conditionalFields.classList.remove('hidden');
+            if (conditionType && !conditionType.value) {
+                conditionType.value = 'total_price'; // Auto set for convenience
+            }
+        } else if (checkbox && !checkbox.checked) {
+            // Only hide if conditional checkbox is also unchecked
+            conditionalFields.classList.add('hidden');
+        }
+    }
+
     // Toggle conditional fields
     function toggleConditionalFields(checkbox, stepNumber) {
         const conditionalFields = document.getElementById(`conditional_fields_${stepNumber}`);
-        if (checkbox.checked) {
+        const actionSelect = document.querySelector(`select[name="workflow_steps[${stepNumber}][required_action]"]`);
+        
+        if (checkbox.checked || (actionSelect && actionSelect.value === 'verify_budget')) {
             conditionalFields.classList.remove('hidden');
         } else {
             conditionalFields.classList.add('hidden');
