@@ -172,21 +172,6 @@ class DynamicWorkflowSeeder extends Seeder
             ], $this->getPeremajaanHighSteps($roles));
 
         });
-
-        $this->command->info('');
-        $this->command->info('✅ Dynamic workflows seeded successfully!');
-        $this->command->newLine();
-        $this->command->info('📋 Flow Urutan (Sequential):');
-        $this->command->info('   1. APPROVAL  : Maker → Approvers (input harga, verifikasi budget)');
-        $this->command->info('   2. PURCHASING : Tim Purchasing → 6 Langkah Sequential');
-        $this->command->info('      Step 1: Terima Dokumen (set tgl diterima)');
-        $this->command->info('      Step 2: Benchmarking Vendor (SPH)');
-        $this->command->info('      Step 3: Preferred Vendor ← Manager Keuangan (manage_vendor)');
-        $this->command->info('      Step 4: Issue PO');
-        $this->command->info('      Step 5: Invoice & GRN');
-        $this->command->info('      Step 6: Mark Done');
-        $this->command->info('   3. RELEASE   : Releasers → Final Release');
-        $this->command->newLine();
         
         $this->command->table(
             ['Workflow', 'Type', 'Nominal', 'Approval Steps', 'Purchasing Steps', 'Release Steps'],

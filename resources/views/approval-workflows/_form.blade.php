@@ -477,7 +477,8 @@
     // Toggle approver fields
     function toggleApproverFields(select, stepNumber) {
         const approverType = select.value;
-        document.querySelectorAll(`[id^="approver_"][id$="_${stepNumber}"]`).forEach(field => {
+        // Hide only detail fields, keep "Tipe Approver" dropdown visible.
+        document.querySelectorAll(`.approver-field[id$="_${stepNumber}"]`).forEach(field => {
             field.style.display = 'none';
         });
 

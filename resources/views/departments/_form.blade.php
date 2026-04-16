@@ -169,13 +169,34 @@
 
     // User data from PHP
     const usersData = @json($users);
+    const oldMembersData = @json(old('members', []));
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
+        // Prioritize old input so selected values are preserved after validation errors.
+        if (oldMembersData && Object.keys(oldMembersData).length > 0) {
+            loadOldMembers();
+            return;
+        }
+
         @if(isset($department) && $department->users)
-            loadExistingMembers();
+        loadExistingMembers();
         @endif
     });
+
+    // Load members from old() input after validation failure
+    function loadOldMembers() {
+        const members = Array.isArray(oldMembersData)
+            ? oldMembersData
+            : Object.values(oldMembersData);
+
+        members.forEach((member, index) => {
+            addMemberToDOM(member, index);
+            memberCount++;
+        });
+
+        updateMembersDisplay();
+    }
 
     // Load existing members
     function loadExistingMembers() {
@@ -205,9 +226,13 @@
         memberDiv.className = 'border-b border-gray-200 p-6 member-item bg-white';
         memberDiv.setAttribute('data-member-index', index);
 
-        const userId = memberData?.id || '';
-        const position = memberData?.pivot?.position || '';
-        const isPrimary = memberData?.pivot?.is_primary || false;
+        // Support both existing relation format and old() input format.
+        const userId = memberData?.user_id ?? memberData?.id ?? '';
+        const position = memberData?.position ?? memberData?.pivot?.position ?? '';
+        const isPrimary =
+            (memberData?.is_primary ?? memberData?.pivot?.is_primary ?? false) == true ||
+            (memberData?.is_primary ?? memberData?.pivot?.is_primary ?? false) == 1 ||
+            (memberData?.is_primary ?? memberData?.pivot?.is_primary ?? false) === '1';
 
         let userOptions = '<option value="">-- Pilih User --</option>';
         usersData.forEach(user => {
