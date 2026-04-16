@@ -89,10 +89,15 @@ class FcmTokenController extends Controller
     }
 
     /**
-     * Remove FCM device token (logout)
-     * 
+     * Keep FCM device token on logout.
+     *
+     * Historically this endpoint deleted the token, which caused later
+     * notifications to fail when the same device/account needed to receive
+     * step-based notifications again. We now preserve the token so one user
+     * can stay registered across sessions and across multiple devices.
+     *
      * DELETE /api/fcm-token
-     * 
+     *
      * @param Request $request
      * @return JsonResponse
      */
@@ -104,27 +109,21 @@ class FcmTokenController extends Controller
 
         try {
             $token = trim((string) $validated['device_token']);
-            $deleted = UserDeviceToken::where('device_token', $token)
+            $existing = UserDeviceToken::where('device_token', $token)
                 ->where('user_id', auth()->id())
-                ->delete();
+                ->exists();
 
-            if ($deleted) {
-                Log::info('FCM token removed', [
-                    'user_id' => auth()->id(),
-                    'device_token' => substr($validated['device_token'], 0, 20) . '...',
-                ]);
-
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'FCM Token berhasil dihapus.',
-                    'deleted' => $deleted,
-                ]);
-            }
+            Log::info('FCM token removal skipped to preserve multi-device notifications', [
+                'user_id' => auth()->id(),
+                'token_exists_for_user' => $existing,
+                'device_token' => substr($validated['device_token'], 0, 20) . '...',
+            ]);
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'FCM Token tidak ditemukan atau sudah dihapus.',
+                'message' => 'FCM Token dipertahankan untuk menjaga notifikasi multi-device tetap aktif.',
                 'deleted' => 0,
+                'preserved' => $existing,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to remove FCM token', [
