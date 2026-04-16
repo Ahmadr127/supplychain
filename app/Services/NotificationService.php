@@ -64,6 +64,7 @@ class NotificationService
             
             Log::info('NotificationService: Queued FCM notification', [
                 'user_count' => count($userIds),
+                'user_ids' => $userIds,
                 'token_count' => count($tokens),
                 'title' => $title,
             ]);

@@ -45,6 +45,12 @@ class SendFcmNotification implements ShouldQueue
     {
         $messaging = $firebaseService->getMessaging();
 
+        // Helpful for diagnosing "Requested entity was not found" (usually project mismatch).
+        Log::info('[FCM DEBUG] Firebase project context (sc)', [
+            'project_id' => $firebaseService->getProjectId(),
+            'client_email' => $firebaseService->getClientEmail(),
+        ]);
+
         // Runtime evidence: token statistics (avoid logging raw tokens).
         $tokensSnapshot        = $this->tokens;
         $tokenCount            = count($tokensSnapshot);
@@ -165,19 +171,44 @@ class SendFcmNotification implements ShouldQueue
                             $firstFailureLogged = true;
                         }
 
-                        // If token is invalid or not registered, delete it
+                        // If token is invalid or not registered, delete it.
+                        // Note: "requested entity was not found" is treated as ambiguous (often project mismatch),
+                        // so we avoid auto-deleting immediately to keep tokens available for retries.
                         $reasonLower = strtolower($reason);
+                        $isRequestedEntityNotFound = str_contains($reasonLower, 'requested entity was not found');
+
+                        if ($isRequestedEntityNotFound) {
+                            $owners = UserDeviceToken::where('device_token', $targetToken)
+                                ->pluck('user_id')
+                                ->unique()
+                                ->values()
+                                ->all();
+
+                            Log::warning("FCM token not deleted (sc) due to ambiguous reason.", [
+                                'reason' => $reason,
+                                'token_sha256_prefix' => substr(hash('sha256', $targetToken), 0, 12),
+                                'token_owner_user_ids' => $owners,
+                            ]);
+                            continue;
+                        }
+
                         if (str_contains($reasonLower, 'invalid-registration-token') ||
                             str_contains($reasonLower, 'registration-token-not-registered') ||
                             str_contains($reasonLower, 'not a valid fcm registration token') ||
-                            str_contains($reasonLower, 'registration token is not a valid fcm registration token') ||
-                            str_contains($reasonLower, 'requested entity was not found')) {
+                            str_contains($reasonLower, 'registration token is not a valid fcm registration token')) {
+                            $owners = UserDeviceToken::where('device_token', $targetToken)
+                                ->pluck('user_id')
+                                ->unique()
+                                ->values()
+                                ->all();
+
                             $deleted   = UserDeviceToken::where('device_token', $targetToken)->delete();
                             $remaining = UserDeviceToken::where('device_token', $targetToken)->count();
                             Log::warning("Removing invalid FCM Token (sc). Reason: {$reason}", [
                                 'deleted_rows'              => $deleted,
                                 'remaining_rows_for_token'  => $remaining,
                                 'token_sha256_prefix'       => substr(hash('sha256', $targetToken), 0, 12),
+                                'token_owner_user_ids'     => $owners,
                             ]);
                         } else {
                             Log::error("FCM Delivery Failed for token (masked, sc). Reason: {$reason}");
