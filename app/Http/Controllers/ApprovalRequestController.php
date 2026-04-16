@@ -1882,6 +1882,8 @@ class ApprovalRequestController extends Controller
                         'approved_by' => $user->id,
                         'approved_at' => now(),
                     ]);
+                    
+                    app(\App\Services\NotificationService::class)->notifyPurchasingStaff($approvalRequestItem);
                 } else {
                     $approvalRequestItem->update(['status' => 'on progress']);
                 }

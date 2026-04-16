@@ -224,10 +224,15 @@ class ApprovalItemApiController extends Controller
                         ->where('approval_request_item_id', $item->id)
                         ->where('step_phase', 'release')->exists();
 
-                    $item->update($hasRelease
-                        ? ['status' => 'in_purchasing']
-                        : ['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()]
+                    $newStatus = $hasRelease ? 'in_purchasing' : 'approved';
+                    $item->update(
+                        $hasRelease 
+                            ? ['status' => $newStatus] 
+                            : ['status' => $newStatus, 'approved_by' => Auth::id(), 'approved_at' => now()]
                     );
+
+                    // Notify purchasing staff that a new item arrived
+                    app(\App\Services\NotificationService::class)->notifyPurchasingStaff($item);
                 } else {
                     $item->update(['status' => 'on progress']);
                 }

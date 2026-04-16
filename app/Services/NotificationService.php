@@ -256,6 +256,53 @@ class NotificationService
     }
 
     /**
+     * Notify purchasing staff when a new item enters the purchasing phase
+     *
+     * @param \App\Models\ApprovalRequestItem $item
+     * @return void
+     */
+    public function notifyPurchasingStaff(\App\Models\ApprovalRequestItem $item): void
+    {
+        $item->load(['approvalRequest', 'masterItem']);
+
+        // Find all users who have purchasing permissions
+        $purchasingStaff = \App\Models\User::with('role')->get()->filter(function ($user) {
+            return $user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item');
+        })->values();
+
+        if ($purchasingStaff->isEmpty()) {
+            Log::warning('NotificationService: No purchasing staff found to notify for item', [
+                'item_id' => $item->id,
+            ]);
+            return;
+        }
+
+        $itemName = $item->masterItem->name ?? 'Item';
+        $requestNumber = $item->approvalRequest->request_number ?? '-';
+
+        $title = 'Tugas Purchasing Baru';
+        $body = sprintf(
+            'Item %s (%s) siap untuk diproses purchasing',
+            $itemName,
+            $requestNumber
+        );
+
+        $data = [
+            'type' => 'new_purchasing_task',
+            'source' => 'sc',
+            'item_id' => (string)$item->id,
+            'approval_request_id' => (string)$item->approval_request_id,
+        ];
+
+        $this->notifyUsers($purchasingStaff, $title, $body, $data);
+
+        Log::info('NotificationService: Notified purchasing staff about new item', [
+            'item_id' => $item->id,
+            'staff_count' => $purchasingStaff->count(),
+        ]);
+    }
+
+    /**
      * Notify when purchasing item status changes
      * Sends notification to the requester about purchasing progress
      *
