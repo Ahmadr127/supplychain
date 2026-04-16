@@ -161,7 +161,7 @@
                                 <a href="{{ route('approval-requests.edit', $row->request) }}" 
                                    class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150" title="Edit">✏️</a>
                             @endif
-                            @if($row->request->requester_id == auth()->id())
+                            @if($row->request->requester_id == auth()->id() || auth()->user()->hasPermission('manage_approvals'))
                                 <button onclick="deleteRequest({{ $row->request->id }})" 
                                         class="text-red-600 hover:text-red-900 transition-colors duration-150" title="Hapus">🗑️</button>
                             @endif
