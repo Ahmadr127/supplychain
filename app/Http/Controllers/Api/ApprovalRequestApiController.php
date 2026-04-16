@@ -132,6 +132,8 @@ class ApprovalRequestApiController extends Controller
                         $item->status = 'on progress'; // User has done their part, it's being processed further
                     }
                 }
+                
+                $item->setAttribute('can_approve', (bool) $isPendingForMe);
 
                 return $item;
             })->filter()->values();
@@ -242,6 +244,21 @@ class ApprovalRequestApiController extends Controller
             $fundingSource = $item->capex_item_id ? 'capex' : 'non_capex';
             $capex         = $item->capexItem;
 
+            $displayStatus = $item->status;
+            if ($displayStatus === 'pending') {
+                $isPendingForMe = $currentStep && $currentStep->canApprove($userId);
+                $hasActioned = $item->steps->contains(function ($s) use ($userId) {
+                    $phase = $s->step_phase ?? 'approval';
+                    return (int) $s->approved_by === (int) $userId
+                        && $phase === 'approval'
+                        && in_array($s->status, ['approved', 'rejected'], true);
+                });
+                
+                if ($hasActioned && !$isPendingForMe) {
+                    $displayStatus = 'on progress';
+                }
+            }
+
             return [
                 'id'              => $item->id,
                 'master_item'     => $item->masterItem,
@@ -249,7 +266,7 @@ class ApprovalRequestApiController extends Controller
                 'unit'            => $item->unit,
                 'unit_price'      => $item->unit_price,
                 'total_price'     => $item->total_price,
-                'status'          => $item->status,
+                'status'          => $displayStatus,
                 'fs_document'     => $item->fs_document,
                 'brand'           => $item->brand,
                 'specification'   => $item->specification,
