@@ -66,7 +66,7 @@ class ApprovalRequestApiController extends Controller
      */
     public function myRequests(Request $request)
     {
-        $query = ApprovalRequest::with(['requester', 'items'])
+        $query = ApprovalRequest::with(['requester', 'items.masterItem'])
             ->where('requester_id', Auth::id())
             ->orderBy('created_at', 'desc');
 
@@ -86,7 +86,7 @@ class ApprovalRequestApiController extends Controller
         $userId = $user->id;
         $requestedStatus = $this->normalizeStatus($request->input('status'));
 
-        $allRequests = ApprovalRequest::with(['requester', 'items.steps.approver'])
+        $allRequests = ApprovalRequest::with(['requester', 'items.masterItem', 'items.steps.approver'])
             ->whereHas('items.steps', function ($q) use ($user) {
                 // Only consider approval-phase steps for "pending approvals".
                 $q->where(function ($phaseQ) {
