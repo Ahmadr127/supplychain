@@ -124,8 +124,8 @@ class ApprovalRequestApiController extends Controller
                 }
 
                 // Override display status based on the user's interaction point
-                // if it's natively still pending (being processed by workflow)
-                if ($item->status === 'pending') {
+                // if it's not natively fully approved or rejected
+                if (!in_array($item->status, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released'])) {
                     if ($isPendingForMe) {
                         $item->status = 'pending';
                     } elseif ($hasActioned) {
@@ -245,7 +245,7 @@ class ApprovalRequestApiController extends Controller
             $capex         = $item->capexItem;
 
             $displayStatus = $item->status;
-            if ($displayStatus === 'pending') {
+            if (!in_array($displayStatus, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released'])) {
                 $isPendingForMe = $currentStep && $currentStep->canApprove($userId);
                 $hasActioned = $item->steps->contains(function ($s) use ($userId) {
                     $phase = $s->step_phase ?? 'approval';
