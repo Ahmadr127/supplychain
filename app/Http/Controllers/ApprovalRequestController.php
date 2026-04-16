@@ -1856,6 +1856,8 @@ class ApprovalRequestController extends Controller
 
             // Re-evaluate workflow if approved (check for workflow switch)
             if ($newStatus === 'approved') {
+                $approvalRequestItem->refresh();
+                $approvalRequestItem->load('approvalRequest');
                 $workflowService = app(\App\Services\WorkflowService::class);
                 $workflowService->reevaluateWorkflow($approvalRequestItem);
             }

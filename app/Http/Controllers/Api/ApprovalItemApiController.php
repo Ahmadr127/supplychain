@@ -184,6 +184,9 @@ class ApprovalItemApiController extends Controller
             // Re-evaluate workflow when price was just inputted
             if ($currentStep->required_action === 'input_price') {
                 try {
+                    // Refresh item so WorkflowService reads the updated total_price
+                    $item->refresh();
+                    $item->load('approvalRequest');
                     app(\App\Services\WorkflowService::class)->reevaluateWorkflow($item);
                     $currentStep = ApprovalItemStep::find($currentStep->id) ?? $currentStep;
                 } catch (\Exception $e) {
