@@ -414,8 +414,17 @@ Route::middleware('auth')->group(function () {
         Route::post('/{capex}/items',      [\App\Http\Controllers\CapexController::class, 'storeItem'])->name('items.store');
         Route::patch('/items/{item}',      [\App\Http\Controllers\CapexController::class, 'updateItem'])->name('items.update');
         Route::delete('/items/{item}',     [\App\Http\Controllers\CapexController::class, 'destroyItem'])->name('items.destroy');
-        Route::get('/api/available-items', [\App\Http\Controllers\CapexController::class, 'getAvailableItems'])->name('api.available-items');
     });
+
+    // Shared capex helper API (used by approval UI).
+    // Must be available for both full capex admins and unit-level capex users.
+    Route::middleware('permission:manage_capex_unit|manage_capex')
+        ->prefix('capex')
+        ->name('capex.')
+        ->group(function () {
+            Route::get('/api/available-items', [\App\Http\Controllers\CapexController::class, 'getAvailableItems'])
+                ->name('api.available-items');
+        });
 
     // -----------------------------------------------------------------------
     // CapEx Unit-Level CRUD (for department/unit users)
