@@ -104,7 +104,7 @@ class ApprovalRequestApiController extends Controller
             ->get();
 
         $filtered = $allRequests->map(function ($req) use ($userId) {
-            $myItems = $req->items->filter(function ($item) use ($userId) {
+            $myItems = $req->items->map(function ($item) use ($userId) {
                 // Use only pending steps in approval phase (ignore release-phase pending steps).
                 $step = $item->steps->first(function ($s) {
                     $phase = $s->step_phase ?? 'approval';
@@ -119,8 +119,22 @@ class ApprovalRequestApiController extends Controller
                         && in_array($s->status, ['approved', 'rejected'], true);
                 });
                 
-                return $isPendingForMe || $hasActioned;
-            });
+                if (!($isPendingForMe || $hasActioned)) {
+                    return null;
+                }
+
+                // Override display status based on the user's interaction point
+                // if it's natively still pending (being processed by workflow)
+                if ($item->status === 'pending') {
+                    if ($isPendingForMe) {
+                        $item->status = 'pending';
+                    } elseif ($hasActioned) {
+                        $item->status = 'on progress'; // User has done their part, it's being processed further
+                    }
+                }
+
+                return $item;
+            })->filter()->values();
 
             if ($myItems->isEmpty()) return null;
 
@@ -138,8 +152,9 @@ class ApprovalRequestApiController extends Controller
                     ->where(fn($s) => ($s->step_phase ?? 'approval') === 'approval')
                     ->isNotEmpty()
             );
-            
-            $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');
+            $isActionedByMe = $myItems->contains(fn($i) => $i->status === 'on progress');
+
+            $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : ($isActionedByMe ? 'on progress' : 'approved'));
 
             $req->status = $computedStatus;
             $req->setRelation('items', $myItems);
