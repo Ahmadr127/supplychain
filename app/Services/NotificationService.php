@@ -128,15 +128,19 @@ class NotificationService
      */
     public function notifyApprovers(\App\Models\ApprovalRequest $request): void
     {
-        // Get all pending approval steps (approval phase only)
-        $pendingSteps = $request->itemSteps()
-            ->where('step_phase', 'approval')
-            ->where('status', 'pending')
-            ->orderBy('step_number')
-            ->get();
+        // Get only the FIRST pending approval step for each item
+        $request->load('items.currentStep');
+        
+        $pendingSteps = collect();
+        foreach ($request->items as $item) {
+            $step = $item->currentStep;
+            if ($step && ($step->step_phase ?? 'approval') === 'approval' && $step->status === 'pending') {
+                $pendingSteps->push($step);
+            }
+        }
 
         if ($pendingSteps->isEmpty()) {
-            Log::info('NotificationService: No pending approval steps found', [
+            Log::info('NotificationService: No active pending approval steps found', [
                 'approval_request_id' => $request->id,
             ]);
             return;

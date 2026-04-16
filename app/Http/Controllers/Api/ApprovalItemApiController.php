@@ -236,6 +236,21 @@ class ApprovalItemApiController extends Controller
             $approvalRequest->refreshStatus();
             DB::commit();
 
+            try {
+                $item->refresh();
+                if ($item->status === 'approved') {
+                    // Check if entire request is approved
+                    if ($approvalRequest->status === 'approved') {
+                        app(\App\Services\NotificationService::class)->notifyRequesterApproved($approvalRequest);
+                    }
+                } else if (!in_array($item->status, ['rejected', 'done', 'terpenuhi'])) {
+                    // If not rejected or fully approved, notify next approvers
+                    app(\App\Services\NotificationService::class)->notifyApprovers($approvalRequest);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to send notification after API approval: ' . $e->getMessage());
+            }
+
             $item->load(['masterItem', 'steps.approver']);
 
             return response()->json([
@@ -299,6 +314,14 @@ class ApprovalItemApiController extends Controller
 
             $approvalRequest->refreshStatus();
             DB::commit();
+
+            try {
+                if ($approvalRequest->status === 'rejected') {
+                    app(\App\Services\NotificationService::class)->notifyRequesterRejected($approvalRequest, $request->rejected_reason);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to send notification after API rejection: ' . $e->getMessage());
+            }
 
             $item->load(['masterItem', 'steps.approver']);
 
