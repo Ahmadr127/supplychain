@@ -10,7 +10,7 @@ class ItemLookupController extends Controller
 {
     public function __construct(private ItemResolver $resolver)
     {
-        $this->middleware('auth');
+        // Removed session-based middleware to allow cross-compat with API Sanctum
     }
 
     // GET /api/items/suggest?search=...&item_type_id=...

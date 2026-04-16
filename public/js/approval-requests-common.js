@@ -34,7 +34,7 @@ async function showStepStatus(stepName, stepStatus, stepNumber, requestId, maste
 
     try {
         const baseUrl = window.location.origin;
-        let url = `${baseUrl}/api/approval-requests/${requestId}/step-status/${stepNumber}`;
+        let url = `${baseUrl}/ajax/approval-requests/${requestId}/step-status/${stepNumber}`;
         if (masterItemId) {
             url += `?master_item_id=${masterItemId}`;
         }
@@ -115,7 +115,7 @@ async function openPurchasingStatusModal(code, label, requestId, el = null) {
 
     try {
         const baseUrl = window.location.origin;
-        const url = `${baseUrl}/api/purchasing/status/${requestId}`;
+        const url = `${baseUrl}/ajax/purchasing/status/${requestId}`;
         const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         const data = await res.json();
         const changedAt = data.changed_at ? new Date(data.changed_at).toLocaleString('id-ID') : '-';
@@ -156,7 +156,7 @@ async function loadStepMetadata() {
         
         try {
             const baseUrl = window.location.origin;
-            let url = `${baseUrl}/api/approval-requests/${requestId}/step-status/${stepNumber}`;
+            let url = `${baseUrl}/ajax/approval-requests/${requestId}/step-status/${stepNumber}`;
             
             // Add master_item_id as query parameter if available
             if (masterItemId) {

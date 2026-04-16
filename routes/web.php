@@ -283,7 +283,7 @@ Route::middleware('auth')->group(function () {
         Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
     });
     // API endpoint for getting settings (accessible to all authenticated users)
-    Route::get('api/settings', [SettingController::class, 'getSettings'])->name('api.settings.get');
+    Route::get('ajax/settings', [SettingController::class, 'getSettings'])->name('api.settings.get');
     
     // Reports (Process Purchasing)
     // Reports (Process Purchasing)
@@ -329,30 +329,30 @@ Route::middleware('auth')->group(function () {
     // (Removed) item-centric routes to avoid introducing new indexes/views per request
 
     // API routes for AJAX requests
-    Route::get('api/workflows/{workflow}/steps', [ApprovalWorkflowController::class, 'getSteps'])->name('api.workflows.steps');
-    Route::get('api/master-items/by-type/{typeId}', [MasterItemController::class, 'getByType'])->name('api.master-items.by-type');
-    Route::get('api/master-items/by-category/{categoryId}', [MasterItemController::class, 'getByCategory'])->name('api.master-items.by-category');
-    Route::get('api/approval-requests/master-items', [ApprovalRequestController::class, 'getMasterItems'])->name('api.approval-requests.master-items');
-    Route::get('api/approval-requests/workflow-for-item-type/{itemTypeId}', [ApprovalRequestController::class, 'getWorkflowForItemType'])->name('api.approval-requests.workflow-for-item-type');
+    Route::get('ajax/workflows/{workflow}/steps', [ApprovalWorkflowController::class, 'getSteps'])->name('api.workflows.steps');
+    Route::get('ajax/master-items/by-type/{typeId}', [MasterItemController::class, 'getByType'])->name('api.master-items.by-type');
+    Route::get('ajax/master-items/by-category/{categoryId}', [MasterItemController::class, 'getByCategory'])->name('api.master-items.by-category');
+    Route::get('ajax/approval-requests/master-items', [ApprovalRequestController::class, 'getMasterItems'])->name('api.approval-requests.master-items');
+    Route::get('ajax/approval-requests/workflow-for-item-type/{itemTypeId}', [ApprovalRequestController::class, 'getWorkflowForItemType'])->name('api.approval-requests.workflow-for-item-type');
     // Generic item lookup endpoints (suggest and resolve/create)
-    Route::get('api/items/suggest', [ItemLookupController::class, 'suggest'])->name('api.items.suggest');
-    Route::post('api/items/resolve', [ItemLookupController::class, 'resolve'])->name('api.items.resolve');
+    Route::get('ajax/items/suggest', [ItemLookupController::class, 'suggest'])->name('api.items.suggest');
+    Route::post('ajax/items/resolve', [ItemLookupController::class, 'resolve'])->name('api.items.resolve');
 
     // Supplier lookup endpoints (web-session authenticated, used by blade forms)
-    Route::get('api/suppliers/suggest', [SupplierLookupController::class, 'suggest'])->name('api.suppliers.suggest');
-    Route::post('api/suppliers/resolve', [SupplierLookupController::class, 'resolve'])->name('api.suppliers.resolve');
+    Route::get('ajax/suppliers/suggest', [SupplierLookupController::class, 'suggest'])->name('api.suppliers.suggest');
+    Route::post('ajax/suppliers/resolve', [SupplierLookupController::class, 'resolve'])->name('api.suppliers.resolve');
 
     // Purchasing item lookup endpoints (now handled by ReportController)
-    Route::get('api/purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'showPurchasingItemJson'])
+    Route::get('ajax/purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'showPurchasingItemJson'])
         ->name('api.purchasing.items.show');
-    Route::post('api/purchasing/items/resolve', [\App\Http\Controllers\ReportController::class, 'resolvePurchasingItemByRequestAndItem'])
+    Route::post('ajax/purchasing/items/resolve', [\App\Http\Controllers\ReportController::class, 'resolvePurchasingItemByRequestAndItem'])
         ->name('api.purchasing.items.resolve');
     // Purchasing Status details (JSON)
-    Route::get('api/purchasing/status/{approvalRequest}', [PurchasingItemController::class, 'statusDetailsByRequest'])
+    Route::get('ajax/purchasing/status/{approvalRequest}', [PurchasingItemController::class, 'statusDetailsByRequest'])
         ->name('api.purchasing.status');
     
     // Approval step status details (JSON)
-    Route::get('api/approval-requests/{approvalRequest}/step-status/{stepNumber}', [ApprovalRequestController::class, 'getStepStatus'])
+    Route::get('ajax/approval-requests/{approvalRequest}/step-status/{stepNumber}', [ApprovalRequestController::class, 'getStepStatus'])
         ->name('api.approval-requests.step-status');
     
     // File download routes

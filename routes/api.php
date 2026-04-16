@@ -13,6 +13,10 @@ use App\Http\Controllers\Api\NotificationApiController;
 use App\Http\Controllers\Api\PurchasingApiController;
 use App\Http\Controllers\Api\ReleaseApiController;
 use App\Http\Controllers\SupplierLookupController;
+use App\Http\Controllers\ItemLookupController;
+use App\Http\Controllers\ApprovalWorkflowController;
+use App\Http\Controllers\MasterItemController;
+use App\Http\Controllers\ApprovalRequestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -149,6 +153,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/suggest', [SupplierLookupController::class, 'suggest']);
         Route::post('/resolve', [SupplierLookupController::class, 'resolve']);
     });
+
+    // ----------------------------------------------------------------
+    // Item & Workflow Helpers
+    // ----------------------------------------------------------------
+    Route::get('/items/suggest', [ItemLookupController::class, 'suggest']);
+    Route::post('/items/resolve', [ItemLookupController::class, 'resolve']);
+    Route::get('/workflows/{workflow}/steps', [ApprovalWorkflowController::class, 'getSteps']);
+    Route::get('/master-items/by-type/{typeId}', [MasterItemController::class, 'getByType']);
+    Route::get('/approval-requests/workflow-for-item-type/{itemTypeId}', [ApprovalRequestController::class, 'getWorkflowForItemType']);
+    Route::get('/approval-requests/{approvalRequest}/step-status/{stepNumber}', [ApprovalRequestController::class, 'getStepStatus']);
 
     // ----------------------------------------------------------------
     // Release Management  (ReleaseApiController)
