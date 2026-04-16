@@ -60,25 +60,22 @@
         <table class="responsive-table min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="w-1/4 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Nama & Tipe
                     </th>
-                    <th class="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="w-24 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Sifat Pengadaan
                     </th>
-                    <th class="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Steps
                     </th>
-                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="w-24 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Total Requests
                     </th>
-                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="w-24 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                     </th>
-                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Dibuat
-                    </th>
-                    <th class="w-1/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="w-28 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Aksi
                     </th>
                 </tr>
@@ -86,10 +83,10 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @foreach($workflows as $workflow)
                 <tr class="hover:bg-gray-50 transition-colors duration-150">
-                    <td class="w-1/4 px-6 py-4">
+                    <td class="w-1/4 px-4 py-4">
                         <div class="min-w-0">
-                            <div class="text-sm font-medium text-gray-900 truncate">{{ $workflow->name }}</div>
-                            <div class="text-sm text-gray-500 truncate">
+                            <div class="text-sm font-medium text-gray-900 whitespace-normal break-words">{{ $workflow->name }}</div>
+                            <div class="text-sm text-gray-500 whitespace-normal break-words mt-1">
                                 <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">
                                     {{ $workflow->type }}
                                 </span>
@@ -97,7 +94,7 @@
                             </div>
                         </div>
                     </td>
-                    <td class="px-6 py-4">
+                    <td class="w-24 px-4 py-4 text-center">
                         @if($workflow->procurementType)
                             <span class="inline-block px-3 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 whitespace-nowrap">
                                 {{ $workflow->procurementType->code }}
@@ -108,7 +105,7 @@
                             </span>
                         @endif
                     </td>
-                    <td class="w-1/6 px-6 py-4">
+                    <td class="px-4 py-4">
                         <div class="min-w-0">
                             <div class="flex items-center">
                                 @php
@@ -119,7 +116,7 @@
                                     {{ $stepCount }} steps
                                 </span>
                             </div>
-                            <div class="text-xs text-gray-500 mt-1 truncate">
+                            <div class="text-xs text-gray-500 mt-1 whitespace-normal break-words">
                                 @foreach($steps as $index => $step)
                                     @php
                                         $stepData = is_object($step) ? $step : (object) $step;
@@ -131,37 +128,31 @@
                             </div>
                         </div>
                     </td>
-                    <td class="w-1/12 px-6 py-4">
+                    <td class="w-24 px-4 py-4 text-center">
                         <div class="text-sm text-gray-900">{{ $workflow->requests_count }}</div>
                     </td>
-                    <td class="w-1/12 px-6 py-4">
+                    <td class="w-24 px-4 py-4 text-center">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                             {{ $workflow->is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
                             {{ $workflow->is_active ? 'Aktif' : 'Tidak Aktif' }}
                         </span>
                     </td>
-                    <td class="w-1/12 px-6 py-4 text-sm text-gray-500">
-                        {{ $workflow->created_at->format('d M Y') }}
-                    </td>
-                    <td class="w-1/12 px-6 py-4 text-sm font-medium">
-                        <div class="flex space-x-2">
+                    <td class="w-28 px-4 py-4 text-center">
+                        <div class="flex flex-wrap items-center justify-center gap-3">
                             <a href="{{ route('approval-workflows.show', $workflow) }}" 
-                               class="text-blue-600 hover:text-blue-900 transition-colors duration-150">Lihat</a>
+                               class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Lihat">
+                                <i class="fas fa-eye text-lg"></i>
+                            </a>
                             <a href="{{ route('approval-workflows.edit', $workflow) }}" 
-                               class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150">Edit</a>
-                            <form action="{{ route('approval-workflows.toggle-status', $workflow) }}" method="POST" class="inline">
-                                @csrf
-                                @method('PATCH')
-                                <button type="submit" class="text-yellow-600 hover:text-yellow-900 transition-colors duration-150">
-                                    {{ $workflow->is_active ? 'Nonaktifkan' : 'Aktifkan' }}
-                                </button>
-                            </form>
+                               class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150" title="Edit">
+                                <i class="fas fa-edit text-lg"></i>
+                            </a>
                             <form action="{{ route('approval-workflows.destroy', $workflow) }}" method="POST" class="inline">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="text-red-600 hover:text-red-900 transition-colors duration-150" 
-                                        onclick="return confirm('Yakin ingin menghapus workflow ini?')">
-                                    Hapus
+                                <button type="submit" class="text-red-500 hover:text-red-700 transition-colors duration-150" 
+                                        onclick="return confirm('Yakin ingin menghapus workflow ini?')" title="Hapus">
+                                    <i class="fas fa-trash-alt text-lg"></i>
                                 </button>
                             </form>
                         </div>

@@ -30,7 +30,7 @@ class OrganizationUsersSeeder extends Seeder
             return $words[0];
         } else {
             // Return first and last name only
-            return $words[0] . ' ' . $words[count($words) - 1];
+            return $words[0] . ' ' . $words[1];
         }
     }
 
@@ -111,8 +111,8 @@ class OrganizationUsersSeeder extends Seeder
             [
                 'nik' => '20141969',
                 'name' => 'DIENI ANANDA PUTRI, DR., MARS',
-                'username' => 'dieni.putri',
-                'email' => 'dieni.putri@azra.com',
+                'username' => 'dieni.ananda',
+                'email' => 'dieni.ananda@azra.com',
                 'department_code' => 'MUTU',
                 'position' => 'MANAGER MUTU',
                 'role' => $managerRole,
@@ -121,8 +121,8 @@ class OrganizationUsersSeeder extends Seeder
             [
                 'nik' => '20061105',
                 'name' => 'GARCINIA SATIVA FIZRIA SETIADI, Dr, MKM',
-                'username' => 'garcinia.setiadi',
-                'email' => 'garcinia.setiadi@azra.com',
+                'username' => 'garcinia.sativa',
+                'email' => 'garcinia.sativa@azra.com',
                 'department_code' => 'PENMED',
                 'position' => 'MANAGER PENUNJANG MEDIK',
                 'role' => $managerRole,
@@ -181,8 +181,8 @@ class OrganizationUsersSeeder extends Seeder
             [
                 'nik' => '20071107',
                 'name' => 'M. RANGGA ADITYA',
-                'username' => 'm.aditya',
-                'email' => 'm.aditya@azra.com',
+                'username' => 'm.rangga',
+                'email' => 'm.rangga@azra.com',
                 'department_code' => 'PTASP',
                 'position' => 'DIREKTUR PT. ASP',
                 'role' => $direkturPtRole,
@@ -221,8 +221,8 @@ class OrganizationUsersSeeder extends Seeder
             [
                 'nik' => '19940189',
                 'name' => 'SENI MAULIDA FITALOKA, S.Kep,Ns, M.Kep',
-                'username' => 'seni.fitaloka',
-                'email' => 'seni.fitaloka@azra.com',
+                'username' => 'seni.maulida',
+                'email' => 'seni.maulida@azra.com',
                 'department_code' => 'DIVKEP',
                 'position' => 'MANAGER KEPERAWATAN',
                 'role' => $managerRole,
@@ -241,8 +241,8 @@ class OrganizationUsersSeeder extends Seeder
             [
                 'nik' => '20253070',
                 'name' => 'THORIO FARIED ISHAQ, S.I. KOM',
-                'username' => 'thorio.ishaq',
-                'email' => 'thorio.ishaq@azra.com',
+                'username' => 'thorio.faried',
+                'email' => 'thorio.faried@azra.com',
                 'department_code' => 'UMUM',
                 'position' => 'MANAGER UMUM',
                 'role' => $managerRole,
@@ -251,8 +251,8 @@ class OrganizationUsersSeeder extends Seeder
             [
                 'nik' => '20253008',
                 'name' => 'TUMPAS BANGKIT PRAYUDA, SE',
-                'username' => 'tumpas.prayuda',
-                'email' => 'tumpas.prayuda@azra.com',
+                'username' => 'tumpas.bangkit',
+                'email' => 'tumpas.bangkit@azra.com',
                 'department_code' => 'MARK',
                 'position' => 'MANAGER MARKETING',
                 'role' => $managerRole,
@@ -261,8 +261,8 @@ class OrganizationUsersSeeder extends Seeder
             [
                 'nik' => '20242988',
                 'name' => 'VERONIKA RINI HANDAYANI, A. MD',
-                'username' => 'veronika.handayani',
-                'email' => 'veronika.handayani@azra.com',
+                'username' => 'veronika.rini',
+                'email' => 'veronika.rini@azra.com',
                 'department_code' => 'SEKR',
                 'position' => 'SEKRETARIS DIREKTUR PT. ASP',
                 'role' => $staffRole,
@@ -342,3 +342,4 @@ class OrganizationUsersSeeder extends Seeder
         }
     }
 }
+

@@ -84,14 +84,16 @@
                         </td>
                         <td class="px-6 py-4">
                             @if($user->departments && $user->departments->count() > 0)
-                                @php
-                                    $primaryDept = $user->departments->where('pivot.is_primary', true)->first();
-                                    $dept = $primaryDept ?: $user->departments->first();
-                                @endphp
-                                <div class="text-sm text-gray-900">{{ $dept->name }}</div>
-                                @if($user->departments->count() > 1)
-                                    <div class="text-xs text-gray-500">+{{ $user->departments->count() - 1 }} lainnya</div>
-                                @endif
+                                <div class="flex flex-col gap-1">
+                                    @foreach($user->departments as $dept)
+                                        <div class="text-sm text-gray-900">
+                                            {{ $dept->name }}
+                                            @if($dept->pivot && $dept->pivot->is_primary)
+                                                <span class="text-xs text-green-600 font-medium ml-1">(Utama)</span>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
                             @else
                                 <span class="text-gray-400 text-sm">-</span>
                             @endif

@@ -880,15 +880,9 @@ class ApprovalRequestController extends Controller
 
     public function destroy(ApprovalRequest $approvalRequest)
     {
-        // Only allow delete if user is the requester
-        if ((int)$approvalRequest->requester_id !== (int)auth()->id()) {
+        // Only allow delete if user is the requester or has manage_approvals permission
+        if ((int)$approvalRequest->requester_id !== (int)auth()->id() && !auth()->user()->hasPermission('manage_approvals')) {
             abort(403, 'Anda tidak memiliki akses untuk menghapus request ini.');
-        }
-
-        // Check if any item is approved or in purchasing/release
-        $hasProcessedItems = $approvalRequest->items()->whereIn('status', ['approved', 'in_purchasing', 'in_release', 'done'])->exists();
-        if ($hasProcessedItems) {
-            return back()->with('error', 'Request tidak dapat dihapus karena terdapat item yang sudah disetujui atau diproses.');
         }
 
         $approvalRequest->delete();
