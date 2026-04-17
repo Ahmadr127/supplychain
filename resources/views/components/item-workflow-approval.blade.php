@@ -231,7 +231,11 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                         quantity: {{ $item->quantity }},
 
                         get totalPrice() {
-                            return this.unitPrice * this.quantity;
+                            return (parseInt(this.unitPrice) || 0) * this.quantity;
+                        },
+
+                        get formattedUnitPrice() {
+                            return this.unitPrice ? this.unitPrice.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
                         },
 
                         get isBudgetInsufficient() {
@@ -388,8 +392,8 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                                     Harga Satuan <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="unit_price" inputmode="numeric" placeholder="0"
-                                    x-model="unitPrice"
-                                    @input="unitPrice = $event.target.value.replace(/\D/g, ''); $event.target.value = unitPrice.replace(/\B(?=(\d{3})+(?!\d))/g, '.')"
+                                    :value="formattedUnitPrice"
+                                    @input="unitPrice = $event.target.value.replace(/\D/g, '')"
                                     :required="action === 'approve'"
                                     class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors">
                             </div>
