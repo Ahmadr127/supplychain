@@ -44,9 +44,14 @@ class ApprovalItemApprovalController extends Controller
         ];
         
         // Step with required_action 'input_price': require price input if not set
-        if ($currentStep && $currentStep->required_action == 'input_price' && ($item->unit_price === null || $item->unit_price <= 0)) {
-            $rules['unit_price'] = 'required|string|min:1'; // Accept string with dots
-            Log::info('🟨 Step requires price input (required_action: input_price)');
+        if ($currentStep && $currentStep->required_action == 'input_price') {
+            if ($item->unit_price === null || $item->unit_price <= 0) {
+                $rules['unit_price'] = 'required|string|min:1';
+            } else {
+                $rules['unit_price'] = 'nullable|string';
+            }
+            $rules['quantity'] = 'required|numeric|min:0.01';
+            Log::info('🟨 Step requires price and quantity input (required_action: input_price)');
         }
         
         // Step with required_action 'verify_budget': require FS upload if total >= threshold
@@ -128,29 +133,30 @@ class ApprovalItemApprovalController extends Controller
                     return back()->withErrors(['unit_price' => 'Harga harus lebih dari 0'])->withInput();
                 }
 
-                // Validasi budget CapEx sebelum update
+                // User request: Don't block approval even if capex budget is insufficient
                 if ($capexItemId) {
                     $capexItem = $capexItem ?? CapexItem::findOrFail($capexItemId);
-                    $totalForCapex = (int) ($itemData['quantity'] ?? $item->quantity) * $unitPrice;
+                    $newQuantity = (float) ($request->quantity ?? $item->quantity);
+                    $totalForCapex = $newQuantity * $unitPrice;
                     $allocationService = app(CapexAllocationService::class);
+                    
                     if (!$allocationService->hasSufficientBudget($capexItem, $totalForCapex)) {
-                        DB::rollBack();
                         $available = $allocationService->getAvailableBudget($capexItem);
-                        Log::error('🟥 Budget CapEx tidak mencukupi', [
+                        Log::warning('⚠️ Budget CapEx tidak mencukupi, but proceeding per user request', [
                             'capex_item_id' => $capexItemId,
                             'requested'     => $totalForCapex,
                             'available'     => $available,
                         ]);
-                        return back()->withErrors([
-                            'capex_item_id' => 'Budget CapEx tidak mencukupi. Tersedia: Rp ' . number_format($available, 0, ',', '.'),
-                        ])->withInput();
+                        // We proceed without returning error
                     }
                 }
 
-                Log::info('🟦 Updating item with price and capex...');
+                Log::info('🟦 Updating item with price, quantity and capex...');
+                $newQuantity = (float) ($request->quantity ?? $item->quantity);
                 $item->update([
                     'unit_price'         => $unitPrice,
-                    'total_price'        => $item->quantity * $unitPrice,
+                    'quantity'           => $newQuantity,
+                    'total_price'        => $newQuantity * $unitPrice,
                     'capex_item_id'      => $capexItemId,
                     'approved_price_by'  => auth()->id(),
                     'approved_price_at'  => now(),

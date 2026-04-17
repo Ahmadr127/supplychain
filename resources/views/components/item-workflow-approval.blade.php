@@ -227,6 +227,17 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                         capexItems: [],
                         isLoadingCapex: false,
                         selectedCapex: null,
+                        unitPrice: 0,
+                        quantity: {{ $item->quantity }},
+
+                        get totalPrice() {
+                            return this.unitPrice * this.quantity;
+                        },
+
+                        get isBudgetInsufficient() {
+                            if (!this.selectedCapex || this.priceSource !== 'capex') return false;
+                            return this.totalPrice > this.selectedCapex.remaining_amount;
+                        },
                         
                         async fetchCapex() {
                             this.isLoadingCapex = true;
@@ -344,11 +355,19 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                                 </div>
                                 <div class="flex justify-between border-t border-gray-100 pt-1 mt-1">
                                     <span class="text-gray-600 font-semibold">Sisa:</span>
-                                    <span class="font-bold text-green-600" x-text="formatRupiah(selectedCapex?.remaining_amount || 0)"></span>
+                                    <span class="font-bold" :class="selectedCapex?.remaining_amount <= 0 ? 'text-red-600' : 'text-green-600'" x-text="formatRupiah(selectedCapex?.remaining_amount || 0)"></span>
                                 </div>
                             </div>
                             
-                            <div class="flex items-start gap-2 text-blue-700 text-xs">
+                            {{-- Insufficient Budget Warning --}}
+                            <div x-show="isBudgetInsufficient" x-transition class="mt-2 bg-red-50 border border-red-200 rounded-md p-2 flex items-start gap-2">
+                                <i class="fas fa-exclamation-triangle text-red-600 text-xs mt-0.5"></i>
+                                <div class="text-[10px] text-red-800">
+                                    <strong>Peringatan:</strong> Nominal pengadaan (Rp <span x-text="totalPrice.toLocaleString('id-ID')"></span>) melebihi sisa budget Capex.
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start gap-2 text-blue-700 text-xs mt-2">
                                 <i class="fas fa-info-circle mt-0.5"></i>
                                 <p>Pengadaan ini akan dicatat menggunakan anggaran Capex yang dipilih.</p>
                             </div>
@@ -369,30 +388,25 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                                     Harga Satuan <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" name="unit_price" inputmode="numeric" placeholder="0"
+                                    x-model="unitPrice"
+                                    @input="unitPrice = $event.target.value.replace(/\D/g, ''); $event.target.value = unitPrice.replace(/\B(?=(\d{3})+(?!\d))/g, '.')"
                                     :required="action === 'approve'"
-                                    class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
-                                    oninput="this.value = this.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')">
+                                    class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1.5">Jumlah</label>
-                                <input type="text" value="{{ number_format($item->quantity, 0, ',', '.') }}" readonly
-                                    class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-600">
+                                <input type="number" name="quantity" step="0.01" x-model="quantity"
+                                    class="w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1.5">Total</label>
-                                <input type="text" id="total-price-{{ $item->id }}" readonly
+                                <input type="text" :value="totalPrice.toLocaleString('id-ID')" readonly
                                     class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900 font-semibold">
                             </div>
                         </div>
 
                         <script>
-                            // Auto-calculate total price
-                            document.querySelector('input[name="unit_price"]').addEventListener('input', function() {
-                                const qty = {{ $item->quantity }};
-                                const price = parseInt(this.value.replace(/\./g, '')) || 0;
-                                const total = qty * price;
-                                document.getElementById('total-price-{{ $item->id }}').value = total.toLocaleString('id-ID');
-                            });
+                            // Auto-calculate logic handled via x-model and getters in Alpine.js component above
                         </script>
                     </div>
                 @endif
