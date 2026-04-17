@@ -65,16 +65,15 @@
                 <label for="procurement_type_id" class="block text-sm font-medium text-gray-700 mb-2">
                     Sifat Pengadaan <span class="text-red-500">*</span>
                 </label>
-                <select id="procurement_type_id" name="procurement_type_id" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('procurement_type_id') border-red-500 @enderror">
-                    <option value="">-- Pilih Sifat Pengadaan --</option>
-                    @foreach($procurementTypes as $procType)
-                        <option value="{{ $procType->id }}" 
-                                {{ old('procurement_type_id', $approvalWorkflow->procurement_type_id ?? '') == $procType->id ? 'selected' : '' }}>
-                            {{ $procType->name }}
-                        </option>
-                    @endforeach
-                </select>
+                @php
+                    $procOptions = $procurementTypes->map(fn($p) => ['id' => $p->id, 'label' => $p->name]);
+                @endphp
+                <x-searchable-select 
+                    name="procurement_type_id" 
+                    :options="$procOptions" 
+                    :selected="old('procurement_type_id', $approvalWorkflow->procurement_type_id ?? '')"
+                    placeholder="-- Pilih Sifat Pengadaan --"
+                    width="w-full" />
                 @error('procurement_type_id')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
@@ -168,6 +167,11 @@
     let stepCounter = 0;
     let steps = [];
 
+    // Data for searchable selects
+    const usersOptions = @json($users->map(fn($u) => ['id' => $u->id, 'label' => $u->name . ' (' . ($u->role->display_name ?? 'No Role') . ')']));
+    const rolesOptions = @json($roles->map(fn($r) => ['id' => $r->id, 'label' => $r->display_name]));
+    const departmentsOptions = @json($departments->map(fn($d) => ['id' => $d->id, 'label' => $d->name . ' (' . $d->code . ')']));
+
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         @if(isset($approvalWorkflow) && $approvalWorkflow->steps)
@@ -183,6 +187,63 @@
         if (value) {
             input.value = value.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
         }
+    }
+
+    // Helper to render searchable select in JS
+    function renderSearchableSelect(name, options, selectedId, placeholder = 'Pilih...') {
+        const found = options.find(o => o.id == selectedId);
+        const selectedLabel = found ? found.label : placeholder;
+        const optionsJson = JSON.stringify(options).replace(/"/g, '&quot;');
+        
+        return `
+            <div x-data="{
+                open: false,
+                search: '',
+                selectedId: '${selectedId}',
+                selectedLabel: '${selectedLabel}',
+                options: ${optionsJson},
+                get filtered() {
+                    if (!this.search) return this.options;
+                    const q = this.search.toLowerCase();
+                    return this.options.filter(o => o.label.toLowerCase().includes(q));
+                },
+                select(id, label) {
+                    this.selectedId = id;
+                    this.selectedLabel = label;
+                    this.open = false;
+                    this.search = '';
+                }
+            }" @click.outside="open = false" class="relative">
+                <input type="hidden" name="${name}" :value="selectedId">
+                <button type="button" @click="open = !open" 
+                    class="w-full flex items-center justify-between px-3 py-2 text-sm border border-gray-300 rounded-md bg-white hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+                    <span class="truncate text-gray-700" x-text="selectedLabel"></span>
+                    <i class="fas fa-chevron-down text-gray-400 text-xs ml-2 transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
+                </button>
+                <div x-show="open" style="display:none;" class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                    <div class="p-2 border-b border-gray-100">
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                            <input type="text" x-model="search" placeholder="Cari..." x-ref="searchInput"
+                                @keydown.escape="open = false" x-effect="if(open) $nextTick(() => $refs.searchInput.focus())"
+                                class="w-full pl-7 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <ul class="max-h-56 overflow-y-auto py-1">
+                        <li @click="select('', '${placeholder}')" class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center gap-2" :class="selectedId === '' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'">
+                            <i class="fas fa-check text-blue-600 text-xs w-3" x-show="selectedId === ''"></i>
+                            <span :class="selectedId === '' ? '' : 'ml-5'">${placeholder}</span>
+                        </li>
+                        <template x-for="opt in filtered" :key="opt.id">
+                            <li @click="select(opt.id, opt.label)" class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center gap-2" :class="selectedId == opt.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'">
+                                <i class="fas fa-check text-blue-600 text-xs w-3" x-show="selectedId == opt.id"></i>
+                                <span :class="selectedId == opt.id ? '' : 'ml-5'" x-text="opt.label"></span>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+        `;
     }
 
     // Load existing steps for edit mode
@@ -230,6 +291,10 @@
         const approverType = data.approver_type || '';
         const isConditional = data.is_conditional || false;
         const canInsertStep = data.can_insert_step || false;
+
+        const userSelect = renderSearchableSelect(`workflow_steps[${stepNumber}][approver_id]`, usersOptions, data.approver_id || '', '-- Pilih User --');
+        const roleSelect = renderSearchableSelect(`workflow_steps[${stepNumber}][approver_role_id]`, rolesOptions, data.approver_role_id || '', '-- Pilih Role --');
+        const deptSelect = renderSearchableSelect(`workflow_steps[${stepNumber}][approver_department_id]`, departmentsOptions, data.approver_department_id || '', '-- Pilih Department --');
 
         let html = `
             <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
@@ -300,51 +365,17 @@
 
                 <div id="approver_user_${stepNumber}" class="approver-field" style="display: ${approverType === 'user' ? 'block' : 'none'};">
                     <label class="block text-sm font-medium text-gray-700 mb-2">User</label>
-                    <select name="workflow_steps[${stepNumber}][approver_id]"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">-- Pilih User --</option>`;
-        
-        // Add users dynamically
-        const usersData = @json($users);
-        usersData.forEach(user => {
-            const selected = data.approver_id == user.id ? 'selected' : '';
-            const roleName = user.role?.display_name || 'No Role';
-            html += `<option value="${user.id}" ${selected}>${user.name} (${roleName})</option>`;
-        });
-        
-        html += `</select>
+                    ${userSelect}
                 </div>
 
                 <div id="approver_role_${stepNumber}" class="approver-field" style="display: ${approverType === 'role' ? 'block' : 'none'};">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                    <select name="workflow_steps[${stepNumber}][approver_role_id]"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">-- Pilih Role --</option>`;
-        
-        // Add roles dynamically
-        const rolesData = @json($roles);
-        rolesData.forEach(role => {
-            const selected = data.approver_role_id == role.id ? 'selected' : '';
-            html += `<option value="${role.id}" ${selected}>${role.display_name}</option>`;
-        });
-        
-        html += `</select>
+                    ${roleSelect}
                 </div>
 
                 <div id="approver_department_${stepNumber}" class="approver-field" style="display: ${approverType === 'department_manager' ? 'block' : 'none'};">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                    <select name="workflow_steps[${stepNumber}][approver_department_id]"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">-- Pilih Department --</option>`;
-        
-        // Add departments dynamically
-        const departmentsData = @json($departments);
-        departmentsData.forEach(dept => {
-            const selected = data.approver_department_id == dept.id ? 'selected' : '';
-            html += `<option value="${dept.id}" ${selected}>${dept.name} (${dept.code})</option>`;
-        });
-        
-        html += `</select>
+                    ${deptSelect}
                 </div>
 
                 <div class="md:col-span-2 border-t pt-4 mt-4">

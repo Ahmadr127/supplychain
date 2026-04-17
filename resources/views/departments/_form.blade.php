@@ -45,16 +45,15 @@
                 <label for="parent_id" class="block text-sm font-medium text-gray-700 mb-2">
                     Parent Department
                 </label>
-                <select id="parent_id" name="parent_id" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('parent_id') border-red-500 @enderror">
-                    <option value="">Pilih Parent Department (Opsional)</option>
-                    @foreach($departments as $dept)
-                        <option value="{{ $dept->id }}" 
-                                {{ old('parent_id', $department->parent_id ?? '') == $dept->id ? 'selected' : '' }}>
-                            {{ $dept->name }} ({{ $dept->code }})
-                        </option>
-                    @endforeach
-                </select>
+                @php
+                    $deptOptions = $departments->map(fn($d) => ['id' => $d->id, 'label' => $d->name . ' (' . $d->code . ')']);
+                @endphp
+                <x-searchable-select 
+                    name="parent_id" 
+                    :options="$deptOptions" 
+                    :selected="old('parent_id', $department->parent_id ?? '')"
+                    placeholder="Pilih Parent Department (Opsional)"
+                    width="w-full" />
                 @error('parent_id')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
@@ -83,16 +82,15 @@
                 <label for="manager_id" class="block text-sm font-medium text-gray-700 mb-2">
                     Manager
                 </label>
-                <select id="manager_id" name="manager_id" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 @error('manager_id') border-red-500 @enderror">
-                    <option value="">Pilih Manager (Opsional)</option>
-                    @foreach($users as $user)
-                        <option value="{{ $user->id }}" 
-                                {{ old('manager_id', $department->manager_id ?? '') == $user->id ? 'selected' : '' }}>
-                            {{ $user->name }} ({{ $user->role->display_name ?? 'No Role' }})
-                        </option>
-                    @endforeach
-                </select>
+                @php
+                    $userOptions = $users->map(fn($u) => ['id' => $u->id, 'label' => $u->name . ' (' . ($u->role->display_name ?? 'No Role') . ')']);
+                @endphp
+                <x-searchable-select 
+                    name="manager_id" 
+                    :options="$userOptions" 
+                    :selected="old('manager_id', $department->manager_id ?? '')"
+                    placeholder="Pilih Manager (Opsional)"
+                    width="w-full" />
                 @error('manager_id')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
@@ -167,8 +165,8 @@
     const noMembersMessage = document.getElementById('noMembersMessage');
     const addMemberBtn = document.getElementById('addMemberBtn');
 
-    // User data from PHP
-    const usersData = @json($users);
+    // User data from PHP transformed for searchable select
+    const usersOptions = @json($users->map(fn($u) => ['id' => $u->id, 'label' => $u->name . ' (' . ($u->role->display_name ?? 'No Role') . ')']));
     const oldMembersData = @json(old('members', []));
 
     // Initialize
@@ -220,13 +218,69 @@
         updateMembersDisplay();
     }
 
+    // Helper to render searchable select in JS
+    function renderSearchableSelect(name, options, selectedId, placeholder = 'Pilih...') {
+        const found = options.find(o => o.id == selectedId);
+        const selectedLabel = found ? found.label : placeholder;
+        const optionsJson = JSON.stringify(options).replace(/"/g, '&quot;');
+        
+        return `
+            <div x-data="{
+                open: false,
+                search: '',
+                selectedId: '${selectedId}',
+                selectedLabel: '${selectedLabel}',
+                options: ${optionsJson},
+                get filtered() {
+                    if (!this.search) return this.options;
+                    const q = this.search.toLowerCase();
+                    return this.options.filter(o => o.label.toLowerCase().includes(q));
+                },
+                select(id, label) {
+                    this.selectedId = id;
+                    this.selectedLabel = label;
+                    this.open = false;
+                    this.search = '';
+                }
+            }" @click.outside="open = false" class="relative">
+                <input type="hidden" name="${name}" :value="selectedId">
+                <button type="button" @click="open = !open" 
+                    class="w-full flex items-center justify-between px-3 py-2 text-sm border border-gray-300 rounded-md bg-white hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+                    <span class="truncate text-gray-700" x-text="selectedLabel"></span>
+                    <i class="fas fa-chevron-down text-gray-400 text-xs ml-2 transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
+                </button>
+                <div x-show="open" style="display:none;" class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                    <div class="p-2 border-b border-gray-100">
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                            <input type="text" x-model="search" placeholder="Cari..." x-ref="searchInput"
+                                @keydown.escape="open = false" x-effect="if(open) $nextTick(() => $refs.searchInput.focus())"
+                                class="w-full pl-7 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <ul class="max-h-56 overflow-y-auto py-1">
+                        <li @click="select('', '${placeholder}')" class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center gap-2" :class="selectedId === '' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'">
+                            <i class="fas fa-check text-blue-600 text-xs w-3" x-show="selectedId === ''"></i>
+                            <span :class="selectedId === '' ? '' : 'ml-5'">${placeholder}</span>
+                        </li>
+                        <template x-for="opt in filtered" :key="opt.id">
+                            <li @click="select(opt.id, opt.label)" class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center gap-2" :class="selectedId == opt.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'">
+                                <i class="fas fa-check text-blue-600 text-xs w-3" x-show="selectedId == opt.id"></i>
+                                <span :class="selectedId == opt.id ? '' : 'ml-5'" x-text="opt.label"></span>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
     // Add member to DOM
     function addMemberToDOM(memberData, index) {
         const memberDiv = document.createElement('div');
         memberDiv.className = 'border-b border-gray-200 p-6 member-item bg-white';
         memberDiv.setAttribute('data-member-index', index);
 
-        // Support both existing relation format and old() input format.
         const userId = memberData?.user_id ?? memberData?.id ?? '';
         const position = memberData?.position ?? memberData?.pivot?.position ?? '';
         const isPrimary =
@@ -234,11 +288,7 @@
             (memberData?.is_primary ?? memberData?.pivot?.is_primary ?? false) == 1 ||
             (memberData?.is_primary ?? memberData?.pivot?.is_primary ?? false) === '1';
 
-        let userOptions = '<option value="">-- Pilih User --</option>';
-        usersData.forEach(user => {
-            const selected = userId == user.id ? 'selected' : '';
-            userOptions += `<option value="${user.id}" ${selected}>${user.name} (${user.email})</option>`;
-        });
+        const searchableSelect = renderSearchableSelect(`members[${index}][user_id]`, usersOptions, userId, '-- Pilih User --');
 
         memberDiv.innerHTML = `
             <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
@@ -251,10 +301,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Pilih User</label>
-                    <select name="members[${index}][user_id]" required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        ${userOptions}
-                    </select>
+                    ${searchableSelect}
                 </div>
 
                 <div>
