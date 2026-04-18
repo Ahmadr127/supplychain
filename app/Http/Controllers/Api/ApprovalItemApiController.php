@@ -285,7 +285,7 @@ class ApprovalItemApiController extends Controller
         }
 
         $request->validate([
-            'comments'        => 'required|string|max:1000',
+            'comments'        => 'nullable|string|max:1000',
             'rejected_reason' => 'required|string|max:500',
         ]);
 
