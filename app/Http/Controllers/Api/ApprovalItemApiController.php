@@ -317,6 +317,19 @@ class ApprovalItemApiController extends Controller
                 'rejected_reason' => $request->rejected_reason,
             ]);
 
+            // Mark all remaining pending steps (after the rejected step) as 'skipped'
+            // so the mobile app correctly shows them as locked/irrelevant instead of "Menunggu".
+            ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                ->where('approval_request_item_id', $item->id)
+                ->where('step_number', '>', $currentStep->step_number)
+                ->whereIn('status', ['pending', 'pending_purchase'])
+                ->update([
+                    'status'      => 'skipped',
+                    'skip_reason' => 'Item rejected at step ' . $currentStep->step_number . ' (' . $currentStep->step_name . ')',
+                    'skipped_at'  => now(),
+                    'skipped_by'  => Auth::id(),
+                ]);
+
             $approvalRequest->refreshStatus();
             DB::commit();
 
