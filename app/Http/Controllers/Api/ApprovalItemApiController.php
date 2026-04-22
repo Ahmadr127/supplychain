@@ -72,9 +72,7 @@ class ApprovalItemApiController extends Controller
             $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
             
             if ($currentStep->required_action === 'verify_budget') {
-                $total = $item->quantity * ($item->unit_price ?? 0);
-                $threshold = $currentStep->condition_value ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-                $needsFsUpload = $total >= $threshold;
+                $needsFsUpload = true;
             }
         }
 
@@ -105,7 +103,7 @@ class ApprovalItemApiController extends Controller
      *   - comments       : nullable|string
      *   - unit_price     : required if step->required_action == 'input_price' (string, e.g. "1.500.000")
      *   - capex_item_id  : nullable
-     *   - fs_document    : file (pdf/doc/docx) required if verify_budget threshold crossed
+     *   - fs_document    : file (pdf/doc/docx) required when required_action=verify_budget
      */
     public function approve(Request $request, ApprovalRequest $approvalRequest, ApprovalRequestItem $item)
     {
@@ -131,11 +129,7 @@ class ApprovalItemApiController extends Controller
         }
 
         if ($currentStep->required_action === 'verify_budget') {
-            $total     = $item->quantity * ($item->unit_price ?? 0);
-            $threshold = $currentStep->condition_value ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-            if ($total >= $threshold) {
-                $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
-            }
+            $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
         }
 
         $request->validate($rules);
@@ -372,9 +366,7 @@ class ApprovalItemApiController extends Controller
             $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
             
             if ($currentStep->required_action === 'verify_budget') {
-                $total = $item->quantity * ($item->unit_price ?? 0);
-                $threshold = $currentStep->condition_value ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-                $needsFsUpload = $total >= $threshold;
+                $needsFsUpload = true;
             }
         }
 

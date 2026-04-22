@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\ApprovalRequestItem;
 use App\Models\ApprovalWorkflow;
 use App\Models\ApprovalItemStep;
-use App\Models\ProcurementType;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
@@ -33,14 +32,6 @@ class WorkflowService
         $request = $item->approvalRequest;
         if (!$request) return;
 
-        $procurementType = ProcurementType::find($request->procurement_type_id);
-        if (!$procurementType) {
-            Log::warning('⚠️ Procurement type not found', [
-                'procurement_type_id' => $request->procurement_type_id,
-            ]);
-            return;
-        }
-
         $totalPrice   = (float) ($item->total_price ?? 0);
         $nominalRange = $this->getNominalRange($totalPrice);
 
@@ -48,19 +39,22 @@ class WorkflowService
             'item_id'          => $item->id,
             'total_price'      => $totalPrice,
             'range'            => $nominalRange,
-            'procurement_type' => $procurementType->code,
+            'procurement_type' => $request->procurement_type_id,
         ]);
 
-        // Find the target workflow for THIS item based on its own price range
-        $targetWorkflow = ApprovalWorkflow::where('procurement_type_id', $procurementType->id)
-            ->where('nominal_range', $nominalRange)
+        // Find the target workflow for THIS item based on its own price range.
+        // IMPORTANT: procurement type is no longer part of workflow selection.
+        // Prefer workflows with procurement_type_id = NULL (new standard), fallback to any active workflow.
+        $targetWorkflow = ApprovalWorkflow::where('nominal_range', $nominalRange)
+            ->where('type', '!=', 'default_initial')
             ->where('is_active', true)
+            ->orderByRaw('CASE WHEN procurement_type_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('priority')
             ->first();
 
         if (!$targetWorkflow) {
             Log::warning('⚠️ No matching workflow found for re-evaluation', [
                 'item_id'          => $item->id,
-                'procurement_type' => $procurementType->id,
                 'nominal_range'    => $nominalRange,
             ]);
             return;
@@ -191,8 +185,6 @@ class WorkflowService
                     'approver_role_id'         => $step->approver_role_id,
                     'approver_department_id'   => $step->approver_department_id,
                     'status'                   => $initialStatus,
-                    'can_insert_step'          => $step->can_insert_step ?? false,
-                    'insert_step_template'     => $step->insert_step_template ?? null,
                     'required_action'          => $step->required_action ?? null,
                     'is_conditional'           => $step->is_conditional ?? false,
                     'condition_type'           => $step->condition_type ?? null,

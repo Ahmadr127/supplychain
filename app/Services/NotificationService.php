@@ -392,6 +392,58 @@ class NotificationService
     }
 
     /**
+     * Generic notifier for any activated workflow step.
+     * This is driven by workflow data (step + approver type), not hardcoded actions.
+     */
+    public function notifyStepApprover(\App\Models\ApprovalItemStep $step): void
+    {
+        $step->loadMissing(['approvalRequest.requester', 'masterItem', 'requestItem']);
+
+        $approvers = $this->getApproversForStep($step);
+        if ($approvers->isEmpty()) {
+            Log::warning('NotificationService: No approvers found for activated step', [
+                'step_id' => $step->id,
+                'step_name' => $step->step_name,
+                'approver_type' => $step->approver_type,
+            ]);
+            return;
+        }
+
+        $itemName = $step->masterItem->name ?? 'Item';
+        $requestNumber = $step->approvalRequest->request_number ?? '-';
+        $requesterName = $step->approvalRequest->requester->name ?? 'Unknown';
+        $stepName = $step->step_name ?? ('Step #' . $step->step_number);
+        $phaseLabel = ucfirst((string) ($step->step_phase ?? 'approval'));
+
+        $title = 'Tindakan Workflow Diperlukan';
+        $body = sprintf(
+            '[%s] %s untuk %s (%s) dari %s menunggu tindakan Anda.',
+            $phaseLabel,
+            $stepName,
+            $itemName,
+            $requestNumber,
+            $requesterName
+        );
+
+        $data = [
+            'type' => 'workflow_step_required',
+            'source' => 'sc',
+            'approval_request_id' => (string) $step->approval_request_id,
+            'request_number' => $requestNumber,
+            'item_id' => (string) ($step->approval_request_item_id ?? $step->requestItem->id ?? ''),
+            'step_id' => (string) $step->id,
+            'step_name' => $stepName,
+            'step_number' => (string) $step->step_number,
+            'step_phase' => (string) ($step->step_phase ?? 'approval'),
+            'step_type' => (string) ($step->step_type ?? ''),
+            'required_action' => (string) ($step->required_action ?? ''),
+            'item_name' => $itemName,
+        ];
+
+        $this->notifyUsers($approvers, $title, $body, $data);
+    }
+
+    /**
      * Notify release approver when release step is waiting for approval
      * Sends notification to the approver(s) for a specific release step
      *

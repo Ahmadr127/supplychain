@@ -481,12 +481,20 @@ class ReportController extends Controller
             'approvalRequest',
             'masterItem',
             'vendors.supplier',
+            'vendors.latestTrial',
             'preferredVendor',
         ])->find($id);
 
         if (!$item) {
             return redirect()->route('reports.approval-requests')->with('error', 'Purchasing Item tidak ditemukan.');
         }
+        
+        // Dynamic purchasing steps from workflow tracker
+        $purchasingSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->where('step_phase', 'purchasing')
+            ->orderBy('step_number')
+            ->get();
         
         // Add status counts for consistency
         $statusCounts = \App\Models\ApprovalRequestItem::select('status', \DB::raw('count(*) as count'))
@@ -535,7 +543,7 @@ class ReportController extends Controller
             'done' => $piCounts['done'] ?? 0,
         ];
 
-        return view('reports.approval-requests.process-purchasing', compact('item', 'statusCounts', 'purchasingCounts'));
+        return view('reports.approval-requests.process-purchasing', compact('item', 'statusCounts', 'purchasingCounts', 'purchasingSteps'));
     }
 
     public function vendorForm(PurchasingItem $purchasingItem)
@@ -683,6 +691,72 @@ class ReportController extends Controller
         return back()->with('success', 'Benchmarking dan catatan berhasil disimpan.');
     }
 
+    public function receiveDocAndBenchmarking(Request $request, PurchasingItem $purchasingItem)
+    {
+        // Purchasing role (process_purchasing_item) is the actor for this merged step.
+        $data = $request->validate([
+            'received_at' => 'required|date',
+            'vendors' => 'required|array|min:1',
+            'vendors.*.supplier_id' => 'required|integer|exists:suppliers,id',
+            'vendors.*.unit_price' => 'nullable|numeric|min:0|max:999999999999.99',
+            'vendors.*.total_price' => 'nullable|numeric|min:0|max:999999999999.99',
+            'vendors.*.notes' => 'nullable|string|max:255',
+            'benchmark_notes' => 'nullable|string|max:2000',
+        ]);
+
+        // Pre-filter rows (keep only those with supplier_id)
+        $rows = collect($data['vendors'] ?? [])
+            ->filter(fn($row) => isset($row['supplier_id']) && $row['supplier_id'] !== null && $row['supplier_id'] !== '')
+            ->values()
+            ->all();
+        if (count($rows) === 0) {
+            return back()->withErrors(['vendors' => 'Minimal 1 baris vendor diisi.'])->withInput();
+        }
+
+        $service = app(PurchasingItemService::class);
+        $service->receiveDocAndBenchmarking(
+            $purchasingItem,
+            \Carbon\Carbon::parse($data['received_at']),
+            $rows,
+            $data['benchmark_notes'] ?? null
+        );
+
+        return back()->with('success', 'Tanggal diterima dan benchmarking berhasil disimpan.');
+    }
+
+    public function saveTrial(Request $request, PurchasingItem $purchasingItem)
+    {
+        $data = $request->validate([
+            'trials' => 'required|array|min:1',
+            'trials.*.purchasing_item_vendor_id' => 'required|integer',
+            'trials.*.trial_notes' => 'nullable|string|max:2000',
+        ]);
+
+        $service = app(PurchasingItemService::class);
+        $service->saveTrial($purchasingItem, $data['trials']);
+
+        return back()->with('success', 'Trial notes berhasil disimpan.');
+    }
+
+    public function invoiceGrnDone(Request $request, PurchasingItem $purchasingItem)
+    {
+        $data = $request->validate([
+            'invoice_number' => 'required|string|max:100',
+            'grn_date' => 'required|date',
+            'done_notes' => 'nullable|string|max:1000',
+        ]);
+
+        $service = app(PurchasingItemService::class);
+        $service->invoiceGrnDone(
+            $purchasingItem,
+            (string) $data['invoice_number'],
+            \Carbon\Carbon::parse($data['grn_date']),
+            $data['done_notes'] ?? null
+        );
+
+        return back()->with('success', 'Invoice, GRN, dan DONE berhasil disimpan.');
+    }
+
     public function selectPreferred(Request $request, PurchasingItem $purchasingItem)
     {
         if (!auth()->user()?->hasPermission('manage_vendor')) {
@@ -766,6 +840,7 @@ class ReportController extends Controller
         }
         
         \App\Models\ApprovalItemStep::syncPurchasingStep($purchasingItem->approval_request_id, $purchasingItem->master_item_id, 'purchasing_invoice');
+        \App\Models\ApprovalItemStep::syncPurchasingStep($purchasingItem->approval_request_id, $purchasingItem->master_item_id, 'purchasing_invoice_grn_done');
 
         return back()->with('success', 'Invoice Number berhasil disimpan.');
     }

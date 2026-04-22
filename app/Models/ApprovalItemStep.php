@@ -29,37 +29,13 @@ class ApprovalItemStep extends Model
         'approved_at',
         'comments',
         'rejected_reason',
-        // Dynamic step insertion support
-        'can_insert_step',
-        'insert_step_template',
-        'is_dynamic',
-        'inserted_by',
-        'inserted_at',
-        'insertion_reason',
         'required_action',
-        // Conditional step fields
-        'is_conditional',
-        'condition_type',
-        'condition_value',
-        // NEW: Step type and phase for 3-phase workflow
         'step_type',      // maker, approver, releaser
         'step_phase',     // approval, release
         'scope_process',  // Description of what this step does
         'selected_capex_id', // For Manager Unit to select CapEx ID
-        // Skip tracking
-        'skip_reason',
-        'skipped_at',
-        'skipped_by',
-    ];
-
-    protected $casts = [
-        'approved_at' => 'datetime',
-        'inserted_at' => 'datetime',
-        'skipped_at' => 'datetime',
-        'can_insert_step' => 'boolean',
-        'insert_step_template' => 'array',
-        'is_dynamic' => 'boolean',
-        'is_conditional' => 'boolean',
+        // Conditional step fields removed
+        // Skip tracking removed
     ];
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -86,15 +62,6 @@ class ApprovalItemStep extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
-    public function inserter()
-    {
-        return $this->belongsTo(User::class, 'inserted_by');
-    }
-
-    public function skipper()
-    {
-        return $this->belongsTo(User::class, 'skipped_by');
-    }
 
     public function selectedCapex()
     {
@@ -210,14 +177,6 @@ class ApprovalItemStep extends Model
     public function isRejected(): bool
     {
         return $this->status === 'rejected';
-    }
-
-    /**
-     * Check if step is skipped
-     */
-    public function isSkipped(): bool
-    {
-        return $this->status === 'skipped';
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -351,7 +310,8 @@ class ApprovalItemStep extends Model
 
     /**
      * Synchronize the workflow progress tracker with purchasing actions.
-     * Marks the specific purchasing step as approved and activates the next purchasing step.
+     * Marks the specific purchasing step as approved and activates the next step
+     * strictly by step_number order (dynamic, not restricted by step_phase).
      */
     public static function syncPurchasingStep(int $approvalRequestId, int $masterItemId, string $requiredAction)
     {
@@ -373,13 +333,22 @@ class ApprovalItemStep extends Model
             $nextStep = static::where('approval_request_id', $approvalRequestId)
                 ->where('master_item_id', $masterItemId)
                 ->where('step_number', '>', $step->step_number)
-                ->whereIn('step_phase', ['purchasing', 'release'])
                 ->where('status', 'pending_purchase')
                 ->orderBy('step_number')
                 ->first();
 
-            if ($nextStep && $nextStep->step_phase === 'purchasing') {
+            if ($nextStep) {
                 $nextStep->update(['status' => 'pending']);
+
+                // Generic notification for activated next step (workflow-driven).
+                try {
+                    app(\App\Services\NotificationService::class)->notifyStepApprover($nextStep);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed to notify activated step approver on dynamic step activation', [
+                        'next_step_id' => $nextStep->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
         }
     }

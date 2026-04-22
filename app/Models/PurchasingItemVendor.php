@@ -33,4 +33,14 @@ class PurchasingItemVendor extends Model
     {
         return $this->belongsTo(Supplier::class);
     }
+
+    public function trials()
+    {
+        return $this->hasMany(PurchasingItemVendorTrial::class, 'purchasing_item_vendor_id');
+    }
+
+    public function latestTrial()
+    {
+        return $this->hasOne(PurchasingItemVendorTrial::class, 'purchasing_item_vendor_id')->latestOfMany();
+    }
 }

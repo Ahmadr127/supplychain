@@ -289,7 +289,6 @@
     function createStepHTML(stepData, stepNumber) {
         const data = stepData || {};
         const approverType = data.approver_type || '';
-        const isConditional = data.is_conditional || false;
         const canInsertStep = data.can_insert_step || false;
 
         const userSelect = renderSearchableSelect(`workflow_steps[${stepNumber}][approver_id]`, usersOptions, data.approver_id || '', '-- Pilih User --');
@@ -355,7 +354,6 @@
                         Required Action
                     </label>
                     <select name="workflow_steps[${stepNumber}][required_action]"
-                            onchange="handleRequiredActionChange(this, ${stepNumber})"
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="">Tidak ada aksi khusus</option>
                         <option value="input_price" ${data.required_action === 'input_price' ? 'selected' : ''}>Input Harga (Manager)</option>
@@ -376,61 +374,6 @@
                 <div id="approver_department_${stepNumber}" class="approver-field" style="display: ${approverType === 'department_manager' ? 'block' : 'none'};">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                     ${deptSelect}
-                </div>
-
-                <div class="md:col-span-2 border-t pt-4 mt-4">
-                    <label class="flex items-center mb-3">
-                        <input type="checkbox" name="workflow_steps[${stepNumber}][is_conditional]" value="1"
-                               ${isConditional ? 'checked' : ''}
-                               class="rounded border-gray-300 text-blue-600"
-                               onchange="toggleConditionalFields(this, ${stepNumber})">
-                        <span class="ml-2 text-sm font-medium text-gray-700">Step Conditional (skip jika kondisi tidak terpenuhi)</span>
-                    </label>
-
-                    <div id="conditional_fields_${stepNumber}" class="grid grid-cols-2 gap-4 ${isConditional || data.required_action === 'verify_budget' ? '' : 'hidden'}">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipe Kondisi / Threshold FS</label>
-                            <select name="workflow_steps[${stepNumber}][condition_type]"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">Pilih Kondisi</option>
-                                <option value="total_price" ${data.condition_type === 'total_price' ? 'selected' : ''}>Total Harga</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Nilai Threshold (Rp)</label>
-                            <input type="text" id="condition_value_${stepNumber}" name="workflow_steps[${stepNumber}][condition_value]"
-                                   value="${data.condition_value ? data.condition_value.toLocaleString('id-ID') : ''}"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                   placeholder="Contoh: 50.000.000"
-                                   oninput="formatCurrency(this)">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="md:col-span-2 border-t pt-4 mt-4">
-                    <label class="flex items-center mb-3">
-                        <input type="checkbox" name="workflow_steps[${stepNumber}][can_insert_step]" value="1"
-                               ${canInsertStep ? 'checked' : ''}
-                               class="rounded border-gray-300 text-yellow-600"
-                               onchange="toggleInsertStepTemplate(this, ${stepNumber})">
-                        <span class="ml-2 text-sm font-medium text-gray-700">
-                            <i class="fas fa-plus-circle text-yellow-600 mr-1"></i>
-                            Approver bisa menambah step baru
-                        </span>
-                    </label>
-
-                    <div id="insert_step_template_${stepNumber}" class="${canInsertStep ? '' : 'hidden'} bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-3">
-                        <p class="text-xs text-gray-600 mb-3">Konfigurasi template step yang akan ditambahkan</p>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div class="md:col-span-2">
-                                <label class="block text-xs font-medium text-gray-700 mb-1">Nama Step Template</label>
-                                <input type="text" name="workflow_steps[${stepNumber}][insert_step_template][name]"
-                                       value="${data.insert_step_template?.name || ''}"
-                                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                                       placeholder="Contoh: Manager Keuangan - Verifikasi Budget">
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         `;
@@ -522,44 +465,6 @@
         }
     }
 
-    // Handle required action change
-    function handleRequiredActionChange(select, stepNumber) {
-        const conditionalFields = document.getElementById(`conditional_fields_${stepNumber}`);
-        const conditionType = document.querySelector(`select[name="workflow_steps[${stepNumber}][condition_type]"]`);
-        const checkbox = document.querySelector(`input[name="workflow_steps[${stepNumber}][is_conditional]"]`);
-        
-        if (select.value === 'verify_budget') {
-            conditionalFields.classList.remove('hidden');
-            if (conditionType && !conditionType.value) {
-                conditionType.value = 'total_price'; // Auto set for convenience
-            }
-        } else if (checkbox && !checkbox.checked) {
-            // Only hide if conditional checkbox is also unchecked
-            conditionalFields.classList.add('hidden');
-        }
-    }
-
-    // Toggle conditional fields
-    function toggleConditionalFields(checkbox, stepNumber) {
-        const conditionalFields = document.getElementById(`conditional_fields_${stepNumber}`);
-        const actionSelect = document.querySelector(`select[name="workflow_steps[${stepNumber}][required_action]"]`);
-        
-        if (checkbox.checked || (actionSelect && actionSelect.value === 'verify_budget')) {
-            conditionalFields.classList.remove('hidden');
-        } else {
-            conditionalFields.classList.add('hidden');
-        }
-    }
-
-    // Toggle insert step template
-    function toggleInsertStepTemplate(checkbox, stepNumber) {
-        const templateDiv = document.getElementById(`insert_step_template_${stepNumber}`);
-        if (checkbox.checked) {
-            templateDiv.classList.remove('hidden');
-        } else {
-            templateDiv.classList.add('hidden');
-        }
-    }
 
     // Check if no steps message should be shown
     function checkNoStepsMessage() {

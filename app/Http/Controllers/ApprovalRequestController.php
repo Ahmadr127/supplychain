@@ -1052,6 +1052,8 @@ class ApprovalRequestController extends Controller
 
         foreach ($approvalRequest->items as $item) {
             \App\Models\ApprovalItemStep::syncPurchasingStep($approvalRequest->id, $item->master_item_id, 'purchasing_receive_doc');
+            // New merged purchasing step (receive doc + benchmarking)
+            \App\Models\ApprovalItemStep::syncPurchasingStep($approvalRequest->id, $item->master_item_id, 'purchasing_receive_doc_benchmark');
         }
 
         return redirect()->back()->with('success', 'Tanggal diterima berhasil disimpan.');
@@ -1760,12 +1762,7 @@ class ApprovalRequestController extends Controller
                 'approver_role_id' => $step->approver_role_id,
                 'approver_department_id' => $step->approver_department_id,
                 'status' => $initialStatus,
-                'can_insert_step' => $step->can_insert_step ?? false,
-                'insert_step_template' => $step->insert_step_template ?? null,
                 'required_action' => $step->required_action ?? null,
-                'is_conditional' => $step->is_conditional ?? false,
-                'condition_type' => $step->condition_type ?? null,
-                'condition_value' => $step->condition_value ?? null,
                 // NEW: Step type and phase
                 'step_type' => $step->step_type ?? 'approver',
                 'step_phase' => $stepPhase,

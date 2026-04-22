@@ -286,62 +286,10 @@ class ApprovalWorkflowController extends Controller
                     break;
             }
             
-            // Add conditional step settings
-            $processedStep['is_conditional'] = isset($step['is_conditional']) && $step['is_conditional'];
+            // Conditional threshold FS feature is deprecated.
+            $processedStep['is_conditional'] = false;
             
-            // ALWAYS save condition_type and value (since it is also used as threshold for FS)
-            if (!empty($step['condition_type'])) {
-                $processedStep['condition_type'] = $step['condition_type'];
-            }
-            if (isset($step['condition_value']) && $step['condition_value'] !== '') {
-                // Remove dots from formatted number
-                $processedStep['condition_value'] = (int) str_replace('.', '', $step['condition_value']);
-            }
-            
-        // Add dynamic step insertion support (NEW)
-            if (isset($step['can_insert_step']) && $step['can_insert_step']) {
-                $processedStep['can_insert_step'] = true;
-                
-                // Process insert step template if provided
-                if (!empty($step['insert_step_template']) && is_array($step['insert_step_template'])) {
-                    $template = $step['insert_step_template'];
-                    
-                    // Only include template if name and approver_type are set
-                    if (!empty($template['name']) && !empty($template['approver_type'])) {
-                        $processedTemplate = [
-                            'name' => trim($template['name']),
-                            'approver_type' => $template['approver_type'],
-                        ];
-                        
-                        // Add approver-specific fields
-                        if (!empty($template['approver_id'])) {
-                            $processedTemplate['approver_id'] = (int) $template['approver_id'];
-                        }
-                        if (!empty($template['approver_role_id'])) {
-                            $processedTemplate['approver_role_id'] = (int) $template['approver_role_id'];
-                        }
-                        if (!empty($template['approver_department_id'])) {
-                            $processedTemplate['approver_department_id'] = (int) $template['approver_department_id'];
-                        }
-                        if (!empty($template['required_action'])) {
-                            $processedTemplate['required_action'] = trim($template['required_action']);
-                        }
-                        if (!empty($template['condition_value'])) {
-                            // Remove dots from formatted number
-                            $processedTemplate['condition_value'] = (int) str_replace('.', '', $template['condition_value']);
-                        }
-                        if (isset($template['can_insert_step']) && $template['can_insert_step']) {
-                            $processedTemplate['can_insert_step'] = true;
-                        } else {
-                            $processedTemplate['can_insert_step'] = false;
-                        }
-                        
-                        $processedStep['insert_step_template'] = $processedTemplate;
-                    }
-                }
-            } else {
-                $processedStep['can_insert_step'] = false;
-            }
+            $processedStep['can_insert_step'] = false;
 
             // Add step type and phase (NEW)
             if (!empty($step['step_type'])) {

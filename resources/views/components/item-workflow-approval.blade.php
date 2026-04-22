@@ -41,13 +41,6 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
 
     // Check if current step requires FS upload (based on required_action)
     $requiresFsUpload = $currentPendingStep && $currentPendingStep->required_action == 'verify_budget';
-    $totalPrice = $item->quantity * ($item->unit_price ?? 0);
-    
-    // Use step's condition_value as threshold if available, otherwise use global setting
-    // Priority: 1. Step's condition_value, 2. Global setting (100jt default)
-    $fsThreshold = ($currentPendingStep && $currentPendingStep->condition_value !== null) 
-        ? $currentPendingStep->condition_value 
-        : \App\Models\Setting::get('fs_threshold_per_item', 100000000);
     
     // Debug logging jangan dihapus
     \Log::info('🔍 Workflow Step Check', [
@@ -64,7 +57,7 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
         'required_action' => $currentPendingStep ? $currentPendingStep->required_action : 'NO_STEP',
     ]);
     
-    $needsFsUpload = $requiresFsUpload && $totalPrice >= $fsThreshold;
+    $needsFsUpload = $requiresFsUpload;
 
     // Check if current pending step is a PURCHASING phase step
     $isPurchasingStep = $currentPendingStep && ($currentPendingStep->step_phase === 'purchasing' || $currentPendingStep->step_type === 'purchasing');
@@ -205,19 +198,6 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
 
                 <!-- Conditional Fields -->
 
-                <!-- Quick Insert Step Checkbox (if template configured) -->
-                @if ($currentPendingStep && $currentPendingStep->insert_step_template)
-                    <div x-show="action === 'approve'" x-transition>
-                        <label class="flex items-center cursor-pointer my-3">
-                            <input type="checkbox" name="quick_insert_step" value="1"
-                                class="h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-2 focus:ring-yellow-500">
-                            <span class="ml-2.5 text-sm text-gray-800 flex items-center">
-                                <i class="fas fa-plus-circle text-yellow-600 mr-1.5"></i>
-                                {{ $currentPendingStep->insert_step_template['name'] }}
-                            </span>
-                        </label>
-                    </div>
-                @endif
 
                 <!-- Manager Step: Price Input (Required) -->
                 @if ($needsPriceInput)
@@ -422,7 +402,7 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                             <div class="flex items-start gap-1">
                                 <i class="fas fa-exclamation-triangle text-yellow-600 text-xs mt-0.5"></i>
                                 <p class="text-[10px] text-yellow-800">
-                                    <strong>Keuangan:</strong> Total harga Rp {{ number_format($totalPrice, 0, ',', '.') }} ≥ Threshold Rp {{ number_format($fsThreshold, 0, ',', '.') }}. Wajib upload dokumen FS.
+                                    <strong>Keuangan:</strong> Step ini membutuhkan upload dokumen FS.
                                 </p>
                             </div>
                         </div>
@@ -499,162 +479,4 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
         </div>
     </div>
 
-    <!-- Remove Insert Step Modal - Feature removed for simplicity -->
-    @if (false && $currentPendingStep && $currentPendingStep->can_insert_step)
-        <div id="insertStepModal{{ $item->id }}"
-            class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-            onclick="if(event.target === this) closeInsertStepModal{{ $item->id }}()">
-            <div class="relative top-10 mx-auto p-4 border w-full max-w-md shadow-lg rounded-lg bg-white"
-                onclick="event.stopPropagation()">
-                <div class="flex items-center justify-between mb-3 pb-2 border-b">
-                    <h3 class="text-base font-bold text-gray-900">Tambah Step Approval</h3>
-                    <button type="button" onclick="closeInsertStepModal{{ $item->id }}()"
-                        class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times text-lg"></i>
-                    </button>
-                </div>
-
-                <form action="{{ route('approval-items.insert-step', $item) }}" method="POST" class="space-y-3">
-                    @csrf
-
-                    <div class="bg-blue-50 border border-blue-200 rounded-md p-2 text-xs text-blue-800">
-                        <i class="fas fa-info-circle mr-1"></i>
-                        Step baru akan ditambahkan setelah step saat ini:
-                        <strong>{{ $currentPendingStep->step_name }}</strong>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Nama Step <span class="text-red-500">*</span>
-                        </label>
-                        <input type="text" name="step_name" required
-                            class="w-full text-sm border-2 border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
-                            placeholder="Contoh: Manager Keuangan - Upload Dokumen">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Tipe Approver <span class="text-red-500">*</span>
-                        </label>
-                        <select name="approver_type" id="approverType{{ $item->id }}" required
-                            onchange="toggleApproverFields{{ $item->id }}(this.value)"
-                            class="w-full text-sm border-2 border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-200">
-                            <option value="">Pilih tipe approver...</option>
-                            <option value="role">Role</option>
-                            <option value="user">User Spesifik</option>
-                            <option value="department_manager">Manager Department Tertentu</option>
-                            <option value="requester_department_manager">Manager Department Requester</option>
-                            <option value="any_department_manager">Semua Manager Department</option>
-                        </select>
-                    </div>
-
-                    <!-- Dynamic fields based on approver_type -->
-                    <div id="roleField{{ $item->id }}" class="hidden">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Role <span class="text-red-500">*</span>
-                        </label>
-                        <select name="approver_role_id"
-                            class="w-full text-sm border-2 border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-200">
-                            <option value="">Pilih role...</option>
-                            @foreach (\App\Models\Role::orderBy('display_name')->get() as $role)
-                                <option value="{{ $role->id }}">{{ $role->display_name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div id="userField{{ $item->id }}" class="hidden">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            User <span class="text-red-500">*</span>
-                        </label>
-                        <select name="approver_id"
-                            class="w-full text-sm border-2 border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-200">
-                            <option value="">Pilih user...</option>
-                            @foreach (\App\Models\User::orderBy('name')->get() as $user)
-                                <option value="{{ $user->id }}">{{ $user->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div id="deptField{{ $item->id }}" class="hidden">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Department <span class="text-red-500">*</span>
-                        </label>
-                        <select name="approver_department_id"
-                            class="w-full text-sm border-2 border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-200">
-                            <option value="">Pilih department...</option>
-                            @foreach (\App\Models\Department::orderBy('name')->get() as $dept)
-                                <option value="{{ $dept->id }}">{{ $dept->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Alasan Penambahan Step <span class="text-red-500">*</span>
-                        </label>
-                        <textarea name="insertion_reason" required rows="3"
-                            class="w-full text-sm border-2 border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none"
-                            placeholder="Jelaskan mengapa step ini diperlukan (minimal 10 karakter)..."></textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Aksi yang Diperlukan <span class="text-gray-500 text-xs">(Opsional)</span>
-                        </label>
-                        <input type="text" name="required_action"
-                            class="w-full text-sm border-2 border-gray-300 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
-                            placeholder="Contoh: upload_document, price_verification">
-                        <p class="text-xs text-gray-500 mt-1">Kode aksi untuk tracking (opsional)</p>
-                    </div>
-
-                    <div class="flex items-center">
-                        <input type="checkbox" name="can_insert_step" value="1"
-                            id="canInsertStep{{ $item->id }}"
-                            class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                        <label for="canInsertStep{{ $item->id }}" class="ml-2 text-sm text-gray-700">
-                            Step ini juga bisa menambah step baru
-                        </label>
-                    </div>
-
-                    <div class="flex justify-end space-x-2 pt-2 border-t">
-                        <button type="button" onclick="closeInsertStepModal{{ $item->id }}()"
-                            class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium px-4 py-2 rounded text-sm transition-colors">
-                            Batal
-                        </button>
-                        <button type="submit"
-                            class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded text-sm transition-colors">
-                            <i class="fas fa-plus-circle mr-1"></i>
-                            Tambah Step
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <script>
-            function openInsertStepModal{{ $item->id }}() {
-                document.getElementById('insertStepModal{{ $item->id }}').classList.remove('hidden');
-            }
-
-            function closeInsertStepModal{{ $item->id }}() {
-                document.getElementById('insertStepModal{{ $item->id }}').classList.add('hidden');
-            }
-
-            function toggleApproverFields{{ $item->id }}(type) {
-                const roleField = document.getElementById('roleField{{ $item->id }}');
-                const userField = document.getElementById('userField{{ $item->id }}');
-                const deptField = document.getElementById('deptField{{ $item->id }}');
-
-                // Hide all
-                roleField.classList.add('hidden');
-                userField.classList.add('hidden');
-                deptField.classList.add('hidden');
-
-                // Show relevant field
-                if (type === 'role') roleField.classList.remove('hidden');
-                if (type === 'user') userField.classList.remove('hidden');
-                if (type === 'department_manager') deptField.classList.remove('hidden');
-            }
-        </script>
-    @endif
 @endif

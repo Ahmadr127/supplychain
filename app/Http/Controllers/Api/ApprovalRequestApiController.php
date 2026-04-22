@@ -234,10 +234,7 @@ class ApprovalRequestApiController extends Controller
                 $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
 
                 if ($currentStep->required_action === 'verify_budget') {
-                    $total     = $item->quantity * ($item->unit_price ?? 0);
-                    $threshold = $currentStep->condition_value
-                        ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-                    $needsFsUpload = $total >= $threshold;
+                    $needsFsUpload = true;
                 }
             }
 

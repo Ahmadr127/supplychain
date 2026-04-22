@@ -9,22 +9,6 @@
 
     $ps = $item->status ?? 'unprocessed';
 
-    // Sequential gating checks
-    $step1Done = !empty($item->approvalRequest->received_at);
-    $step2Done = $item->vendors->isNotEmpty();
-    $step3Done = !empty($item->preferred_vendor_id);
-    $step4Done = !empty($item->po_number);
-    $step5Done = !empty($item->invoice_number);
-    $step6Done = $ps === 'done';
-
-    // Step states: 'done' | 'active' | 'locked'
-    $s1State = $step1Done ? 'done' : 'active';
-    $s2State = $step1Done ? ($step2Done ? 'done' : 'active') : 'locked';
-    $s3State = $step2Done ? ($step3Done ? 'done' : 'active') : 'locked';
-    $s4State = $step3Done ? ($step4Done ? 'done' : 'active') : 'locked';
-    $s5State = $step4Done ? ($step5Done ? 'done' : 'active') : 'locked';
-    $s6State = $step5Done ? ($step6Done ? 'done' : 'active') : 'locked';
-
     $statusLabel = match($ps) {
         'unprocessed'  => 'Belum diproses',
         'benchmarking' => 'Benchmarking Vendor',
@@ -43,6 +27,8 @@
         'done'         => 'bg-green-100 text-green-800',
         default        => 'bg-gray-100 text-gray-700',
     };
+
+    $purchasingSteps = $purchasingSteps ?? collect();
 @endphp
 
 <div class="space-y-2 w-full">
@@ -92,355 +78,217 @@
     </div>
 
     {{-- ═══════════════════════════════════════════════════
-         PROGRESS STEPPER
+         DYNAMIC STEPS (driven by approval_item_steps)
     ═══════════════════════════════════════════════════ --}}
     @php
-        $steps = [
-            ['label' => 'Tgl Dokumen', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', 'state' => $s1State],
-            ['label' => 'Benchmarking', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', 'state' => $s2State],
-            ['label' => 'Preferred Vendor', 'icon' => 'M5 13l4 4L19 7', 'state' => $s3State],
-            ['label' => 'PO', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', 'state' => $s4State],
-            ['label' => 'Invoice', 'icon' => 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z', 'state' => $s5State],
-            ['label' => 'Selesai', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', 'state' => $s6State],
-        ];
+        $resolvedStates = [];
+        $prevDone = true;
+
+        foreach ($purchasingSteps as $st) {
+            $status = (string) ($st->status ?? '');
+            $isDone = $status === 'approved';
+            $isActive = $prevDone && $status === 'pending';
+            $state = $isDone ? 'done' : ($isActive ? 'active' : 'locked');
+            $resolvedStates[$st->id] = $state;
+            $prevDone = $isDone;
+        }
     @endphp
-    <div class="bg-white border border-gray-200 rounded-lg p-2">
-        <div class="flex items-center justify-between relative">
-            {{-- connector line --}}
-            <div class="absolute left-0 right-0 top-5 h-0.5 bg-gray-200 z-0" style="margin: 0 2.5rem;"></div>
-            @foreach($steps as $i => $step)
-                @php
-                    $dotColor = match($step['state']) {
-                        'done'   => 'bg-green-500 text-white border-green-500',
-                        'active' => 'bg-blue-600 text-white border-blue-600',
-                        default  => 'bg-white text-gray-400 border-gray-300',
-                    };
-                    $labelColor = match($step['state']) {
-                        'done'   => 'text-green-700 font-semibold',
-                        'active' => 'text-blue-700 font-semibold',
-                        default  => 'text-gray-400',
-                    };
-                @endphp
-                <div class="flex flex-col items-center z-10 flex-1">
-                    <div class="w-10 h-10 rounded-full border-2 flex items-center justify-center {{ $dotColor }} shadow-sm">
-                        @if($step['state'] === 'done')
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                        @elseif($step['state'] === 'locked')
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H9m3-6V7a3 3 0 00-6 0v4m6 0H6a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2H9z"/></svg>
-                        @else
-                            <span class="text-sm font-bold">{{ $i + 1 }}</span>
-                        @endif
-                    </div>
-                    <span class="mt-1.5 text-xs text-center {{ $labelColor }} leading-tight">{{ $step['label'] }}</span>
-                </div>
-            @endforeach
-        </div>
-    </div>
 
-    {{-- ═══════════════════════════════════════════════════
-         STEP 1: TANGGAL DOKUMEN DITERIMA
-    ═══════════════════════════════════════════════════ --}}
-    <div class="bg-white border rounded-lg overflow-hidden {{ $s1State === 'done' ? 'border-green-200' : 'border-blue-300 ring-1 ring-blue-100' }}">
-        <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $s1State === 'done' ? 'bg-green-50 border-green-100' : 'bg-blue-50 border-blue-100' }}">
-            <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full {{ $s1State === 'done' ? 'bg-green-500' : 'bg-blue-600' }} text-white flex items-center justify-center text-xs font-bold">{{ $s1State === 'done' ? '✓' : '1' }}</span>
-                <span class="font-semibold text-gray-800">Tanggal Dokumen Diterima</span>
-            </div>
-            @if($step1Done)
-                <span class="text-sm text-green-700 font-medium">{{ \Carbon\Carbon::parse($item->approvalRequest->received_at)->format('d/m/Y') }}</span>
-            @endif
-        </div>
-        <div class="p-3">
-            @if($canPurchasing)
-                <form method="POST" action="{{ route('approval-requests.set-received-date', $item->approvalRequest) }}" class="flex items-end gap-3 flex-wrap">
-                    @csrf
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">Tanggal Diterima</label>
-                        <input type="date" name="received_at"
-                               value="{{ $item->approvalRequest->received_at ? \Carbon\Carbon::parse($item->approvalRequest->received_at)->format('Y-m-d') : '' }}"
-                               class="h-9 px-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required />
-                    </div>
-                    <button type="submit" class="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-                        Simpan Tanggal
-                    </button>
-                </form>
-                @if(!$step1Done)
-                    <p class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">⚠ Tanggal dokumen wajib diisi sebelum melanjutkan ke tahap berikutnya.</p>
+    @foreach($purchasingSteps as $idx => $wfStep)
+        @php
+            $state = $resolvedStates[$wfStep->id] ?? 'locked';
+            $doneBadge = $state === 'done';
+
+            $headerColor = $state === 'done'
+                ? 'bg-green-50 border-green-100'
+                : ($state === 'active' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100');
+
+            $borderColor = $state === 'done'
+                ? 'border-green-200'
+                : ($state === 'active' ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200');
+
+            $dotColor = $state === 'done'
+                ? 'bg-green-500'
+                : ($state === 'active' ? 'bg-blue-600' : 'bg-gray-300');
+
+            $required = (string) ($wfStep->required_action ?? '');
+            $title = (string) ($wfStep->step_name ?? $required ?: 'Step');
+        @endphp
+
+        <div class="bg-white border rounded-lg overflow-hidden {{ $borderColor }}">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $headerColor }}">
+                <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full {{ $dotColor }} text-white flex items-center justify-center text-xs font-bold">
+                        {{ $doneBadge ? '✓' : ($idx + 1) }}
+                    </span>
+                    <span class="font-semibold {{ $state === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">{{ $title }}</span>
+                </div>
+                @if($doneBadge)
+                    <span class="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Done</span>
                 @endif
-            @else
-                <p class="text-sm text-gray-600">Tanggal: <strong>{{ $item->approvalRequest->received_at ? \Carbon\Carbon::parse($item->approvalRequest->received_at)->format('d/m/Y') : '-' }}</strong></p>
-            @endif
-        </div>
-    </div>
-
-    {{-- ═══════════════════════════════════════════════════
-         STEP 2: BENCHMARKING VENDOR
-    ═══════════════════════════════════════════════════ --}}
-    <div class="bg-white border rounded-lg overflow-hidden {{ $s2State === 'done' ? 'border-green-200' : ($s2State === 'active' ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200') }}">
-        <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $s2State === 'done' ? 'bg-green-50 border-green-100' : ($s2State === 'active' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100') }}">
-            <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full {{ $s2State === 'done' ? 'bg-green-500' : ($s2State === 'active' ? 'bg-blue-600' : 'bg-gray-300') }} text-white flex items-center justify-center text-xs font-bold">
-                    {{ $s2State === 'done' ? '✓' : '2' }}
-                </span>
-                <span class="font-semibold {{ $s2State === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">Benchmarking Vendor (SPH)</span>
             </div>
-            @if($step2Done)
-                <span class="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">{{ $item->vendors->count() }} vendor</span>
-            @endif
-        </div>
-        <div class="p-3">
-            @if($s2State === 'locked')
-                <div class="flex items-center gap-2 text-sm text-gray-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H9m3-6V7a3 3 0 00-6 0v4m9 0H6a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2h-3z"/></svg>
-                    Selesaikan Step 1 terlebih dahulu untuk membuka tahap ini.
-                </div>
-            @elseif($canPurchasing)
-                <form method="POST" action="{{ route('purchasing.items.benchmarking', $item) }}" class="space-y-3" id="benchmarking-form">
-                    @csrf
-                    <div class="text-xs text-gray-500 mb-2">Data Vendor (min 1, disarankan 3) &bull; Qty: {{ (int) $item->quantity }}</div>
-                    <div id="vendors-wrapper" class="space-y-2">
-                        @for($i = 0; $i < 3; $i++)
-                            @php($v = optional($item->vendors->values()->get($i)))
-                            <div class="grid grid-cols-4 gap-2 items-center vendor-row">
-                                <div class="relative">
-                                    <input type="hidden" name="vendors[{{ $i }}][supplier_id]" class="supplier-id" value="{{ $v->supplier_id ?? '' }}" />
-                                    <input type="text" class="supplier-name h-9 w-full px-3 border border-gray-300 rounded-lg text-sm" placeholder="Cari supplier..." autocomplete="off"
-                                           value="{{ $v && $v->supplier ? $v->supplier->name : '' }}" />
-                                    <div class="supplier-suggest absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
+
+            <div class="p-3">
+                @if($state === 'locked')
+                    <div class="flex items-center gap-2 text-sm text-gray-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H9m3-6V7a3 3 0 00-6 0v4m9 0H6a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2h-3z"/></svg>
+                        Step ini masih terkunci. Selesaikan step sebelumnya terlebih dahulu.
+                    </div>
+                @elseif($required === 'purchasing_receive_doc_benchmark')
+                    @if($canPurchasing)
+                        <form method="POST" action="{{ route('purchasing.items.receive-doc-benchmark', $item) }}" class="space-y-3">
+                            @csrf
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div class="md:col-span-1">
+                                    <label class="block text-xs text-gray-600 mb-1">Tanggal Diterima</label>
+                                    <input type="date" name="received_at"
+                                           value="{{ $item->approvalRequest->received_at ? \Carbon\Carbon::parse($item->approvalRequest->received_at)->format('Y-m-d') : '' }}"
+                                           class="h-9 w-full px-3 border border-gray-300 rounded-lg text-sm" required />
                                 </div>
-                                <input type="text" name="vendors[{{ $i }}][unit_price]" class="h-9 px-3 border border-gray-300 rounded-lg text-sm" placeholder="Harga Satuan (Rp)"
-                                       value="{{ isset($v->unit_price) ? number_format((float)$v->unit_price, 0, ',', '.') : '' }}" />
-                                <input type="text" name="vendors[{{ $i }}][total_price]" class="h-9 px-3 border border-gray-300 rounded-lg text-sm" placeholder="Total (Rp)"
-                                       value="{{ isset($v->total_price) ? number_format((float)$v->total_price, 0, ',', '.') : '' }}" />
-                                <input type="text" name="vendors[{{ $i }}][notes]" class="h-9 px-3 border border-gray-300 rounded-lg text-sm" placeholder="Catatan"
-                                       value="{{ $v->notes ?? '' }}" />
-                            </div>
-                        @endfor
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">Catatan Benchmarking (opsional)</label>
-                        <textarea name="benchmark_notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                  placeholder="Tulis analisis hasil benchmarking...">{{ old('benchmark_notes', $item->benchmark_notes) }}</textarea>
-                    </div>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                        Simpan Benchmarking
-                    </button>
-                </form>
-            @else
-                {{-- Read-only for non-purchasing --}}
-                @if($item->vendors->isNotEmpty())
-                    <div class="space-y-1">
-                        @foreach($item->vendors as $v)
-                            <div class="flex items-center justify-between text-sm bg-gray-50 rounded-lg px-3 py-2">
-                                <span class="font-medium text-gray-800">{{ $v->supplier->name ?? '-' }}</span>
-                                <div class="flex gap-4 text-gray-600 text-xs">
-                                    <span>Rp {{ number_format((float)$v->unit_price, 0, ',', '.') }}/unit</span>
-                                    <span>Total: Rp {{ number_format((float)$v->total_price, 0, ',', '.') }}</span>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs text-gray-600 mb-1">Catatan Benchmarking (opsional)</label>
+                                    <textarea name="benchmark_notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{{ old('benchmark_notes', $item->benchmark_notes) }}</textarea>
                                 </div>
                             </div>
-                        @endforeach
-                    </div>
+
+                            <div class="text-xs text-gray-500">Data Vendor (min 1, disarankan 3) • Qty: {{ (int) $item->quantity }}</div>
+                            <div id="vendors-wrapper" class="space-y-2">
+                                @for($i = 0; $i < 3; $i++)
+                                    @php($v = optional($item->vendors->values()->get($i)))
+                                    <div class="grid grid-cols-4 gap-2 items-center vendor-row">
+                                        <div class="relative">
+                                            <input type="hidden" name="vendors[{{ $i }}][supplier_id]" class="supplier-id" value="{{ $v->supplier_id ?? '' }}" />
+                                            <input type="text" class="supplier-name h-9 w-full px-3 border border-gray-300 rounded-lg text-sm" placeholder="Cari supplier..." autocomplete="off"
+                                                   value="{{ $v && $v->supplier ? $v->supplier->name : '' }}" />
+                                            <div class="supplier-suggest absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
+                                        </div>
+                                        <input type="text" name="vendors[{{ $i }}][unit_price]" class="h-9 px-3 border border-gray-300 rounded-lg text-sm" placeholder="Harga Satuan (Rp)"
+                                               value="{{ isset($v->unit_price) ? number_format((float)$v->unit_price, 0, ',', '.') : '' }}" />
+                                        <input type="text" name="vendors[{{ $i }}][total_price]" class="h-9 px-3 border border-gray-300 rounded-lg text-sm" placeholder="Total (Rp)"
+                                               value="{{ isset($v->total_price) ? number_format((float)$v->total_price, 0, ',', '.') : '' }}" />
+                                        <input type="text" name="vendors[{{ $i }}][notes]" class="h-9 px-3 border border-gray-300 rounded-lg text-sm" placeholder="Catatan"
+                                               value="{{ $v->notes ?? '' }}" />
+                                    </div>
+                                @endfor
+                            </div>
+
+                            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
+                                Simpan
+                            </button>
+                        </form>
+                    @else
+                        <p class="text-sm text-gray-600">Tanggal: <strong>{{ $item->approvalRequest->received_at ? \Carbon\Carbon::parse($item->approvalRequest->received_at)->format('d/m/Y') : '-' }}</strong></p>
+                    @endif
+                @elseif($required === 'purchasing_trial')
+                    @if($canPurchasing)
+                        <form method="POST" action="{{ route('purchasing.items.trial', $item) }}" class="space-y-3">
+                            @csrf
+                            @if($item->vendors->isEmpty())
+                                <p class="text-sm text-gray-400">Belum ada vendor benchmarking.</p>
+                            @else
+                                <div class="space-y-2">
+                                    @foreach($item->vendors as $i => $v)
+                                        @php($trial = $v->latestTrial)
+                                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                            <div class="text-sm font-semibold text-gray-800">{{ $v->supplier->name ?? '-' }}</div>
+                                            <input type="hidden" name="trials[{{ $i }}][purchasing_item_vendor_id]" value="{{ $v->id }}" />
+                                            <label class="block text-xs text-gray-600 mt-2 mb-1">Catatan Trial</label>
+                                            <textarea name="trials[{{ $i }}][trial_notes]" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{{ old("trials.$i.trial_notes", $trial?->trial_notes) }}</textarea>
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
+                                    Simpan
+                                </button>
+                            @endif
+                        </form>
+                    @else
+                        <p class="text-sm text-gray-400">Menunggu tim purchasing.</p>
+                    @endif
+                @elseif($required === 'purchasing_preferred_vendor')
+                    @if($canVendor)
+                        <form method="POST" action="{{ route('purchasing.items.preferred', $item) }}" class="space-y-3">
+                            @csrf
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div class="md:col-span-1 relative">
+                                    <label class="block text-xs text-gray-600 mb-1">Pilih Vendor (dari Benchmarking)</label>
+                                    <input type="hidden" name="supplier_id" class="preferred-supplier-id" value="{{ $item->preferred_vendor_id }}" />
+                                    <input type="text" class="preferred-supplier-name h-9 w-full px-3 border border-gray-300 rounded-lg text-sm" placeholder="Cari vendor..."
+                                           autocomplete="off" value="{{ $item->preferredVendor->name ?? '' }}" />
+                                    <div class="preferred-supplier-suggest absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-600 mb-1">Harga Satuan (Rp)</label>
+                                    <input type="text" name="unit_price" value="{{ $item->preferred_unit_price ? number_format((float)$item->preferred_unit_price, 0, ',', '.') : '' }}"
+                                           class="w-full h-9 px-3 border border-gray-300 rounded-lg text-sm currency-pref-unit" placeholder="Rp" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-600 mb-1">Total (Rp)</label>
+                                    <input type="text" name="total_price" value="{{ $item->preferred_total_price ? number_format((float)$item->preferred_total_price, 0, ',', '.') : '' }}"
+                                           class="w-full h-9 px-3 border border-gray-300 rounded-lg text-sm currency-pref-total" placeholder="Rp" />
+                                </div>
+                            </div>
+                            <button type="submit" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium">
+                                Simpan
+                            </button>
+                        </form>
+                    @else
+                        <p class="text-sm text-gray-400">Menunggu Manager Keuangan memilih preferred vendor.</p>
+                    @endif
+                @elseif($required === 'purchasing_po')
+                    @if($canPurchasing)
+                        <form method="POST" action="{{ route('purchasing.items.po', $item) }}" class="flex items-end gap-3">
+                            @csrf
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-600 mb-1">Nomor PO</label>
+                                <input type="text" name="po_number" value="{{ $item->po_number }}"
+                                       class="h-9 w-full px-3 border border-gray-300 rounded-lg text-sm font-mono" placeholder="Contoh: PO-2026-001" />
+                            </div>
+                            <button type="submit" class="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium whitespace-nowrap">
+                                Simpan
+                            </button>
+                        </form>
+                    @else
+                        <p class="text-sm text-gray-600">PO: <strong class="font-mono">{{ $item->po_number ?? '-' }}</strong></p>
+                    @endif
+                @elseif($required === 'purchasing_invoice_grn_done')
+                    @if($ps === 'done')
+                        <div class="text-sm text-green-700">
+                            <p>Proses purchasing telah diselesaikan.</p>
+                            @if($item->done_notes) <p class="mt-2 text-gray-600 whitespace-pre-wrap">Catatan: {{ $item->done_notes }}</p> @endif
+                        </div>
+                    @elseif($canPurchasing)
+                        <form method="POST" action="{{ route('purchasing.items.invoice-grn-done', $item) }}" onsubmit="return confirm('Simpan Invoice + GRN dan tandai DONE?')" class="space-y-4">
+                            @csrf
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-600 mb-1">Nomor Invoice</label>
+                                    <input type="text" name="invoice_number" value="{{ $item->invoice_number }}"
+                                           class="w-full h-9 px-3 border border-gray-300 rounded-lg text-sm font-mono" placeholder="INV-..." required />
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-600 mb-1">Tanggal GRN</label>
+                                    <input type="date" name="grn_date" value="{{ $item->grn_date ? $item->grn_date->format('Y-m-d') : '' }}"
+                                           class="w-full h-9 px-3 border border-gray-300 rounded-lg text-sm" required />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Catatan Penutupan (opsional)</label>
+                                <textarea name="done_notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{{ old('done_notes', $item->done_notes) }}</textarea>
+                            </div>
+                            <button type="submit" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold">
+                                Simpan & DONE
+                            </button>
+                        </form>
+                    @else
+                        <p class="text-sm text-gray-400">Menunggu tim purchasing.</p>
+                    @endif
                 @else
-                    <p class="text-sm text-gray-400">Belum ada data benchmarking.</p>
+                    <p class="text-sm text-gray-500">Belum ada renderer untuk action: <span class="font-mono">{{ $required ?: '-' }}</span></p>
                 @endif
-            @endif
-        </div>
-    </div>
-
-    {{-- ═══════════════════════════════════════════════════
-         STEP 3: PREFERRED VENDOR (manage_vendor → Manager Keuangan)
-    ═══════════════════════════════════════════════════ --}}
-    <div class="bg-white border rounded-lg overflow-hidden {{ $s3State === 'done' ? 'border-green-200' : ($s3State === 'active' ? 'border-purple-300 ring-1 ring-purple-100' : 'border-gray-200') }}">
-        <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $s3State === 'done' ? 'bg-green-50 border-green-100' : ($s3State === 'active' ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-100') }}">
-            <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full {{ $s3State === 'done' ? 'bg-green-500' : ($s3State === 'active' ? 'bg-purple-600' : 'bg-gray-300') }} text-white flex items-center justify-center text-xs font-bold">
-                    {{ $s3State === 'done' ? '✓' : '3' }}
-                </span>
-                <span class="font-semibold {{ $s3State === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">Preferred Vendor</span>
-                <span class="text-xs px-2 py-0.5 rounded-full {{ $s3State === 'locked' ? 'bg-gray-100 text-gray-400' : 'bg-purple-100 text-purple-700' }}">Manager Keuangan</span>
-            </div>
-            @if($step3Done)
-                <span class="text-sm text-green-700 font-medium">{{ $item->preferredVendor->name ?? '-' }}</span>
-            @endif
-        </div>
-        <div class="p-3">
-            @if($s3State === 'locked')
-                <div class="flex items-center gap-2 text-sm text-gray-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H9m3-6V7a3 3 0 00-6 0v4m9 0H6a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2h-3z"/></svg>
-                    Selesaikan Step 2 (Benchmarking) terlebih dahulu.
-                </div>
-            @elseif($canVendor)
-                <form method="POST" action="{{ route('purchasing.items.preferred', $item) }}" class="space-y-3" id="preferred-form">
-                    @csrf
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div class="md:col-span-1 relative">
-                            <label class="block text-xs text-gray-600 mb-1">Pilih Vendor (dari Benchmarking)</label>
-                            <input type="hidden" name="supplier_id" class="preferred-supplier-id" value="{{ $item->preferred_vendor_id }}" />
-                            <input type="text" class="preferred-supplier-name h-9 w-full px-3 border border-gray-300 rounded-lg text-sm" placeholder="Cari vendor..."
-                                   autocomplete="off" value="{{ $item->preferredVendor->name ?? '' }}" />
-                            <div class="preferred-supplier-suggest absolute left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-auto hidden z-50 text-sm"></div>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-600 mb-1">Harga Satuan (Rp)</label>
-                            <input type="text" name="unit_price" value="{{ $item->preferred_unit_price ? number_format((float)$item->preferred_unit_price, 0, ',', '.') : '' }}"
-                                   class="w-full h-9 px-3 border border-gray-300 rounded-lg text-sm currency-pref-unit" placeholder="Rp" />
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-600 mb-1">Total (Rp)</label>
-                            <input type="text" name="total_price" value="{{ $item->preferred_total_price ? number_format((float)$item->preferred_total_price, 0, ',', '.') : '' }}"
-                                   class="w-full h-9 px-3 border border-gray-300 rounded-lg text-sm currency-pref-total" placeholder="Rp" />
-                        </div>
-                    </div>
-                    <button type="submit" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors">
-                        Simpan Preferred Vendor
-                    </button>
-                </form>
-            @else
-                {{-- Read-only --}}
-                @if($step3Done)
-                    <div class="flex items-center justify-between text-sm bg-purple-50 rounded-lg px-3 py-2 border border-purple-100">
-                        <span class="font-medium text-gray-800">{{ $item->preferredVendor->name ?? '-' }}</span>
-                        <div class="flex gap-4 text-gray-600 text-xs">
-                            <span>Rp {{ number_format((float)$item->preferred_unit_price, 0, ',', '.') }}/unit</span>
-                            <span>Total: Rp {{ number_format((float)$item->preferred_total_price, 0, ',', '.') }}</span>
-                        </div>
-                    </div>
-                @else
-                    <p class="text-sm text-gray-400">Menunggu Manager Keuangan untuk memilih preferred vendor.</p>
-                @endif
-            @endif
-        </div>
-    </div>
-
-    {{-- ═══════════════════════════════════════════════════
-         STEP 4: PO NUMBER
-    ═══════════════════════════════════════════════════ --}}
-    <div class="bg-white border rounded-lg overflow-hidden {{ $s4State === 'done' ? 'border-green-200' : ($s4State === 'active' ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200') }}">
-        <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $s4State === 'done' ? 'bg-green-50 border-green-100' : ($s4State === 'active' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100') }}">
-            <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full {{ $s4State === 'done' ? 'bg-green-500' : ($s4State === 'active' ? 'bg-blue-600' : 'bg-gray-300') }} text-white flex items-center justify-center text-xs font-bold">
-                    {{ $s4State === 'done' ? '✓' : '4' }}
-                </span>
-                <span class="font-semibold {{ $s4State === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">Purchase Order (PO)</span>
-            </div>
-            @if($step4Done)
-                <span class="text-sm text-green-700 font-medium font-mono">{{ $item->po_number }}</span>
-            @endif
-        </div>
-        <div class="p-3">
-            @if($s4State === 'locked')
-                <div class="flex items-center gap-2 text-sm text-gray-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H9m3-6V7a3 3 0 00-6 0v4m9 0H6a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2h-3z"/></svg>
-                    Selesaikan Step 3 (Preferred Vendor) terlebih dahulu.
-                </div>
-            @elseif($canPurchasing)
-                <form method="POST" action="{{ route('purchasing.items.po', $item) }}" class="flex items-end gap-3">
-                    @csrf
-                    <div class="flex-1">
-                        <label class="block text-xs text-gray-600 mb-1">Nomor PO</label>
-                        <input type="text" name="po_number" value="{{ $item->po_number }}"
-                               class="h-9 w-full px-3 border border-gray-300 rounded-lg text-sm font-mono" placeholder="Contoh: PO-2026-001" />
-                    </div>
-                    <button type="submit" class="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
-                        Simpan PO
-                    </button>
-                </form>
-            @else
-                <p class="text-sm text-gray-600">PO: <strong class="font-mono">{{ $item->po_number ?? '-' }}</strong></p>
-            @endif
-        </div>
-    </div>
-
-    {{-- ═══════════════════════════════════════════════════
-         STEP 5: INVOICE + GRN DATE
-    ═══════════════════════════════════════════════════ --}}
-    <div class="bg-white border rounded-lg overflow-hidden {{ $s5State === 'done' ? 'border-green-200' : ($s5State === 'active' ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200') }}">
-        <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $s5State === 'done' ? 'bg-green-50 border-green-100' : ($s5State === 'active' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100') }}">
-            <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full {{ $s5State === 'done' ? 'bg-green-500' : ($s5State === 'active' ? 'bg-blue-600' : 'bg-gray-300') }} text-white flex items-center justify-center text-xs font-bold">
-                    {{ $s5State === 'done' ? '✓' : '5' }}
-                </span>
-                <span class="font-semibold {{ $s5State === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">Invoice & GRN (Penerimaan Barang)</span>
             </div>
         </div>
-        <div class="p-3">
-            @if($s5State === 'locked')
-                <div class="flex items-center gap-2 text-sm text-gray-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H9m3-6V7a3 3 0 00-6 0v4m9 0H6a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2h-3z"/></svg>
-                    Selesaikan Step 4 (PO) terlebih dahulu.
-                </div>
-            @elseif($canPurchasing)
-                <form method="POST" action="{{ route('purchasing.items.grn', $item) }}" class="space-y-4">
-                    @csrf
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs text-gray-600 mb-1">Nomor Invoice</label>
-                            <input type="text" name="invoice_number" value="{{ $item->invoice_number }}"
-                                   class="w-full h-9 px-3 border border-gray-300 rounded-lg text-sm font-mono" placeholder="INV-..." required />
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-600 mb-1">Tanggal GRN (Penerimaan)</label>
-                            <input type="date" name="grn_date" value="{{ $item->grn_date ? $item->grn_date->format('Y-m-d') : '' }}"
-                                   class="w-full h-9 px-3 border border-gray-300 rounded-lg text-sm" required />
-                        </div>
-                    </div>
-                    <div class="flex justify-end">
-                        <button type="submit" class="h-9 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">Simpan Data GRN & Invoice</button>
-                    </div>
-                </form>
-            @else
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <p>Invoice: <strong class="font-mono">{{ $item->invoice_number ?? '-' }}</strong></p>
-                    <p>GRN: <strong>{{ $item->grn_date ? $item->grn_date->format('d/m/Y') : '-' }}</strong></p>
-                </div>
-            @endif
-        </div>
-    </div>
-
-    {{-- ═══════════════════════════════════════════════════
-         STEP 6: MARK AS DONE
-    ═══════════════════════════════════════════════════ --}}
-    <div class="bg-white border rounded-lg overflow-hidden {{ $s6State === 'done' ? 'border-green-300 bg-green-50' : ($s6State === 'active' ? 'border-green-300 ring-1 ring-green-100' : 'border-gray-200') }}">
-        <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $s6State === 'done' ? 'bg-green-100 border-green-200' : ($s6State === 'active' ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100') }}">
-            <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full {{ $s6State === 'done' ? 'bg-green-600' : ($s6State === 'active' ? 'bg-green-500' : 'bg-gray-300') }} text-white flex items-center justify-center text-xs font-bold">
-                    {{ $s6State === 'done' ? '✓' : '6' }}
-                </span>
-                <span class="font-semibold {{ $s6State === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">
-                    {{ $s6State === 'done' ? '🎉 Proses Selesai!' : 'Mark as DONE' }}
-                </span>
-            </div>
-        </div>
-        <div class="p-3">
-            @if($s6State === 'done')
-                <div class="text-sm text-green-700">
-                    <p>Proses purchasing telah diselesaikan.</p>
-                    @if($item->done_notes) <p class="mt-1 text-gray-600">Catatan: {{ $item->done_notes }}</p> @endif
-                </div>
-            @elseif($s6State === 'locked')
-                <div class="flex items-center gap-2 text-sm text-gray-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H9m3-6V7a3 3 0 00-6 0v4m9 0H6a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2h-3z"/></svg>
-                    Selesaikan Step 5 (Invoice) terlebih dahulu.
-                </div>
-            @elseif($canPurchasing)
-                <form method="POST" action="{{ route('purchasing.items.done', $item) }}" onsubmit="return confirm('Tandai item ini sebagai DONE? Pastikan semua data sudah benar.')" class="space-y-3">
-                    @csrf
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">Catatan Penutupan (opsional)</label>
-                        <textarea name="done_notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                                  placeholder="Tulis catatan untuk penutupan...">{{ old('done_notes', $item->done_notes) }}</textarea>
-                    </div>
-                    <button type="submit" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        Tandai Selesai (DONE)
-                    </button>
-                </form>
-            @else
-                <p class="text-sm text-gray-400">Menunggu tim purchasing menyelesaikan proses.</p>
-            @endif
-        </div>
-    </div>
+    @endforeach
 
     {{-- Delete button (hanya purchasing + belum done) --}}
     @if($canPurchasing && $ps !== 'done')

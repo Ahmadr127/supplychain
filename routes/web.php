@@ -300,6 +300,12 @@ Route::middleware('auth')->group(function () {
             ->name('approval-requests.set-received-date');
         
         // Purchasing API endpoints (now handled by ReportController)
+        Route::post('purchasing/items/{purchasingItem}/receive-doc-benchmark', [\App\Http\Controllers\ReportController::class, 'receiveDocAndBenchmarking'])
+            ->name('purchasing.items.receive-doc-benchmark');
+        Route::post('purchasing/items/{purchasingItem}/trial', [\App\Http\Controllers\ReportController::class, 'saveTrial'])
+            ->name('purchasing.items.trial');
+        Route::post('purchasing/items/{purchasingItem}/invoice-grn-done', [\App\Http\Controllers\ReportController::class, 'invoiceGrnDone'])
+            ->name('purchasing.items.invoice-grn-done');
         Route::post('purchasing/items/{purchasingItem}/po', [\App\Http\Controllers\ReportController::class, 'issuePO'])
             ->name('purchasing.items.po');
         Route::post('purchasing/items/{purchasingItem}/grn', [\App\Http\Controllers\ReportController::class, 'receiveGRN'])
