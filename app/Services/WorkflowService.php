@@ -138,13 +138,8 @@ class WorkflowService
                     $updates['approver_role_id']       = $targetStep1->approver_role_id       ?? $lastApprovedStep->approver_role_id;
                     $updates['approver_department_id'] = $targetStep1->approver_department_id ?? $lastApprovedStep->approver_department_id;
                     $updates['required_action']        = $targetStep1->required_action        ?? $lastApprovedStep->required_action;
-                    $updates['is_conditional']         = $targetStep1->is_conditional         ?? $lastApprovedStep->is_conditional;
-                    $updates['condition_type']         = $targetStep1->condition_type         ?? $lastApprovedStep->condition_type;
-                    $updates['condition_value']        = $targetStep1->condition_value        ?? $lastApprovedStep->condition_value;
                     $updates['step_type']              = $targetStep1->step_type              ?? $lastApprovedStep->step_type;
                     $updates['scope_process']          = $targetStep1->scope_process          ?? $lastApprovedStep->scope_process;
-                    $updates['can_insert_step']        = $targetStep1->can_insert_step        ?? $lastApprovedStep->can_insert_step;
-                    $updates['insert_step_template']   = $targetStep1->insert_step_template   ?? $lastApprovedStep->insert_step_template;
                 }
 
                 $lastApprovedStep->update($updates);
@@ -186,9 +181,6 @@ class WorkflowService
                     'approver_department_id'   => $step->approver_department_id,
                     'status'                   => $initialStatus,
                     'required_action'          => $step->required_action ?? null,
-                    'is_conditional'           => $step->is_conditional ?? false,
-                    'condition_type'           => $step->condition_type ?? null,
-                    'condition_value'          => $step->condition_value ?? null,
                     'step_type'                => $step->step_type ?? 'approver',
                     'step_phase'               => $stepPhase,
                     'scope_process'            => $step->scope_process ?? null,
