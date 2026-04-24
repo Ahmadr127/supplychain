@@ -71,12 +71,6 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
     }
 @endphp
 
-{{-- Phase Indicator for 3-phase workflow --}}
-@if($hasReleasePhase)
-<div class="mb-3">
-    <x-phase-indicator :item="$item" :purchasingItem="$purchasingItem" />
-</div>
-@endif
 
 @if ($hasRejectedStep)
     <!-- Rejected Notice -->

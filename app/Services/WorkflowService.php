@@ -167,7 +167,11 @@ class WorkflowService
                 if ($stepNum <= $currentStepNumber) continue;
 
                 $stepPhase     = $step->step_phase ?? 'approval';
-                $initialStatus = ($stepPhase === 'release') ? 'pending_purchase' : 'pending';
+                // Release steps and any step after a release step start as 'pending_purchase'.
+                // Only the first purchasing step (right after approval) starts as 'pending'.
+                $hasReleaseBefore = collect($targetWorkflow->steps)
+                    ->contains(fn($s) => ($s->step_phase ?? '') === 'release' && (int)($s->step_number ?? 0) < $stepNum);
+                $initialStatus = ($stepPhase === 'release' || $hasReleaseBefore) ? 'pending_purchase' : 'pending';
 
                 ApprovalItemStep::create([
                     'approval_request_id'      => $request->id,

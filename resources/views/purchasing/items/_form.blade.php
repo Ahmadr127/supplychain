@@ -64,13 +64,48 @@
 
     <!-- Benchmarking Notes removed: merged into main benchmarking form above -->
 
-    <!-- Preferred Vendor -->
+   
+
+    {{-- 1. Trial Results Card --}}
+    @php $hasTrials = isset($item->vendors) && $item->vendors->contains(fn($v) => !is_null($v->latestTrial)); @endphp
+    @if($hasTrials)
+        <div class="bg-white border border-gray-200 shadow-sm rounded-lg mt-3 overflow-hidden">
+            <div class="bg-amber-600 border-b border-amber-700 px-3 py-2 flex items-center gap-2 text-white">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                <h3 class="text-sm font-semibold">Hasil Trial</h3>
+            </div>
+            <div class="p-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    @foreach($item->vendors as $bv)
+                        @if($bv->latestTrial)
+                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm relative overflow-hidden group hover:border-amber-300 transition-colors">
+                                <div class="absolute -top-2 -right-2 p-1 opacity-10 group-hover:opacity-20 transition-opacity">
+                                    <svg class="w-16 h-16 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                </div>
+                                <div class="relative z-10">
+                                    <div class="flex justify-between items-center mb-3 border-b border-amber-200 pb-2">
+                                        <span class="font-bold text-amber-900 text-sm">{{ $bv->supplier->name }}</span>
+                                        <div class="flex items-center gap-1 text-[9px] font-medium text-amber-700 bg-white border border-amber-200 px-2 py-0.5 rounded-full shadow-inner">
+                                            <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                            {{ $bv->latestTrial->created_at->format('d/m/Y H:i') }}
+                                        </div>
+                                    </div>
+                                    <p class="text-amber-900 text-xs leading-relaxed italic">
+                                        "{{ $bv->latestTrial->trial_notes }}"
+                                    </p>
+                                </div>
+                            </div>
+                        @endif
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Preferred Vendor Decision Card -->
     <div class="bg-white border border-gray-200 shadow-sm rounded-lg mt-3">
         <div class="bg-purple-600 border-b border-purple-700 rounded-t-lg px-3 py-2 flex items-center gap-2 text-white">
-            <div class="bg-purple-500 text-white rounded-full p-1 shadow-sm">
-                <span class="w-4 h-4 flex items-center justify-center text-xs font-bold leading-none">3</span>
-            </div>
-            <h3 class="text-sm font-semibold text-white">Preferred Vendor</h3>
+            <h3 class="text-sm font-semibold text-white">Preferred Vendor Choice</h3>
             <span class="text-xs font-medium text-white bg-purple-800 bg-opacity-50 px-2 py-0.5 rounded-full shadow-inner">Manager Keuangan</span>
         </div>
         <div class="p-3">
@@ -106,3 +141,6 @@
         <div class="text-sm text-gray-600">Preferred Vendor: <span class="font-medium text-gray-900">{{ $item->preferredVendor->name ?? '-' }}</span></div>
     </div>
 @endif
+
+{{-- Bottom Padding for Scrollability --}}
+<div class="h-48"></div>

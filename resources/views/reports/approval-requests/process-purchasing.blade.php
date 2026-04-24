@@ -31,7 +31,7 @@
     $purchasingSteps = $purchasingSteps ?? collect();
 @endphp
 
-<div class="space-y-2 w-full">
+<div class="space-y-2 w-full pb-8">
     {{-- Errors --}}
     @if($errors->any())
         <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
@@ -94,35 +94,35 @@
         }
     @endphp
 
+    @php
+        $displayIdx = 1;
+    @endphp
+
     @foreach($purchasingSteps as $idx => $wfStep)
         @php
             $state = $resolvedStates[$wfStep->id] ?? 'locked';
             $doneBadge = $state === 'done';
 
-            $headerColor = $state === 'done'
-                ? 'bg-green-50 border-green-100'
-                : ($state === 'active' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100');
+            // Only show steps that are in the purchasing phase
+            $isPurchasing = ($wfStep->step_phase ?? 'purchasing') === 'purchasing';
 
-            $borderColor = $state === 'done'
-                ? 'border-green-200'
-                : ($state === 'active' ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200');
-
-            $dotColor = $state === 'done'
-                ? 'bg-green-500'
-                : ($state === 'active' ? 'bg-blue-600' : 'bg-gray-300');
-
+            // Required action string (used by downstream @elseif renderers)
             $required = (string) ($wfStep->required_action ?? '');
-            $title = (string) ($wfStep->step_name ?? $required ?: 'Step');
         @endphp
 
-        <div class="bg-white border rounded-lg overflow-hidden {{ $borderColor }}">
-            <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $headerColor }}">
+        @if(!$isPurchasing)
+            @continue
+        @endif
+
+        <div class="bg-white border rounded-lg overflow-hidden {{ $state === 'done' ? 'border-green-200' : ($state === 'active' ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200') }}">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b {{ $state === 'done' ? 'bg-green-50 border-green-100' : ($state === 'active' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100') }}">
                 <div class="flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full {{ $dotColor }} text-white flex items-center justify-center text-xs font-bold">
-                        {{ $doneBadge ? '✓' : ($idx + 1) }}
+                    <span class="w-6 h-6 rounded-full {{ $state === 'done' ? 'bg-green-500' : ($state === 'active' ? 'bg-blue-600' : 'bg-gray-300') }} text-white flex items-center justify-center text-xs font-bold">
+                        {{ $doneBadge ? '✓' : $displayIdx }}
                     </span>
-                    <span class="font-semibold {{ $state === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">{{ $title }}</span>
+                    <span class="font-semibold {{ $state === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">{{ $wfStep->step_name ?? $wfStep->required_action }}</span>
                 </div>
+                @php $displayIdx++; @endphp
                 @if($doneBadge)
                     <span class="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Done</span>
                 @endif
@@ -135,8 +135,8 @@
                         Step ini masih terkunci. Selesaikan step sebelumnya terlebih dahulu.
                     </div>
                 @elseif($required === 'purchasing_receive_doc_benchmark')
-                    @if($canPurchasing)
-                        <form method="POST" action="{{ route('purchasing.items.receive-doc-benchmark', $item) }}" class="space-y-3">
+                    @if(($state === 'active' || $state === 'done') && $canPurchasing)
+                        <form method="POST" action="{{ route('purchasing.items.receive-doc-benchmark', $item) }}" class="space-y-3" id="benchmarking-form">
                             @csrf
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div class="md:col-span-1">
@@ -177,10 +177,10 @@
                             </button>
                         </form>
                     @else
-                        <p class="text-sm text-gray-600">Tanggal: <strong>{{ $item->approvalRequest->received_at ? \Carbon\Carbon::parse($item->approvalRequest->received_at)->format('d/m/Y') : '-' }}</strong></p>
+                        <p class="text-sm text-gray-400">Menunggu giliran step ini.</p>
                     @endif
                 @elseif($required === 'purchasing_trial')
-                    @if($canPurchasing)
+                    @if(($state === 'active' || $state === 'done') && $canPurchasing)
                         <form method="POST" action="{{ route('purchasing.items.trial', $item) }}" class="space-y-3">
                             @csrf
                             @if($item->vendors->isEmpty())
@@ -203,11 +203,11 @@
                             @endif
                         </form>
                     @else
-                        <p class="text-sm text-gray-400">Menunggu tim purchasing.</p>
+                        <p class="text-sm text-gray-400">Menunggu giliran step ini.</p>
                     @endif
                 @elseif($required === 'purchasing_preferred_vendor')
-                    @if($canVendor)
-                        <form method="POST" action="{{ route('purchasing.items.preferred', $item) }}" class="space-y-3">
+                    @if($state === 'active' && $canVendor)
+                        <form method="POST" action="{{ route('purchasing.items.preferred', $item) }}" class="space-y-3" id="preferred-form">
                             @csrf
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div class="md:col-span-1 relative">
@@ -232,11 +232,13 @@
                                 Simpan
                             </button>
                         </form>
+                    @elseif($state === 'done')
+                        <p class="text-sm text-gray-600">Preferred Vendor: <strong>{{ $item->preferredVendor->name ?? '-' }}</strong></p>
                     @else
-                        <p class="text-sm text-gray-400">Menunggu Manager Keuangan memilih preferred vendor.</p>
+                        <p class="text-sm text-gray-400">Menunggu giliran step ini.</p>
                     @endif
                 @elseif($required === 'purchasing_po')
-                    @if($canPurchasing)
+                    @if(($state === 'active' || $state === 'done') && $canPurchasing)
                         <form method="POST" action="{{ route('purchasing.items.po', $item) }}" class="flex items-end gap-3">
                             @csrf
                             <div class="flex-1">
@@ -249,15 +251,10 @@
                             </button>
                         </form>
                     @else
-                        <p class="text-sm text-gray-600">PO: <strong class="font-mono">{{ $item->po_number ?? '-' }}</strong></p>
+                        <p class="text-sm text-gray-400">Menunggu giliran step ini.</p>
                     @endif
                 @elseif($required === 'purchasing_invoice_grn_done')
-                    @if($ps === 'done')
-                        <div class="text-sm text-green-700">
-                            <p>Proses purchasing telah diselesaikan.</p>
-                            @if($item->done_notes) <p class="mt-2 text-gray-600 whitespace-pre-wrap">Catatan: {{ $item->done_notes }}</p> @endif
-                        </div>
-                    @elseif($canPurchasing)
+                    @if(($state === 'active' || $state === 'done' || $ps === 'done') && $canPurchasing)
                         <form method="POST" action="{{ route('purchasing.items.invoice-grn-done', $item) }}" onsubmit="return confirm('Simpan Invoice + GRN dan tandai DONE?')" class="space-y-4">
                             @csrf
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -281,7 +278,23 @@
                             </button>
                         </form>
                     @else
-                        <p class="text-sm text-gray-400">Menunggu tim purchasing.</p>
+                        <p class="text-sm text-gray-400">Menunggu giliran step ini.</p>
+                    @endif
+                @elseif(($wfStep->step_phase ?? '') === 'release')
+                    {{-- Dynamic release-phase step: not editable here, show info --}}
+                    @if($state === 'done')
+                        <div class="flex items-center gap-2 text-sm text-green-700">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Release disetujui
+                            @if($wfStep->approved_at)
+                                <span class="text-xs text-gray-500">— {{ \Carbon\Carbon::parse($wfStep->approved_at)->format('d/m/Y H:i') }}</span>
+                            @endif
+                        </div>
+                    @elseif($state === 'active')
+                        <div class="flex items-center gap-2 text-sm text-blue-600">
+                            <svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Menunggu approval release dari <strong>{{ $wfStep->step_name }}</strong>
+                        </div>
                     @endif
                 @else
                     <p class="text-sm text-gray-500">Belum ada renderer untuk action: <span class="font-mono">{{ $required ?: '-' }}</span></p>

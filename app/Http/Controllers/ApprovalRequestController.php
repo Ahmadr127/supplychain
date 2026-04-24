@@ -1749,7 +1749,11 @@ class ApprovalRequestController extends Controller
             // - Approval phase: 'pending' (can be approved immediately)
             // - Release phase: 'pending_purchase' (waiting for purchasing to complete)
             $stepPhase = $step->step_phase ?? 'approval';
-            $initialStatus = ($stepPhase === 'release') ? 'pending_purchase' : 'pending';
+                // Release steps start as 'pending_purchase'. Purchasing steps that come
+                // AFTER a release step (e.g. GRN after release) also start as 'pending_purchase'.
+                $hasReleaseBefore = collect($workflowSteps)
+                    ->contains(fn($s) => ($s->step_phase ?? '') === 'release' && (int)($s->step_number ?? 0) < (int)($step->step_number ?? 0));
+                $initialStatus = ($stepPhase === 'release' || $hasReleaseBefore) ? 'pending_purchase' : 'pending';
             
             \App\Models\ApprovalItemStep::create([
                 'approval_request_id' => $approvalRequest->id,

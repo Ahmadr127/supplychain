@@ -179,8 +179,8 @@ class DynamicWorkflowSeeder extends Seeder
             // ═══ PHASE 2: PURCHASING ═══
             ...$this->getPurchasingCoreSteps(5, $roles),
             
-            // ═══ PHASE 3: RELEASE ═══
-            $this->releaserStep(9, 'General Manager PT', $roles['general_manager_pt'], 'Final Approver'),
+            // ═══ PHASE 3: RELEASE (Post-Purchasing Approval) ═══
+            $this->postPurchasingApproverStep(9, 'General Manager PT', $roles['general_manager_pt'], 'Final Approver'),
             $this->releaserStep(10, 'Manager FATP', $roles['manager_fatp'], 'Releaser'),
 
             // ═══ FINAL STEP (dynamic order) ═══
@@ -218,9 +218,9 @@ class DynamicWorkflowSeeder extends Seeder
             // ═══ PHASE 2: PURCHASING ═══
             ...$this->getPurchasingCoreSteps(6, $roles),
             
-            // ═══ PHASE 3: RELEASE ═══
-            $this->releaserStep(10, 'General Manager PT', $roles['general_manager_pt'], 'Approver 6'),
-            $this->releaserStep(11, 'Direktur PT', $roles['direktur_pt'], 'Final Approver'),
+            // ═══ PHASE 3: RELEASE (Post-Purchasing Approval) ═══
+            $this->postPurchasingApproverStep(10, 'General Manager PT', $roles['general_manager_pt'], 'Approver 6'),
+            $this->postPurchasingApproverStep(11, 'Direktur PT', $roles['direktur_pt'], 'Final Approver'),
             $this->releaserStep(12, 'Manager FATP', $roles['manager_fatp'], 'Releaser'),
 
             // ═══ FINAL STEP (dynamic order) ═══
@@ -391,8 +391,37 @@ class DynamicWorkflowSeeder extends Seeder
     }
 
     /**
-     * Create Releaser step definition
+     * Create post-purchasing Approver step definition.
+     * These are regular approver steps positioned AFTER purchasing.
+     * Phase: RELEASE (sequential position after procurement)
+     * Type: approver (NOT releaser — they approve, not release)
+     */
+    private function postPurchasingApproverStep(
+        int $stepNumber,
+        string $name,
+        ?Role $role,
+        ?string $customName = null
+    ): object {
+        return (object) [
+            'step_number' => $stepNumber,
+            'step_name' => $customName ?? $name,
+            'step_type' => 'approver',
+            'step_phase' => 'release', // Phase 3: positioned after purchasing
+            'approver_type' => 'role',
+            'approver_id' => null,
+            'approver_role_id' => $role?->id,
+            'approver_department_id' => null,
+            'scope_process' => $customName ?? 'Approve',
+            'required_action' => 'approve',
+            'can_insert_step' => false,
+            'is_conditional' => false,
+        ];
+    }
+
+    /**
+     * Create Releaser step definition (final release step).
      * Phase: RELEASE (after purchasing complete)
+     * Type: releaser — this is the final release/sign-off step.
      */
     private function releaserStep(int $stepNumber, string $name, ?Role $role, ?string $customName = null): object
     {
