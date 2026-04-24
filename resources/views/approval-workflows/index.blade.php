@@ -63,9 +63,6 @@
                     <th class="w-1/4 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Nama & Tipe
                     </th>
-                    <th class="w-24 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Sifat Pengadaan
-                    </th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Steps
                     </th>
@@ -93,17 +90,6 @@
                                 {{ Str::limit($workflow->description, 30) }}
                             </div>
                         </div>
-                    </td>
-                    <td class="w-24 px-4 py-4 text-center">
-                        @if($workflow->procurementType)
-                            <span class="inline-block px-3 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 whitespace-nowrap">
-                                {{ $workflow->procurementType->code }}
-                            </span>
-                        @else
-                            <span class="inline-block px-3 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
-                                -
-                            </span>
-                        @endif
                     </td>
                     <td class="px-4 py-4">
                         <div class="min-w-0">
