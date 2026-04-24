@@ -37,6 +37,48 @@ class PurchasingApiController extends Controller
         $this->purchasingItemService = $purchasingItemService;
     }
 
+    private function getDynamicWorkflowSteps(PurchasingItem $item, $canPurchasing, $canVendor) {
+        $steps = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->whereIn('step_phase', ['purchasing', 'release'])
+            ->orderBy('step_number')
+            ->get();
+            
+        $step1Done = !empty($item->approvalRequest?->received_at);
+        $step2Done = $item->vendors()->exists();
+        
+        $trialStep = $steps->firstWhere('required_action', 'purchasing_trial');
+        $hasTrial  = $trialStep !== null;
+        $trialDone = $trialStep && $trialStep->status === 'approved';
+
+        $effectiveTrialDone = !$hasTrial || $trialDone;
+
+        $step3Done = !empty($item->preferred_vendor_id);
+        $step4Done = !empty($item->po_number);
+        $step5Done = !empty($item->invoice_number);
+
+        return [
+            'can_set_received_date' => $canPurchasing,
+            'can_do_benchmarking'   => $canPurchasing && $step1Done,
+            'can_do_trial'          => $canPurchasing && $step2Done && $hasTrial,
+            'can_select_preferred'  => $canVendor     && $step2Done && $effectiveTrialDone,
+            'can_issue_po'          => $canPurchasing && $step3Done,
+            'can_input_invoice'     => $canPurchasing && $step4Done,
+            'can_mark_done'         => $canPurchasing && $step5Done,
+            
+            'step1_done' => $step1Done,
+            'step2_done' => $step2Done,
+            'trial_done' => $trialDone,
+            'step3_done' => $step3Done,
+            'step4_done' => $step4Done,
+            'step5_done' => $step5Done,
+            
+            'has_trial_step' => $hasTrial,
+            'dynamic_steps'  => $steps->toArray(),
+        ];
+    }
+
+
     /**
      * List purchasing items
      */
@@ -110,26 +152,7 @@ class PurchasingApiController extends Controller
             $itemArray['status_changed_at'] = $item->status_changed_at ? \Carbon\Carbon::parse($item->status_changed_at)->toIso8601String() : null;
             $itemArray['grn_date']        = $item->grn_date ? \Carbon\Carbon::parse($item->grn_date)->toIso8601String() : null;
 
-            // Sequential gating
-            $step1Done = !empty($item->approvalRequest?->received_at);
-            $step2Done = $item->vendors()->exists();
-            $step3Done = !empty($item->preferred_vendor_id);
-            $step4Done = !empty($item->po_number);
-            $step5Done = !empty($item->invoice_number);
-
-            $itemArray['workflow_steps'] = [
-                'can_set_received_date'    => $canPurchasing,
-                'can_do_benchmarking'      => $canPurchasing && $step1Done,
-                'can_select_preferred'     => $canVendor     && $step2Done,
-                'can_issue_po'             => $canPurchasing && $step3Done,
-                'can_input_invoice'        => $canPurchasing && $step4Done,
-                'can_mark_done'            => $canPurchasing && $step5Done,
-                'step1_done' => $step1Done,
-                'step2_done' => $step2Done,
-                'step3_done' => $step3Done,
-                'step4_done' => $step4Done,
-                'step5_done' => $step5Done,
-            ];
+            $itemArray['workflow_steps'] = $this->getDynamicWorkflowSteps($item, $canPurchasing, $canVendor);
             return $itemArray;
         })->values()->all();
 
@@ -163,6 +186,7 @@ class PurchasingApiController extends Controller
             'masterItem', 
             'preferredVendor', 
             'vendors.supplier', 
+            'vendors.latestTrial',
             'statusChanger'
         ])->find($id);
 
@@ -183,25 +207,7 @@ class PurchasingApiController extends Controller
         $canPurchasing = $user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item');
         $canVendor     = $user->hasPermission('manage_vendor');
 
-        $step1Done = !empty($item->approvalRequest?->received_at);
-        $step2Done = $item->vendors()->exists();
-        $step3Done = !empty($item->preferred_vendor_id);
-        $step4Done = !empty($item->po_number);
-        $step5Done = !empty($item->invoice_number);
-
-        $itemArray['workflow_steps'] = [
-            'can_set_received_date' => $canPurchasing,
-            'can_do_benchmarking'   => $canPurchasing && $step1Done,
-            'can_select_preferred'  => $canVendor     && $step2Done,
-            'can_issue_po'          => $canPurchasing && $step3Done,
-            'can_input_invoice'     => $canPurchasing && $step4Done,
-            'can_mark_done'         => $canPurchasing && $step5Done,
-            'step1_done' => $step1Done,
-            'step2_done' => $step2Done,
-            'step3_done' => $step3Done,
-            'step4_done' => $step4Done,
-            'step5_done' => $step5Done,
-        ];
+        $itemArray['workflow_steps'] = $this->getDynamicWorkflowSteps($item, $canPurchasing, $canVendor);
         $itemArray['user_permissions'] = [
             'can_manage_purchasing' => $canPurchasing,
             'can_select_preferred'  => $canVendor,
@@ -214,47 +220,77 @@ class PurchasingApiController extends Controller
         ]);
     }
 
-    /**
-     * Save benchmarking data
-     */
-    public function saveBenchmarking(Request $request, $id): JsonResponse
+    public function receiveDocAndBenchmarking(Request $request, $id): JsonResponse
     {
-        // Permission check: hanya manage_purchasing
         if (!Auth::user()->hasPermission('manage_purchasing') && !Auth::user()->hasPermission('process_purchasing_item')) {
-            return response()->json(['status' => 'error', 'message' => 'Akses ditolak. Hanya tim purchasing yang dapat mengisi benchmarking.'], 403);
+            return response()->json(['status' => 'error', 'message' => 'Akses ditolak.'], 403);
         }
 
         $validated = $request->validate([
-            'vendors'                  => 'required|array|min:1',
-            'vendors.*.supplier_id'    => 'required|exists:suppliers,id',
-            'vendors.*.unit_price'     => 'nullable|numeric|min:0',
-            'vendors.*.total_price'    => 'nullable|numeric|min:0',
-            'vendors.*.notes'          => 'nullable|string',
+            'received_at' => 'required|date',
+            'vendors' => 'required|array|min:1',
+            'vendors.*.supplier_id' => 'required|exists:suppliers,id',
+            'vendors.*.unit_price' => 'nullable|numeric|min:0',
+            'vendors.*.total_price' => 'nullable|numeric|min:0',
+            'vendors.*.notes' => 'nullable|string',
+            'benchmark_notes' => 'nullable|string',
         ]);
 
         $item = PurchasingItem::with('approvalRequest')->find($id);
-
         if (!$item) {
             return response()->json(['status' => 'error', 'message' => 'Purchasing item tidak ditemukan'], 404);
         }
 
-        // Step 1 harus selesai dulu (received_at diisi)
-        if (empty($item->approvalRequest?->received_at)) {
+        try {
+            $updatedItem = $this->purchasingItemService->receiveDocAndBenchmarking(
+                $item, 
+                Carbon::parse($validated['received_at']), 
+                $validated['vendors'], 
+                $validated['benchmark_notes'] ?? null
+            );
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Tanggal dokumen dan benchmarking berhasil disimpan',
+                'data'    => $updatedItem->load(['vendors.supplier']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function saveTrial(Request $request, $id): JsonResponse
+    {
+        if (!Auth::user()->hasPermission('manage_purchasing') && !Auth::user()->hasPermission('process_purchasing_item')) {
+            return response()->json(['status' => 'error', 'message' => 'Akses ditolak.'], 403);
+        }
+
+        $validated = $request->validate([
+            'trials' => 'required|array|min:1',
+            'trials.*.purchasing_item_vendor_id' => 'required|integer',
+            'trials.*.trial_notes' => 'nullable|string|max:2000',
+        ]);
+
+        $item = PurchasingItem::find($id);
+        if (!$item) {
+            return response()->json(['status' => 'error', 'message' => 'Purchasing item tidak ditemukan'], 404);
+        }
+
+        if (!$item->vendors()->exists()) {
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Tanggal dokumen diterima (Step 1) harus diisi terlebih dahulu sebelum benchmarking.',
+                'message' => 'Benchmarking vendor harus diisi terlebih dahulu sebelum trial.',
             ], 422);
         }
 
         try {
-            $updatedItem = $this->purchasingItemService->saveBenchmarking($item, $validated['vendors']);
+            $updatedItem = $this->purchasingItemService->saveTrial($item, $validated['trials']);
             return response()->json([
                 'status'  => 'success',
-                'message' => 'Benchmarking data berhasil disimpan',
-                'data'    => $updatedItem->load(['vendors.supplier']),
+                'message' => 'Trial notes berhasil disimpan',
+                'data'    => $updatedItem->load(['vendors.supplier', 'vendors.latestTrial']),
             ]);
         } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => 'Gagal menyimpan benchmarking data: ' . $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => 'Gagal menyimpan trial: ' . $e->getMessage()], 500);
         }
     }
 
@@ -283,11 +319,25 @@ class PurchasingApiController extends Controller
             ], 403);
         }
 
-        // Step 2 must be done before step 3
-        if (!$item->vendors()->exists()) {
+        // Verify supplier exists in benchmarking
+        $supplierInBenchmarking = $item->vendors()->where('supplier_id', $validated['supplier_id'])->first();
+        if (!$supplierInBenchmarking) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Supplier tidak ditemukan dalam daftar benchmarking vendors item ini',
+            ], 422);
+        }
+
+        // Check if there is a trial step that must be completed
+        $trialStep = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->where('required_action', 'purchasing_trial')
+            ->first();
+
+        if ($trialStep && $trialStep->status !== 'approved') {
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Benchmarking vendor harus diisi terlebih dahulu sebelum memilih preferred vendor.',
+                'message' => 'Trial (Step sebelumnya) harus diselesaikan terlebih dahulu.',
             ], 422);
         }
 
@@ -365,162 +415,47 @@ class PurchasingApiController extends Controller
         }
     }
 
-    /**
-     * Receive GRN
-     */
-    public function receiveGRN(Request $request, $id): JsonResponse
+    public function invoiceGrnDone(Request $request, $id): JsonResponse
     {
-        // Permission check: hanya manage_purchasing
         if (!Auth::user()->hasPermission('manage_purchasing') && !Auth::user()->hasPermission('process_purchasing_item')) {
-            return response()->json(['status' => 'error', 'message' => 'Akses ditolak. Hanya tim purchasing yang dapat input GRN \u0026 Invoice.'], 403);
+            return response()->json(['status' => 'error', 'message' => 'Akses ditolak.'], 403);
         }
 
         $validated = $request->validate([
             'invoice_number' => 'required|string|max:100',
             'grn_date' => 'required|date',
+            'done_notes' => 'nullable|string|max:1000',
         ]);
 
         $item = PurchasingItem::find($id);
-
         if (!$item) {
             return response()->json(['status' => 'error', 'message' => 'Purchasing item tidak ditemukan'], 404);
         }
 
-        // Step 4 harus selesai dulu (po_number diisi)
         if (empty($item->po_number)) {
             return response()->json([
                 'status'  => 'error',
-                'message' => 'PO Number (Step 4) harus diisi terlebih dahulu sebelum input GRN \u0026 Invoice.',
+                'message' => 'PO Number harus diisi terlebih dahulu.',
             ], 422);
         }
 
         try {
-            $grnDate     = Carbon::parse($validated['grn_date']);
-            $updatedItem = $this->purchasingItemService->receiveGRN($item, $grnDate);
-            $item->update(['invoice_number' => $validated['invoice_number']]);
-
+            $updatedItem = $this->purchasingItemService->invoiceGrnDone(
+                $item, 
+                $validated['invoice_number'], 
+                Carbon::parse($validated['grn_date']), 
+                $validated['done_notes'] ?? null
+            );
             return response()->json([
                 'status'  => 'success',
-                'message' => 'Invoice dan GRN berhasil disimpan',
+                'message' => 'Invoice, GRN, dan DONE berhasil disimpan',
                 'data'    => $updatedItem->fresh(),
             ]);
         } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => 'Gagal menyimpan GRN \u0026 Invoice: ' . $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => 'Gagal menyimpan data: ' . $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Set received date on the approval request (Step 1)
-     * Requires: manage_purchasing
-     */
-    public function setReceivedDate(Request $request, $id): JsonResponse
-    {
-        if (!Auth::user()->hasPermission('manage_purchasing') && !Auth::user()->hasPermission('process_purchasing_item')) {
-            return response()->json(['status' => 'error', 'message' => 'Akses ditolak.'], 403);
-        }
-
-        $validated = $request->validate([
-            'received_at' => 'required|date',
-        ]);
-
-        $item = PurchasingItem::with('approvalRequest')->find($id);
-        if (!$item) {
-            return response()->json(['status' => 'error', 'message' => 'Purchasing item tidak ditemukan'], 404);
-        }
-
-        try {
-            $updatedItem = $this->purchasingItemService->setReceivedDate($item, Carbon::parse($validated['received_at']));
-            return response()->json([
-                'status'  => 'success',
-                'message' => 'Tanggal dokumen berhasil disimpan',
-                'data'    => $updatedItem,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Save invoice number (Step 5)
-     * Requires: manage_purchasing, gated by po_number
-     */
-    public function saveInvoice(Request $request, $id): JsonResponse
-    {
-        if (!Auth::user()->hasPermission('manage_purchasing') && !Auth::user()->hasPermission('process_purchasing_item')) {
-            return response()->json(['status' => 'error', 'message' => 'Akses ditolak.'], 403);
-        }
-
-        $validated = $request->validate([
-            'invoice_number' => 'required|string|max:255',
-        ]);
-
-        $item = PurchasingItem::find($id);
-        if (!$item) {
-            return response()->json(['status' => 'error', 'message' => 'Purchasing item tidak ditemukan'], 404);
-        }
-
-        if (empty($item->po_number)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'PO Number harus diisi terlebih dahulu sebelum input Invoice.',
-            ], 422);
-        }
-
-        try {
-            $item->update(['invoice_number' => $validated['invoice_number']]);
-            return response()->json([
-                'status'  => 'success',
-                'message' => 'Nomor invoice berhasil disimpan',
-                'data'    => $item->fresh(),
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Mark done
-     */
-    public function markDone(Request $request, $id): JsonResponse
-    {
-        // Permission check: hanya manage_purchasing
-        if (!Auth::user()->hasPermission('manage_purchasing') && !Auth::user()->hasPermission('process_purchasing_item')) {
-            return response()->json(['status' => 'error', 'message' => 'Akses ditolak. Hanya tim purchasing yang dapat menandai selesai.'], 403);
-        }
-
-        $validated = $request->validate([
-            'done_notes' => 'nullable|string',
-        ]);
-
-        $item = PurchasingItem::find($id);
-
-        if (!$item) {
-            return response()->json(['status' => 'error', 'message' => 'Purchasing item tidak ditemukan'], 404);
-        }
-
-        // Step 5 harus selesai (invoice_number diisi)
-        if (empty($item->invoice_number)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Nomor Invoice (Step 5) harus diisi terlebih dahulu sebelum menandai selesai.',
-            ], 422);
-        }
-
-        try {
-            $updatedItem = $this->purchasingItemService->markDone($item, $validated['done_notes'] ?? null);
-            return response()->json([
-                'status'  => 'success',
-                'message' => 'Purchasing item berhasil ditandai selesai',
-                'data'    => $updatedItem,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => 'Gagal menandai selesai: ' . $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Get Status By Request
-     */
     public function statusByRequest($approvalRequestId): JsonResponse
     {
         $items = PurchasingItem::with(['statusChanger'])->where('approval_request_id', $approvalRequestId)->get();

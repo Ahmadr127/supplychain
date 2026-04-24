@@ -137,13 +137,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // ----------------------------------------------------------------
     Route::get('/purchasing/items', [PurchasingApiController::class, 'index']);
     Route::get('/purchasing/items/{id}', [PurchasingApiController::class, 'show']);
-    Route::post('/purchasing/items/{id}/set-received-date', [PurchasingApiController::class, 'setReceivedDate']);
-    Route::post('/purchasing/items/{id}/benchmark', [PurchasingApiController::class, 'saveBenchmarking']);
+    Route::post('/purchasing/items/{id}/receive-doc-benchmark', [PurchasingApiController::class, 'receiveDocAndBenchmarking']);
+    Route::post('/purchasing/items/{id}/trial', [PurchasingApiController::class, 'saveTrial']);
     Route::post('/purchasing/items/{id}/select-vendor', [PurchasingApiController::class, 'selectPreferred']);
     Route::post('/purchasing/items/{id}/issue-po', [PurchasingApiController::class, 'issuePO']);
-    Route::post('/purchasing/items/{id}/save-invoice', [PurchasingApiController::class, 'saveInvoice']);
-    Route::post('/purchasing/items/{id}/receive-grn', [PurchasingApiController::class, 'receiveGRN']);
-    Route::post('/purchasing/items/{id}/mark-done', [PurchasingApiController::class, 'markDone']);
+    Route::post('/purchasing/items/{id}/invoice-grn-done', [PurchasingApiController::class, 'invoiceGrnDone']);
     Route::get('/purchasing/status-by-request', [PurchasingApiController::class, 'statusByRequest']);
 
     // ----------------------------------------------------------------
