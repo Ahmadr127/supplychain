@@ -48,6 +48,10 @@
         $displayStatus = 'Cancelled';
         $colors = ['bg' => 'bg-gray-500', 'text' => 'text-white', 'border' => 'border-transparent'];
         $subtleColors = ['bg' => 'bg-gray-100', 'text' => 'text-gray-800', 'border' => 'border-gray-200'];
+    } elseif ($actualStatus == 'skipped') {
+        $displayStatus = 'Dilewati';
+        $colors = ['bg' => 'bg-gray-400', 'text' => 'text-white', 'border' => 'border-transparent'];
+        $subtleColors = ['bg' => 'bg-gray-100', 'text' => 'text-gray-500', 'border' => 'border-gray-200'];
     }
 
     // Select color scheme based on variant

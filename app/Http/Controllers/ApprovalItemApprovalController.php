@@ -434,7 +434,6 @@ class ApprovalItemApprovalController extends Controller
     {
         $request->validate([
             'comments' => 'required|string|max:1000',
-            'rejected_reason' => 'required|string|max:500',
         ]);
 
         try {
@@ -454,19 +453,29 @@ class ApprovalItemApprovalController extends Controller
 
             // Mark current step as rejected
             $currentStep->update([
-                'status' => 'rejected',
+                'status'      => 'rejected',
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
-                'rejected_reason' => $request->rejected_reason,
-                'comments' => $request->comments,
+                'comments'    => $request->comments,
             ]);
+
+            // Auto-skip all remaining steps after the rejected one
+            ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                ->where('approval_request_item_id', $item->id)
+                ->where('step_number', '>', $currentStep->step_number)
+                ->whereNotIn('status', ['approved', 'rejected', 'skipped'])
+                ->update([
+                    'status'      => 'skipped',
+                    'approved_by' => auth()->id(),
+                    'approved_at' => now(),
+                    'comments'    => 'Otomatis dilewati karena step sebelumnya ditolak.',
+                ]);
 
             // Mark item as rejected
             $item->update([
-                'status'          => 'rejected',
-                'approved_by'     => auth()->id(),
-                'approved_at'     => now(),
-                'rejected_reason' => $request->rejected_reason,
+                'status'      => 'rejected',
+                'approved_by' => auth()->id(),
+                'approved_at' => now(),
             ]);
 
             // Release CapEx reservation jika ada
@@ -482,10 +491,10 @@ class ApprovalItemApprovalController extends Controller
             }
 
             Log::info('Item rejected', [
-                'item_id' => $item->id,
+                'item_id'     => $item->id,
                 'step_number' => $currentStep->step_number,
                 'approver_id' => auth()->id(),
-                'reason' => $request->rejected_reason,
+                'reason'      => $request->comments,
             ]);
 
             // Aggregate request status (will mark request as rejected if any item rejected)
@@ -493,7 +502,7 @@ class ApprovalItemApprovalController extends Controller
             $approvalRequest->refresh();
             
             if ($approvalRequest->status === 'rejected') {
-                app(\App\Services\NotificationService::class)->notifyRequesterRejected($approvalRequest, $request->rejected_reason);
+                app(\App\Services\NotificationService::class)->notifyRequesterRejected($approvalRequest, $request->comments);
             }
 
             DB::commit();
@@ -571,10 +580,9 @@ class ApprovalItemApprovalController extends Controller
 
             // Update item status to pending
             $item->update([
-                'status' => 'pending',
+                'status'      => 'pending',
                 'approved_by' => null,
                 'approved_at' => null,
-                'rejected_reason' => null,
             ]);
 
             Log::info('Item reset to pending', [

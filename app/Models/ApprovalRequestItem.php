@@ -30,7 +30,6 @@ class ApprovalRequestItem extends Model
         'reviewed_at',
         'approved_by',
         'approved_at',
-        'rejected_reason',
         'capex_item_id',
     ];
 

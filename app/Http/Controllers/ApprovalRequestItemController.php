@@ -84,8 +84,7 @@ class ApprovalRequestItemController extends Controller
             return back()->with('error', 'Item tidak dapat di-reject dari status saat ini.');
         }
         $approvalItem->update([
-            'status' => 'rejected',
-            'rejected_reason' => $data['reason'],
+            'status'      => 'rejected',
             'approved_by' => null,
             'approved_at' => null,
         ]);

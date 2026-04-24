@@ -28,7 +28,6 @@ class ApprovalItemStep extends Model
         'approved_by',
         'approved_at',
         'comments',
-        'rejected_reason',
         'required_action',
         'step_type',      // maker, approver, releaser
         'step_phase',     // approval, release

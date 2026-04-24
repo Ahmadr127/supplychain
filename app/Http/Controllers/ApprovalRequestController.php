@@ -978,19 +978,17 @@ class ApprovalRequestController extends Controller
 
         // Update item status
         $item->update([
-            'status' => 'rejected',
-            'rejected_reason' => $data['reason'],
-            'approved_by' => null, // Reset approved_by if rejected? Or keep it? Usually rejected items don't have approved_by.
+            'status'      => 'rejected',
+            'approved_by' => null,
             'approved_at' => null,
         ]);
         
         // Update step status
         $currentStep->update([
-            'status' => 'rejected',
+            'status'      => 'rejected',
             'approved_by' => auth()->id(),
             'approved_at' => now(),
-            'rejected_reason' => $data['reason'],
-            'comments' => $request->comments
+            'comments'    => $data['reason'],
         ]);
         
         // $approvalRequest->refreshStatus(); // REMOVED: Status is per-item
@@ -1864,8 +1862,20 @@ class ApprovalRequestController extends Controller
             }
 
             if ($newStatus === 'rejected') {
-                // If rejected, mark item as rejected
+                // Mark item as rejected
                 $approvalRequestItem->update(['status' => 'rejected']);
+
+                // Auto-skip all remaining steps after the rejected one
+                \App\Models\ApprovalItemStep::where('approval_request_id', $validated['approval_request_id'])
+                    ->where('master_item_id', $validated['master_item_id'])
+                    ->where('step_number', '>', $step->step_number)
+                    ->whereNotIn('status', ['approved', 'rejected', 'skipped'])
+                    ->update([
+                        'status'      => 'skipped',
+                        'approved_by' => $user->id,
+                        'approved_at' => now(),
+                        'comments'    => 'Otomatis dilewati karena step sebelumnya ditolak.',
+                    ]);
             } else {
                 // If approved, check if all steps for this item are approved
                 $allSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $validated['approval_request_id'])
