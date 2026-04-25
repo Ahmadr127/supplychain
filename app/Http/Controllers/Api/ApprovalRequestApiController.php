@@ -126,7 +126,12 @@ class ApprovalRequestApiController extends Controller
                 // Override display status based on the user's interaction point
                 // if it's not natively fully approved or rejected
                 if (!in_array($item->status, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released'])) {
-                    if ($isPendingForMe) {
+                    $isPendingForAnyone = $item->steps->contains(function ($s) {
+                        $phase = $s->step_phase ?? 'approval';
+                        return in_array($phase, ['approval', 'release']) && $s->status === 'pending';
+                    });
+                    
+                    if ($isPendingForMe || $isPendingForAnyone) {
                         $item->status = 'pending';
                     } elseif ($hasActioned) {
                         $item->status = 'on progress'; // User has done their part, it's being processed further
@@ -141,11 +146,20 @@ class ApprovalRequestApiController extends Controller
             if ($myItems->isEmpty()) return null;
 
             $isPending = $myItems->contains(function ($i) use ($userId) {
+                $step = $i->steps->first(function ($s) use ($userId) {
+                    $phase = $s->step_phase ?? 'approval';
+                    return in_array($phase, ['approval', 'release']) 
+                        && $s->status === 'pending'
+                        && $s->canApprove($userId);
+                });
+                return $step !== null;
+            });
+            $isPendingGlobally = $myItems->contains(function ($i) {
                 $step = $i->steps->first(function ($s) {
                     $phase = $s->step_phase ?? 'approval';
                     return in_array($phase, ['approval', 'release']) && $s->status === 'pending';
                 });
-                return $step && $step->canApprove($userId);
+                return $step !== null;
             });
             $isRejected = $myItems->contains(
                 fn($i) => $i->steps
@@ -156,7 +170,11 @@ class ApprovalRequestApiController extends Controller
             );
             $isActionedByMe = $myItems->contains(fn($i) => $i->status === 'on progress');
 
-            $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : ($isActionedByMe ? 'on progress' : 'approved'));
+            // If pending for anyone, overall request is pending. It only drops to on_progress if it is in purchasing.
+            $computedStatus = $isPending ? 'pending' : 
+                                ($isRejected ? 'rejected' : 
+                                ($isPendingGlobally ? 'pending' : 
+                                ($isActionedByMe ? 'on progress' : 'approved')));
 
             $req->status = $computedStatus;
             $req->setRelation('items', $myItems);
