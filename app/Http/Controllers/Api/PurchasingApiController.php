@@ -57,14 +57,19 @@ class PurchasingApiController extends Controller
         $step4Done = !empty($item->po_number);
         $step5Done = !empty($item->invoice_number);
 
+        $pendingReleaseStepsCount = $steps->where('step_phase', 'release')->whereIn('status', ['pending', 'pending_purchase'])->count();
+        $isReleaseFinished = $pendingReleaseStepsCount === 0;
+
         return [
             'can_set_received_date' => $canPurchasing,
             'can_do_benchmarking'   => $canPurchasing,
             'can_do_trial'          => $canPurchasing && $step2Done && $hasTrial,
             'can_select_preferred'  => $canVendor     && $step2Done && $effectiveTrialDone,
             'can_issue_po'          => $canPurchasing && $step3Done,
-            'can_input_invoice'     => $canPurchasing && $step4Done,
-            'can_mark_done'         => $canPurchasing && $step4Done,
+            'can_input_invoice'     => $canPurchasing && $step4Done && $isReleaseFinished,
+            'can_mark_done'         => $canPurchasing && $step4Done && $isReleaseFinished,
+            
+            'is_release_finished'   => $isReleaseFinished,
             
             'step1_done' => $step1Done,
             'step2_done' => $step2Done,
