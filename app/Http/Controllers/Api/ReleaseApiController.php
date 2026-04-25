@@ -223,20 +223,10 @@ class ReleaseApiController extends Controller
             $nextStep->update(['status' => 'pending']);
             $this->notificationService->notifyReleaseApprover($nextStep);
         } else {
-            // All release steps approved
+            // All release steps approved — mark the approval_request_item as approved,
+            // but do NOT set purchasing_item to 'done' yet.
+            // The purchasing team still needs to input Invoice & GRN via invoiceGrnDone().
             $item->update(['status' => 'approved']);
-            
-            $purchasingItem = \App\Models\PurchasingItem::where('approval_request_id', $item->approval_request_id)
-                ->where('master_item_id', $item->master_item_id)
-                ->first();
-                
-            if ($purchasingItem) {
-                $purchasingItem->update([
-                    'status' => 'done',
-                    'status_changed_at' => now(),
-                    'status_changed_by' => auth()->id()
-                ]);
-            }
 
             $this->notificationService->notifyReleaseStatusChange($item, 'approved', $request->input('comments', ''));
         }

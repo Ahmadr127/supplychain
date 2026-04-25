@@ -57,8 +57,13 @@ class PurchasingApiController extends Controller
         $step4Done = !empty($item->po_number);
         $step5Done = !empty($item->invoice_number);
 
-        $pendingReleaseStepsCount = $steps->where('step_phase', 'release')->whereIn('status', ['pending', 'pending_purchase'])->count();
-        $isReleaseFinished = $pendingReleaseStepsCount === 0;
+        $releaseSteps = $steps->where('step_phase', 'release');
+        $releaseStepTotal = $releaseSteps->count();
+        $pendingReleaseStepsCount = $releaseSteps->whereIn('status', ['pending', 'pending_purchase'])->count();
+        // Release is finished when: either there are no release steps at all, OR all release steps are approved (none pending)
+        // Release is NOT finished if there are release steps but none have been approved yet (all still pending_purchase)
+        $approvedReleaseCount = $releaseSteps->where('status', 'approved')->count();
+        $isReleaseFinished = $releaseStepTotal === 0 || ($approvedReleaseCount === $releaseStepTotal && $releaseStepTotal > 0);
 
         return [
             'can_set_received_date' => $canPurchasing,
