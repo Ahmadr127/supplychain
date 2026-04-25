@@ -59,12 +59,12 @@ class PurchasingApiController extends Controller
 
         return [
             'can_set_received_date' => $canPurchasing,
-            'can_do_benchmarking'   => $canPurchasing && $step1Done,
+            'can_do_benchmarking'   => $canPurchasing,
             'can_do_trial'          => $canPurchasing && $step2Done && $hasTrial,
             'can_select_preferred'  => $canVendor     && $step2Done && $effectiveTrialDone,
             'can_issue_po'          => $canPurchasing && $step3Done,
             'can_input_invoice'     => $canPurchasing && $step4Done,
-            'can_mark_done'         => $canPurchasing && $step5Done,
+            'can_mark_done'         => $canPurchasing && $step4Done,
             
             'step1_done' => $step1Done,
             'step2_done' => $step2Done,
