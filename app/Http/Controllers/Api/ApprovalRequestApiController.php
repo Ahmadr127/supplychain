@@ -88,9 +88,9 @@ class ApprovalRequestApiController extends Controller
 
         $allRequests = ApprovalRequest::with(['requester', 'items.masterItem', 'items.steps.approver'])
             ->whereHas('items.steps', function ($q) use ($user) {
-                // Only consider approval-phase steps for "pending approvals".
+                // Only consider approval and release phase steps for "pending approvals".
                 $q->where(function ($phaseQ) {
-                    $phaseQ->where('step_phase', 'approval')->orWhereNull('step_phase');
+                    $phaseQ->whereIn('step_phase', ['approval', 'release'])->orWhereNull('step_phase');
                 });
                 // No "eligibility" pre-filter here:
                 // - approver resolution can depend on department manager relationships and allocation department
@@ -105,17 +105,17 @@ class ApprovalRequestApiController extends Controller
 
         $filtered = $allRequests->map(function ($req) use ($userId) {
             $myItems = $req->items->map(function ($item) use ($userId) {
-                // Use only pending steps in approval phase (ignore release-phase pending steps).
+                // Use only pending steps in approval or release phase (ignore purchasing-phase).
                 $step = $item->steps->first(function ($s) {
                     $phase = $s->step_phase ?? 'approval';
-                    return $phase === 'approval' && $s->status === 'pending';
+                    return in_array($phase, ['approval', 'release']) && $s->status === 'pending';
                 });
                 $isPendingForMe = $step && $step->canApprove($userId);
                 
                 $hasActioned = $item->steps->contains(function ($s) use ($userId) {
                     $phase = $s->step_phase ?? 'approval';
                     return (int) $s->approved_by === (int) $userId
-                        && $phase === 'approval'
+                        && in_array($phase, ['approval', 'release'])
                         && in_array($s->status, ['approved', 'rejected'], true);
                 });
                 
@@ -143,7 +143,7 @@ class ApprovalRequestApiController extends Controller
             $isPending = $myItems->contains(function ($i) use ($userId) {
                 $step = $i->steps->first(function ($s) {
                     $phase = $s->step_phase ?? 'approval';
-                    return $phase === 'approval' && $s->status === 'pending';
+                    return in_array($phase, ['approval', 'release']) && $s->status === 'pending';
                 });
                 return $step && $step->canApprove($userId);
             });
@@ -151,7 +151,7 @@ class ApprovalRequestApiController extends Controller
                 fn($i) => $i->steps
                     ->where('approved_by', $userId)
                     ->where('status', 'rejected')
-                    ->where(fn($s) => ($s->step_phase ?? 'approval') === 'approval')
+                    ->filter(fn($s) => in_array(($s->step_phase ?? 'approval'), ['approval', 'release']))
                     ->isNotEmpty()
             );
             $isActionedByMe = $myItems->contains(fn($i) => $i->status === 'on progress');
@@ -247,7 +247,7 @@ class ApprovalRequestApiController extends Controller
                 $hasActioned = $item->steps->contains(function ($s) use ($userId) {
                     $phase = $s->step_phase ?? 'approval';
                     return (int) $s->approved_by === (int) $userId
-                        && $phase === 'approval'
+                        && in_array($phase, ['approval', 'release'])
                         && in_array($s->status, ['approved', 'rejected'], true);
                 });
                 
