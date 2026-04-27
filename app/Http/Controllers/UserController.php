@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Department;
 use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -48,32 +49,43 @@ class UserController extends Controller
     public function create()
     {
         $roles = Role::all();
-        return view('users.create', compact('roles'));
+        $departments = Department::active()->orderBy('name')->get();
+        return view('users.create', compact('roles', 'departments'));
     }
 
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'nik' => 'nullable|string|max:50|unique:users',
-            'username' => 'required|string|max:255|unique:users',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|confirmed',
-            'role_id' => 'required|exists:roles,id'
+            'name'          => 'required|string|max:255',
+            'nik'           => 'nullable|string|max:50|unique:users',
+            'username'      => 'required|string|max:255|unique:users',
+            'email'         => 'required|string|email|max:255|unique:users',
+            'password'      => 'required|string|confirmed',
+            'role_id'       => 'required|exists:roles,id',
+            'department_id' => 'nullable|exists:departments,id',
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        User::create([
-            'name' => $request->name,
-            'nik' => $request->nik,
+        $user = User::create([
+            'name'     => $request->name,
+            'nik'      => $request->nik,
             'username' => $request->username,
-            'email' => $request->email,
+            'email'    => $request->email,
             'password' => Hash::make($request->password),
-            'role_id' => $request->role_id
+            'role_id'  => $request->role_id,
         ]);
+
+        // Attach departemen ke pivot table jika dipilih
+        if ($request->filled('department_id')) {
+            $user->departments()->attach($request->department_id, [
+                'is_primary'  => true,
+                'is_manager'  => false,
+                'start_date'  => now()->toDateString(),
+            ]);
+        }
 
         return redirect()->route('users.index')->with('success', 'User berhasil dibuat!');
     }
@@ -81,18 +93,20 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $roles = Role::all();
-        return view('users.edit', compact('user', 'roles'));
+        $departments = Department::active()->orderBy('name')->get();
+        return view('users.edit', compact('user', 'roles', 'departments'));
     }
 
     public function update(Request $request, User $user)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'nik' => 'nullable|string|max:50|unique:users,nik,' . $user->id,
-            'username' => 'required|string|max:255|unique:users,username,' . $user->id,
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'password' => 'nullable|string|confirmed',
-            'role_id' => 'required|exists:roles,id'
+            'name'          => 'required|string|max:255',
+            'nik'           => 'nullable|string|max:50|unique:users,nik,' . $user->id,
+            'username'      => 'required|string|max:255|unique:users,username,' . $user->id,
+            'email'         => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'password'      => 'nullable|string|confirmed',
+            'role_id'       => 'required|exists:roles,id',
+            'department_id' => 'nullable|exists:departments,id',
         ]);
 
         if ($validator->fails()) {
@@ -100,11 +114,11 @@ class UserController extends Controller
         }
 
         $data = [
-            'name' => $request->name,
-            'nik' => $request->nik,
+            'name'     => $request->name,
+            'nik'      => $request->nik,
             'username' => $request->username,
-            'email' => $request->email,
-            'role_id' => $request->role_id
+            'email'    => $request->email,
+            'role_id'  => $request->role_id,
         ];
 
         if ($request->filled('password')) {
@@ -112,6 +126,21 @@ class UserController extends Controller
         }
 
         $user->update($data);
+
+        // Sync departemen di pivot table
+        if ($request->filled('department_id')) {
+            // Ganti semua entri lama dengan departemen baru sebagai primary
+            $user->departments()->sync([
+                $request->department_id => [
+                    'is_primary' => true,
+                    'is_manager' => false,
+                    'start_date' => now()->toDateString(),
+                ],
+            ]);
+        } else {
+            // Jika tidak dipilih, lepas semua departemen
+            $user->departments()->detach();
+        }
 
         return redirect()->route('users.index')->with('success', 'User berhasil diperbarui!');
     }

@@ -80,6 +80,30 @@
         @enderror
     </div>
 
+    {{-- Departemen --}}
+    <div class="md:col-span-2">
+        <label for="department_id" class="block text-sm font-medium text-gray-700 mb-2">Departemen</label>
+        @php
+            $departmentOptions = $departments->map(fn($d) => [
+                'id'    => $d->id,
+                'label' => $d->code ? "[{$d->code}] {$d->name}" : $d->name,
+            ]);
+            $selectedDepartment = old('department_id',
+                isset($user) ? optional($user->departments()->wherePivot('is_primary', true)->first())->id ?? optional($user->departments()->first())->id : ''
+            );
+        @endphp
+        <x-searchable-select
+            name="department_id"
+            :options="$departmentOptions"
+            :selected="$selectedDepartment"
+            placeholder="Pilih Departemen"
+            searchPlaceholder="Cari departemen..."
+            width="w-full" />
+        @error('department_id')
+            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
     {{-- Submit Button --}}
     <div class="md:col-span-2 flex justify-end">
         <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
