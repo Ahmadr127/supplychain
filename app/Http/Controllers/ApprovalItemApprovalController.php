@@ -44,26 +44,20 @@ class ApprovalItemApprovalController extends Controller
         ];
         
         // Step with required_action 'input_price': require price input if not set
-        if ($currentStep && $currentStep->required_action == 'input_price' && ($item->unit_price === null || $item->unit_price <= 0)) {
-            $rules['unit_price'] = 'required|string|min:1'; // Accept string with dots
-            Log::info('🟨 Step requires price input (required_action: input_price)');
+        if ($currentStep && $currentStep->required_action == 'input_price') {
+            if ($item->unit_price === null || $item->unit_price <= 0) {
+                $rules['unit_price'] = 'required|string|min:1';
+            } else {
+                $rules['unit_price'] = 'nullable|string';
+            }
+            $rules['quantity'] = 'required|numeric|min:0.01';
+            Log::info('🟨 Step requires price and quantity input (required_action: input_price)');
         }
         
-        // Step with required_action 'verify_budget': require FS upload if total >= threshold
+        // Step with required_action 'verify_budget': FS upload is always required.
         if ($currentStep && $currentStep->required_action == 'verify_budget') {
-            $totalPrice = $item->quantity * ($item->unit_price ?? 0);
-            
-            // Use step's condition_value as threshold if available, otherwise use global setting
-            $fsThreshold = $currentStep->condition_value 
-                ? $currentStep->condition_value 
-                : \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-            
-            Log::info('🟨 Budget Verification Step: Total Price = Rp ' . number_format($totalPrice, 0, ',', '.') . ' | Threshold = Rp ' . number_format($fsThreshold, 0, ',', '.') . ' | Step condition_value = ' . ($currentStep->condition_value ?? 'NULL'));
-            
-            if ($totalPrice >= $fsThreshold) {
-                $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
-                Log::info('🟨 FS Document upload required (total >= threshold)');
-            }
+            $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
+            Log::info('🟨 FS Document upload required for verify_budget step');
         }
         
         $validated = $request->validate($rules);
@@ -128,29 +122,30 @@ class ApprovalItemApprovalController extends Controller
                     return back()->withErrors(['unit_price' => 'Harga harus lebih dari 0'])->withInput();
                 }
 
-                // Validasi budget CapEx sebelum update
+                // User request: Don't block approval even if capex budget is insufficient
                 if ($capexItemId) {
                     $capexItem = $capexItem ?? CapexItem::findOrFail($capexItemId);
-                    $totalForCapex = (int) ($itemData['quantity'] ?? $item->quantity) * $unitPrice;
+                    $newQuantity = (float) ($request->quantity ?? $item->quantity);
+                    $totalForCapex = $newQuantity * $unitPrice;
                     $allocationService = app(CapexAllocationService::class);
+                    
                     if (!$allocationService->hasSufficientBudget($capexItem, $totalForCapex)) {
-                        DB::rollBack();
                         $available = $allocationService->getAvailableBudget($capexItem);
-                        Log::error('🟥 Budget CapEx tidak mencukupi', [
+                        Log::warning('⚠️ Budget CapEx tidak mencukupi, but proceeding per user request', [
                             'capex_item_id' => $capexItemId,
                             'requested'     => $totalForCapex,
                             'available'     => $available,
                         ]);
-                        return back()->withErrors([
-                            'capex_item_id' => 'Budget CapEx tidak mencukupi. Tersedia: Rp ' . number_format($available, 0, ',', '.'),
-                        ])->withInput();
+                        // We proceed without returning error
                     }
                 }
 
-                Log::info('🟦 Updating item with price and capex...');
+                Log::info('🟦 Updating item with price, quantity and capex...');
+                $newQuantity = (float) ($request->quantity ?? $item->quantity);
                 $item->update([
                     'unit_price'         => $unitPrice,
-                    'total_price'        => $item->quantity * $unitPrice,
+                    'quantity'           => $newQuantity,
+                    'total_price'        => $newQuantity * $unitPrice,
                     'capex_item_id'      => $capexItemId,
                     'approved_price_by'  => auth()->id(),
                     'approved_price_at'  => now(),
@@ -268,12 +263,6 @@ class ApprovalItemApprovalController extends Controller
                 Log::info('⏭️ Skipping workflow re-evaluation (action not input_price)');
             }
             
-            // Handle quick insert step (if checkbox checked)
-            if ($request->has('quick_insert_step') && $currentStep->insert_step_template) {
-                Log::info('🟨 Quick insert step requested');
-                $this->handleQuickInsertStep($item, $currentStep);
-            }
-
             // Determine if current step is in release phase
             $isReleasePhase = ($currentStep->step_phase ?? 'approval') === 'release';
             
@@ -445,7 +434,6 @@ class ApprovalItemApprovalController extends Controller
     {
         $request->validate([
             'comments' => 'required|string|max:1000',
-            'rejected_reason' => 'required|string|max:500',
         ]);
 
         try {
@@ -465,19 +453,29 @@ class ApprovalItemApprovalController extends Controller
 
             // Mark current step as rejected
             $currentStep->update([
-                'status' => 'rejected',
+                'status'      => 'rejected',
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
-                'rejected_reason' => $request->rejected_reason,
-                'comments' => $request->comments,
+                'comments'    => $request->comments,
             ]);
+
+            // Auto-skip all remaining steps after the rejected one
+            ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                ->where('approval_request_item_id', $item->id)
+                ->where('step_number', '>', $currentStep->step_number)
+                ->whereNotIn('status', ['approved', 'rejected', 'skipped'])
+                ->update([
+                    'status'      => 'skipped',
+                    'approved_by' => auth()->id(),
+                    'approved_at' => now(),
+                    'comments'    => 'Otomatis dilewati karena step sebelumnya ditolak.',
+                ]);
 
             // Mark item as rejected
             $item->update([
-                'status'          => 'rejected',
-                'approved_by'     => auth()->id(),
-                'approved_at'     => now(),
-                'rejected_reason' => $request->rejected_reason,
+                'status'      => 'rejected',
+                'approved_by' => auth()->id(),
+                'approved_at' => now(),
             ]);
 
             // Release CapEx reservation jika ada
@@ -493,10 +491,10 @@ class ApprovalItemApprovalController extends Controller
             }
 
             Log::info('Item rejected', [
-                'item_id' => $item->id,
+                'item_id'     => $item->id,
                 'step_number' => $currentStep->step_number,
                 'approver_id' => auth()->id(),
-                'reason' => $request->rejected_reason,
+                'reason'      => $request->comments,
             ]);
 
             // Aggregate request status (will mark request as rejected if any item rejected)
@@ -504,7 +502,7 @@ class ApprovalItemApprovalController extends Controller
             $approvalRequest->refresh();
             
             if ($approvalRequest->status === 'rejected') {
-                app(\App\Services\NotificationService::class)->notifyRequesterRejected($approvalRequest, $request->rejected_reason);
+                app(\App\Services\NotificationService::class)->notifyRequesterRejected($approvalRequest, $request->comments);
             }
 
             DB::commit();
@@ -582,10 +580,9 @@ class ApprovalItemApprovalController extends Controller
 
             // Update item status to pending
             $item->update([
-                'status' => 'pending',
+                'status'      => 'pending',
                 'approved_by' => null,
                 'approved_at' => null,
-                'rejected_reason' => null,
             ]);
 
             Log::info('Item reset to pending', [
@@ -614,58 +611,4 @@ class ApprovalItemApprovalController extends Controller
         }
     }
 
-
-    
-    /**
-     * Handle quick insert step using template
-     */
-    private function handleQuickInsertStep(ApprovalRequestItem $item, ApprovalItemStep $currentStep): void
-    {
-        try {
-            $template = $currentStep->insert_step_template;
-            
-            // Renumber existing steps after current step
-            ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
-                ->where('approval_request_item_id', $item->id)
-                ->where('step_number', '>', $currentStep->step_number)
-                ->increment('step_number');
-            
-            // Create new step from template
-            ApprovalItemStep::create([
-                'approval_request_id' => $item->approval_request_id,
-                'approval_request_item_id' => $item->id,
-                'master_item_id' => $item->master_item_id,
-                'step_number' => $currentStep->step_number + 1,
-                'step_name' => $template['name'],
-                'approver_type' => $template['approver_type'],
-                'approver_id' => $template['approver_id'] ?? null,
-                'approver_role_id' => $template['approver_role_id'] ?? null,
-                'approver_department_id' => $template['approver_department_id'] ?? null,
-                'status' => 'pending',
-                'can_insert_step' => $template['can_insert_step'] ?? false,
-                'insert_step_template' => $template['insert_step_template'] ?? null,
-                'is_dynamic' => true,
-                'inserted_by' => auth()->id(),
-                'inserted_at' => now(),
-                'insertion_reason' => 'Ditambahkan via quick insert oleh ' . auth()->user()->name,
-                'required_action' => $template['required_action'] ?? null,
-                'condition_value' => $template['condition_value'] ?? null,
-            ]);
-            
-            Log::info('✅ Quick insert step created', [
-                'item_id' => $item->id,
-                'template_name' => $template['name'],
-                'inserted_by' => auth()->id(),
-                'required_action' => $template['required_action'] ?? null,
-                'condition_value' => $template['condition_value'] ?? null,
-            ]);
-            
-        } catch (\Exception $e) {
-            Log::error('❌ Quick insert step failed', [
-                'item_id' => $item->id,
-                'error' => $e->getMessage(),
-            ]);
-            // Don't throw - continue with normal approval flow
-        }
-    }
 }

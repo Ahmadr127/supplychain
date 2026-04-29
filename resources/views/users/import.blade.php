@@ -77,6 +77,7 @@
                                 <th class="px-4 py-2 text-left font-semibold">NIP</th>
                                 <th class="px-4 py-2 text-left font-semibold">Nama Karyawan</th>
                                 <th class="px-4 py-2 text-left font-semibold">Organisasi</th>
+                                <th class="px-4 py-2 text-left font-semibold">Kode Organisasi</th>
                                 <th class="px-4 py-2 text-left font-semibold">Posisi Pekerjaan</th>
                                 <th class="px-4 py-2 text-left font-semibold">Jabatan</th>
                             </tr>
@@ -86,6 +87,7 @@
                                 <td class="px-4 py-2">1</td>
                                 <td class="px-4 py-2">20141969</td>
                                 <td class="px-4 py-2">DIENI ANANDA PUTRI</td>
+                                <td class="px-4 py-2">MUTU</td>
                                 <td class="px-4 py-2">MUTU</td>
                                 <td class="px-4 py-2">MANAGER MUTU</td>
                                 <td class="px-4 py-2">MANAGER</td>

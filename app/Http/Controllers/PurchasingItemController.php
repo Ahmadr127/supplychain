@@ -92,7 +92,7 @@ class PurchasingItemController extends Controller
     // GET /purchasing/items/{purchasingItem}
     public function show(PurchasingItem $purchasingItem)
     {
-        $purchasingItem->load(['approvalRequest', 'masterItem.unit', 'vendors.supplier', 'preferredVendor']);
+        $purchasingItem->load(['approvalRequest', 'masterItem.unit', 'vendors.supplier', 'vendors.latestTrial', 'preferredVendor']);
         return view('purchasing.items.show', [
             'item' => $purchasingItem,
         ]);
@@ -101,12 +101,23 @@ class PurchasingItemController extends Controller
     // POST /purchasing/items/{purchasingItem}/benchmarking
     public function saveBenchmarking(Request $request, PurchasingItem $purchasingItem)
     {
+        // Filter out empty rows before validation
+        if ($request->has('vendors') && is_array($request->vendors)) {
+            $filteredVendors = array_filter($request->vendors, function($v) {
+                return isset($v['supplier_id']) && !empty($v['supplier_id']);
+            });
+            $request->merge(['vendors' => $filteredVendors]);
+        }
+
         $data = $request->validate([
             'vendors' => 'required|array|min:1',
             'vendors.*.supplier_id' => 'required|integer|exists:suppliers,id',
             'vendors.*.unit_price' => 'nullable|numeric|min:0',
             'vendors.*.total_price' => 'nullable|numeric|min:0',
             'vendors.*.notes' => 'nullable|string|max:255',
+        ], [
+            'vendors.min' => 'Silakan pilih minimal 1 vendor benchmarking.',
+            'vendors.*.supplier_id.required' => 'Supplier harus dipilih.',
         ]);
 
         $updated = $this->service->saveBenchmarking($purchasingItem, $data['vendors']);

@@ -103,7 +103,6 @@
                     <th class="w-32 text-left">Pengaju</th>
                     <th class="w-1/3 text-left">Progress</th>
                     <th class="w-20 text-left">Status</th>
-                    <th class="w-40 text-left">Status Purchasing</th>
                     <th class="w-20 text-left">Aksi</th>
                 </tr>
             </thead>
@@ -154,9 +153,6 @@
                     <td class="w-20">
                         <x-approval-status-badge :status="$row->itemData->status" />
                     </td>
-                    <td class="w-40">
-                        <x-purchasing-status-badge :item="$row->itemData" :request="$row->request" />
-                    </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
                             <a href="{{ route('approval-requests.show', ['approvalRequest' => $row->request->id, 'item_id' => $row->itemData->id]) }}" 
@@ -165,7 +161,7 @@
                                 <a href="{{ route('approval-requests.edit', $row->request) }}" 
                                    class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150" title="Edit">✏️</a>
                             @endif
-                            @if($row->request->requester_id == auth()->id())
+                            @if($row->request->requester_id == auth()->id() || auth()->user()->hasPermission('manage_approvals'))
                                 <button onclick="deleteRequest({{ $row->request->id }})" 
                                         class="text-red-600 hover:text-red-900 transition-colors duration-150" title="Hapus">🗑️</button>
                             @endif

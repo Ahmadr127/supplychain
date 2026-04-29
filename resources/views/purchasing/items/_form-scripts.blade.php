@@ -156,14 +156,26 @@ document.addEventListener('DOMContentLoaded', function() {
         @endphp
         const benchVendors = @json($benchVendorsData);
         if (pName && pId && pBox) {
-            pName.addEventListener('input', function(){
-                const q = (this.value||'').toLowerCase().trim();
-                pId.value = '';
-                const list = benchVendors.filter(v => v.name.toLowerCase().includes(q)).slice(0,10);
-                if (!q || list.length === 0) { pBox.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">Ketik untuk mencari vendor hasil benchmarking</div>'; pBox.classList.remove('hidden'); return; }
-                pBox.innerHTML = list.map(v => `<div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" data-id="${v.id}" data-name="${v.name}">${v.name}</div>`).join('');
+            const showDropdown = function() {
+                const q = (pName.value||'').toLowerCase().trim();
+                const list = benchVendors.filter(v => (v.name || '').toLowerCase().includes(q)).slice(0,10);
+                if (list.length === 0) { 
+                    pBox.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">Tidak ada vendor benchmarking cocok.</div>'; 
+                } else {
+                    pBox.innerHTML = list.map(v => `<div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" data-id="${v.id}" data-name="${v.name || ''}">${v.name || '-'}</div>`).join('');
+                }
                 pBox.classList.remove('hidden');
+            };
+
+            pName.addEventListener('input', function(){
+                pId.value = '';
+                showDropdown();
             });
+
+            pName.addEventListener('focus', function(){
+                showDropdown();
+            });
+
             pBox.addEventListener('click', function(e){
                 const t = e.target.closest('[data-id]'); if (!t) return;
                 pId.value = t.getAttribute('data-id');

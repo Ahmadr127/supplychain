@@ -72,9 +72,7 @@ class ApprovalItemApiController extends Controller
             $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
             
             if ($currentStep->required_action === 'verify_budget') {
-                $total = $item->quantity * ($item->unit_price ?? 0);
-                $threshold = $currentStep->condition_value ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-                $needsFsUpload = $total >= $threshold;
+                $needsFsUpload = true;
             }
         }
 
@@ -105,7 +103,7 @@ class ApprovalItemApiController extends Controller
      *   - comments       : nullable|string
      *   - unit_price     : required if step->required_action == 'input_price' (string, e.g. "1.500.000")
      *   - capex_item_id  : nullable
-     *   - fs_document    : file (pdf/doc/docx) required if verify_budget threshold crossed
+     *   - fs_document    : file (pdf/doc/docx) required when required_action=verify_budget
      */
     public function approve(Request $request, ApprovalRequest $approvalRequest, ApprovalRequestItem $item)
     {
@@ -131,11 +129,7 @@ class ApprovalItemApiController extends Controller
         }
 
         if ($currentStep->required_action === 'verify_budget') {
-            $total     = $item->quantity * ($item->unit_price ?? 0);
-            $threshold = $currentStep->condition_value ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-            if ($total >= $threshold) {
-                $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
-            }
+            $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
         }
 
         $request->validate($rules);
@@ -184,6 +178,9 @@ class ApprovalItemApiController extends Controller
             // Re-evaluate workflow when price was just inputted
             if ($currentStep->required_action === 'input_price') {
                 try {
+                    // Refresh item so WorkflowService reads the updated total_price
+                    $item->refresh();
+                    $item->load('approvalRequest');
                     app(\App\Services\WorkflowService::class)->reevaluateWorkflow($item);
                     $currentStep = ApprovalItemStep::find($currentStep->id) ?? $currentStep;
                 } catch (\Exception $e) {
@@ -221,10 +218,15 @@ class ApprovalItemApiController extends Controller
                         ->where('approval_request_item_id', $item->id)
                         ->where('step_phase', 'release')->exists();
 
-                    $item->update($hasRelease
-                        ? ['status' => 'in_purchasing']
-                        : ['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()]
+                    $newStatus = $hasRelease ? 'in_purchasing' : 'approved';
+                    $item->update(
+                        $hasRelease 
+                            ? ['status' => $newStatus] 
+                            : ['status' => $newStatus, 'approved_by' => Auth::id(), 'approved_at' => now()]
                     );
+
+                    // Notify purchasing staff that a new item arrived
+                    app(\App\Services\NotificationService::class)->notifyPurchasingStaff($item);
                 } else {
                     $item->update(['status' => 'on progress']);
                 }
@@ -232,6 +234,21 @@ class ApprovalItemApiController extends Controller
 
             $approvalRequest->refreshStatus();
             DB::commit();
+
+            try {
+                $item->refresh();
+                if ($item->status === 'approved') {
+                    // Check if entire request is approved
+                    if ($approvalRequest->status === 'approved') {
+                        app(\App\Services\NotificationService::class)->notifyRequesterApproved($approvalRequest);
+                    }
+                } else if (!in_array($item->status, ['rejected', 'done', 'terpenuhi'])) {
+                    // If not rejected or fully approved, notify next approvers
+                    app(\App\Services\NotificationService::class)->notifyApprovers($approvalRequest);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to send notification after API approval: ' . $e->getMessage());
+            }
 
             $item->load(['masterItem', 'steps.approver']);
 
@@ -262,7 +279,7 @@ class ApprovalItemApiController extends Controller
         }
 
         $request->validate([
-            'comments'        => 'required|string|max:1000',
+            'comments'        => 'nullable|string|max:1000',
             'rejected_reason' => 'required|string|max:500',
         ]);
 
@@ -294,8 +311,29 @@ class ApprovalItemApiController extends Controller
                 'rejected_reason' => $request->rejected_reason,
             ]);
 
+            // Mark all remaining pending steps (after the rejected step) as 'skipped'
+            // so the mobile app correctly shows them as locked/irrelevant instead of "Menunggu".
+            ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                ->where('approval_request_item_id', $item->id)
+                ->where('step_number', '>', $currentStep->step_number)
+                ->whereIn('status', ['pending', 'pending_purchase'])
+                ->update([
+                    'status'      => 'skipped',
+                    'skip_reason' => 'Item rejected at step ' . $currentStep->step_number . ' (' . $currentStep->step_name . ')',
+                    'skipped_at'  => now(),
+                    'skipped_by'  => Auth::id(),
+                ]);
+
             $approvalRequest->refreshStatus();
             DB::commit();
+
+            try {
+                if ($approvalRequest->status === 'rejected') {
+                    app(\App\Services\NotificationService::class)->notifyRequesterRejected($approvalRequest, $request->rejected_reason);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to send notification after API rejection: ' . $e->getMessage());
+            }
 
             $item->load(['masterItem', 'steps.approver']);
 
@@ -328,9 +366,7 @@ class ApprovalItemApiController extends Controller
             $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
             
             if ($currentStep->required_action === 'verify_budget') {
-                $total = $item->quantity * ($item->unit_price ?? 0);
-                $threshold = $currentStep->condition_value ?? \App\Models\Setting::get('fs_threshold_per_item', 100000000);
-                $needsFsUpload = $total >= $threshold;
+                $needsFsUpload = true;
             }
         }
 

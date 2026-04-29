@@ -36,7 +36,7 @@ class UserImportController extends Controller
             return $words[0];
         } else {
             // Return first and last name only
-            return $words[0] . ' ' . $words[count($words) - 1];
+            return $words[0] . ' ' . $words[1];
         }
     }
 
@@ -70,6 +70,29 @@ class UserImportController extends Controller
             $rows = $worksheet->toArray();
 
             // Skip header row
+            $headerRow = array_map(function($val) {
+                return strtolower(trim((string)$val));
+            }, $rows[0]);
+
+            // Default indices if headers mismatch (fallback to new template format)
+            $nipIdx = array_search('nip', $headerRow);
+            $nipIdx = $nipIdx !== false ? $nipIdx : 1;
+
+            $nameIdx = array_search('nama karyawan', $headerRow);
+            $nameIdx = $nameIdx !== false ? $nameIdx : 2;
+
+            $orgNameIdx = array_search('organisasi', $headerRow);
+            $orgNameIdx = $orgNameIdx !== false ? $orgNameIdx : 3;
+
+            $orgCodeIdx = array_search('kode organisasi', $headerRow);
+            // If code not found, assume user uploaded old format
+            
+            $posIdx = array_search('posisi pekerjaan', $headerRow);
+            $posIdx = $posIdx !== false ? $posIdx : ($orgCodeIdx !== false ? 5 : 4);
+
+            $roleIdx = array_search('jabatan', $headerRow);
+            $roleIdx = $roleIdx !== false ? $roleIdx : ($orgCodeIdx !== false ? 6 : 5);
+
             array_shift($rows);
 
             $imported = 0;
@@ -93,11 +116,12 @@ class UserImportController extends Controller
                 }
 
                 try {
-                    $nik = trim($row[1] ?? '');
-                    $name = trim($row[2] ?? '');
-                    $organizationName = trim($row[3] ?? '');
-                    $position = trim($row[4] ?? '');
-                    $roleName = trim($row[5] ?? 'staff');
+                    $nik = trim($row[$nipIdx] ?? '');
+                    $name = trim($row[$nameIdx] ?? '');
+                    $organizationName = trim($row[$orgNameIdx] ?? '');
+                    $organizationCode = $orgCodeIdx !== false ? trim($row[$orgCodeIdx] ?? '') : '';
+                    $position = trim($row[$posIdx] ?? '');
+                    $roleName = trim($row[$roleIdx] ?? 'staff');
 
                     if (!$nik || !$name) {
                         $errors[] = "Baris {$rowNumber}: NIK dan Nama wajib diisi";
@@ -106,11 +130,20 @@ class UserImportController extends Controller
 
                     // Find or create department
                     $department = null;
-                    if ($organizationName) {
-                        $department = Department::where('name', $organizationName)->first();
+                    if ($organizationName || $organizationCode) {
+                        // Priority 1: Find by Code if provided
+                        if ($organizationCode) {
+                            $department = Department::where('code', $organizationCode)->first();
+                        }
                         
-                        if (!$department) {
-                            $baseCode = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $organizationName), 0, 10));
+                        // Priority 2: Find by Name if Code not found or not provided
+                        if (!$department && $organizationName) {
+                            $department = Department::where('name', $organizationName)->first();
+                        }
+                        
+                        if (!$department && $organizationName) {
+                            // If user doesn't provide code, generate one from name
+                            $baseCode = $organizationCode ? $organizationCode : strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $organizationName), 0, 10));
                             $code = $baseCode;
                             $counter = 1;
                             
@@ -125,6 +158,9 @@ class UserImportController extends Controller
                                 'description' => $organizationName,
                                 'is_active' => true,
                             ]);
+                        } elseif ($department && $organizationCode && $department->code !== $organizationCode) {
+                            // Optional: Update the code if it was found by name and a new code is provided
+                            $department->update(['code' => $organizationCode]);
                         }
                     }
 
@@ -187,7 +223,8 @@ class UserImportController extends Controller
 
                     // Attach to department
                     if ($department) {
-                        $user->departments()->detach($department->id);
+                        // Detach ALL previous departments to avoid duplication if user moves department
+                        $user->departments()->detach();
                         
                         $user->departments()->attach($department->id, [
                             'position' => $position,
@@ -234,19 +271,19 @@ class UserImportController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
 
         // Set headers
-        $headers = ['NO', 'NIP', 'Nama Karyawan', 'Organisasi', 'Posisi Pekerjaan', 'Jabatan'];
+        $headers = ['NO', 'NIP', 'Nama Karyawan', 'Organisasi', 'Kode Organisasi', 'Posisi Pekerjaan', 'Jabatan'];
         $sheet->fromArray($headers, null, 'A1');
 
         // Add sample data
         $sampleData = [
-            [1, '20141969', 'DIENI ANANDA PUTRI, DR., MARS', 'MUTU', 'MANAGER MUTU', 'MANAGER'],
-            [2, '20061105', 'GARCINIA SATIVA FIZRIA SETIADI, Dr, MKM', 'PENUNJANG MEDIK', 'MANAGER PENUNJANG MEDIK', 'MANAGER'],
-            [3, '20253017', 'INDRA THALIB, B.SN., MM', 'SDM', 'MANAGER SDM', 'MANAGER'],
+            [1, '20141969', 'DIENI ANANDA PUTRI, DR., MARS', 'MUTU', 'MUTU', 'MANAGER MUTU', 'MANAGER'],
+            [2, '20061105', 'GARCINIA SATIVA FIZRIA SETIADI, Dr, MKM', 'PENUNJANG MEDIK', 'PENJMED', 'MANAGER PENUNJANG MEDIK', 'MANAGER'],
+            [3, '20253017', 'INDRA THALIB, B.SN., MM', 'SDM', 'SDM', 'MANAGER SDM', 'MANAGER'],
         ];
         $sheet->fromArray($sampleData, null, 'A2');
 
         // Style header
-        $headerStyle = $sheet->getStyle('A1:F1');
+        $headerStyle = $sheet->getStyle('A1:G1');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getFill()
             ->setFillType(Fill::FILL_SOLID)
@@ -254,7 +291,7 @@ class UserImportController extends Controller
         $headerStyle->getFont()->getColor()->setARGB('FFFFFFFF');
 
         // Auto size columns
-        foreach (range('A', 'F') as $col) {
+        foreach (range('A', 'G') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -267,3 +304,4 @@ class UserImportController extends Controller
         return response()->download($temp_file, $filename)->deleteFileAfterSend(true);
     }
 }
+

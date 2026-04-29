@@ -1,8 +1,10 @@
 @php
     $isEdit = ($mode ?? 'create') === 'edit';
+    $itemExtras = $itemExtras ?? collect();
+    $itemFiles  = $itemFiles  ?? collect();
 @endphp
 
-<div class="space-y-2 max-w-full overflow-hidden">
+<div class="space-y-2 max-w-full">
     <!-- Main Form -->
     <div class="space-y-2 max-w-full">
         <!-- Top grid: Jenis Pengajuan, Sifat Pengadaan & Tipe Barang -->
@@ -464,6 +466,75 @@
     // Note: appendStaticRowsFromActiveRows was removed - dead code (never called)
     // Note: hideAllSuggestions and scroll/resize listeners are now in autocomplete-suggestions.js
 
+    /**
+     * Helper to render searchable select in JS
+     */
+    function renderSearchableSelect(options, selectedId, callback, placeholder = 'Pilih...') {
+        const found = options.find(o => String(o.id) === String(selectedId));
+        const selectedLabel = found ? (found.label || found.name) : placeholder;
+        const mappedOptions = options.map(o => ({ id: o.id, label: o.label || o.name }));
+        const optionsJson = JSON.stringify(mappedOptions).replace(/"/g, '&quot;');
+        
+        return `
+            <div x-data="{
+                open: false,
+                search: '',
+                selectedId: '${selectedId}',
+                selectedLabel: '${selectedLabel.replace(/'/g, "\\'")}',
+                options: ${optionsJson},
+                get filtered() {
+                    if (!this.search) return this.options;
+                    const q = this.search.toLowerCase();
+                    return this.options.filter(o => o.label.toLowerCase().includes(q));
+                },
+                select(id, label) {
+                    this.selectedId = id;
+                    this.selectedLabel = label;
+                    this.open = false;
+                    this.search = '';
+                    // Custom callback to sync with rows array
+                    if (typeof ${callback} === 'function') {
+                        ${callback}(id, label);
+                    }
+                }
+            }" @click.outside="open = false" class="relative">
+                <button type="button" @click="open = !open" 
+                    class="w-full flex items-center justify-between h-6 px-1 text-xs border border-gray-300 rounded bg-white hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors">
+                    <span class="truncate text-gray-700" x-text="selectedLabel"></span>
+                    <i class="fas fa-chevron-down text-gray-400 text-[10px] ml-1 transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
+                </button>
+                <div x-show="open" 
+                    x-transition:enter="transition ease-out duration-100"
+                    x-transition:enter-start="opacity-0 scale-95"
+                    x-transition:enter-end="opacity-100 scale-100"
+                    style="display:none;" 
+                    class="absolute z-[9999] mt-1 w-64 bg-white border border-gray-200 rounded shadow-lg">
+                    <div class="p-1 border-b border-gray-100">
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
+                            <input type="text" x-model="search" placeholder="Cari..." x-ref="searchInput"
+                                @keydown.escape.stop="open = false" 
+                                x-effect="if(open) $nextTick(() => $refs.searchInput.focus())"
+                                class="w-full pl-5 pr-2 py-0.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <ul class="max-h-48 overflow-y-auto py-1">
+                        <li @click="select('', '${placeholder}')" class="px-2 py-1 text-xs cursor-pointer hover:bg-blue-50 flex items-center gap-1" :class="selectedId === '' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'">
+                            <i class="fas fa-check text-blue-600 text-[10px] w-2" x-show="selectedId === ''"></i>
+                            <span :class="selectedId === '' ? '' : 'ml-3'">${placeholder}</span>
+                        </li>
+                        <template x-for="opt in filtered" :key="opt.id">
+                            <li @click="select(opt.id, opt.label)" class="px-2 py-1 text-xs cursor-pointer hover:bg-blue-50 flex items-center gap-1" :class="selectedId == opt.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'">
+                                <i class="fas fa-check text-blue-600 text-[10px] w-2" x-show="selectedId == opt.id"></i>
+                                <span :class="selectedId == opt.id ? '' : 'ml-3'" x-text="opt.label"></span>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
     function addRow(defaults = {}) {
         const idx = rows.length;
         const row = {
@@ -556,6 +627,14 @@
         // Check if this is create mode (no price input)
         const isCreateMode = {{ $isEdit ? 'false' : 'true' }};
         
+        // Global callback for department selection sync
+        window[`onSelectDept_${row.index}`] = (id, label) => {
+            row.allocation_department_id = id;
+            row.allocation_department_name = label;
+        };
+
+        const deptDropdown = renderSearchableSelect(allDepartments, row.allocation_department_id, `onSelectDept_${row.index}`, 'Pilih unit');
+        
         itemDiv.innerHTML = `
         <!-- Item header with delete button -->
         <div class="flex justify-between items-center mb-1">
@@ -610,10 +689,7 @@
             </div>
             <div>
                 <label class="block text-xs text-gray-600">Unit Peruntukan</label>
-                <div class="relative">
-                    <input type="text" class="allocation-dept w-full h-6 px-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" placeholder="Pilih unit" value="${escapeHtml(row.allocation_department_name||'')}" autocomplete="off">
-                    <div class="dept-suggestions hidden"></div>
-                </div>
+                ${deptDropdown}
             </div>
             <div>
                 <label class="block text-xs text-gray-600">Catatan</label>
@@ -680,8 +756,6 @@
         const sugBox = itemDiv.querySelector('.suggestions');
         const categoryInput = itemDiv.querySelector('.item-category');
         const categorySugBox = itemDiv.querySelector('.category-suggestions');
-        const deptInput = itemDiv.querySelector('.allocation-dept');
-        const deptSugBox = itemDiv.querySelector('.dept-suggestions');
         const letterInput = itemDiv.querySelector('.item-letter');
 
         nameInput.addEventListener('input', async function() {
@@ -772,45 +846,7 @@
                 setTimeout(() => categorySugBox.classList.add('hidden'), 200);
             });
         }
-        
-        // Allocation department input handling
-        if (deptInput) {
-            deptInput.addEventListener('input', function() {
-                const val = this.value.trim();
-                row.allocation_department_name = val;
-                row.allocation_department_id = '';
-                
-                if (val.length < 1) {
-                    deptSugBox.classList.add('hidden');
-                    return;
-                }
-                
-                // Filter departments based on input
-                const filtered = (allDepartments || []).filter(d => 
-                    (d.name || '').toLowerCase().includes(val.toLowerCase())
-                );
-                
-                renderDepartmentSuggestions(deptSugBox, filtered, row.index);
-            });
-            
-            deptInput.addEventListener('blur', function() {
-                setTimeout(() => deptSugBox.classList.add('hidden'), 200);
-            });
-            
-            deptInput.addEventListener('change', function() {
-                // Try to match exact department name
-                const val = this.value.trim();
-                if (val) {
-                    const exact = (allDepartments || []).find(d => 
-                        (d.name || '').toLowerCase() === val.toLowerCase()
-                    );
-                    if (exact) {
-                        row.allocation_department_id = exact.id;
-                        row.allocation_department_name = exact.name;
-                    }
-                }
-            });
-        }
+
         if (letterInput) {
             letterInput.addEventListener('change', function(){
                 row.letter_number = this.value || '';

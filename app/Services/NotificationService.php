@@ -64,6 +64,7 @@ class NotificationService
             
             Log::info('NotificationService: Queued FCM notification', [
                 'user_count' => count($userIds),
+                'user_ids' => $userIds,
                 'token_count' => count($tokens),
                 'title' => $title,
             ]);
@@ -94,6 +95,32 @@ class NotificationService
     }
 
     /**
+     * Send notification to all users with a specific role
+     *
+     * @param string $roleName The role name (slug) to notify
+     * @param string $title
+     * @param string $body
+     * @param array $data
+     * @return void
+     */
+    public function notifyRole(
+        string $roleName,
+        string $title,
+        string $body,
+        array $data = []
+    ): void {
+        $users = User::whereHas('role', function ($q) use ($roleName) {
+            $q->where('name', $roleName);
+        })->get();
+
+        if ($users->isNotEmpty()) {
+            $this->notifyUsers($users, $title, $body, $data);
+        } else {
+            Log::warning('NotificationService: No users found for role: ' . $roleName);
+        }
+    }
+
+    /**
      * Notify approvers when approval is needed
      * Sends notification to the next pending approver(s) for an approval request
      *
@@ -102,15 +129,19 @@ class NotificationService
      */
     public function notifyApprovers(\App\Models\ApprovalRequest $request): void
     {
-        // Get all pending approval steps (approval phase only)
-        $pendingSteps = $request->itemSteps()
-            ->where('step_phase', 'approval')
-            ->where('status', 'pending')
-            ->orderBy('step_number')
-            ->get();
+        // Get only the FIRST pending approval step for each item
+        $request->load('items.currentStep');
+        
+        $pendingSteps = collect();
+        foreach ($request->items as $item) {
+            $step = $item->currentStep;
+            if ($step && ($step->step_phase ?? 'approval') === 'approval' && $step->status === 'pending') {
+                $pendingSteps->push($step);
+            }
+        }
 
         if ($pendingSteps->isEmpty()) {
-            Log::info('NotificationService: No pending approval steps found', [
+            Log::info('NotificationService: No active pending approval steps found', [
                 'approval_request_id' => $request->id,
             ]);
             return;
@@ -145,6 +176,7 @@ class NotificationService
 
         $data = [
             'type' => 'approval_required',
+            'source' => 'sc',
             'approval_request_id' => (string)$request->id,
             'request_number' => $request->request_number,
         ];
@@ -176,6 +208,7 @@ class NotificationService
 
         $data = [
             'type' => 'request_approved',
+            'source' => 'sc',
             'approval_request_id' => (string)$request->id,
             'request_number' => $request->request_number,
         ];
@@ -214,12 +247,60 @@ class NotificationService
 
         $data = [
             'type' => 'request_rejected',
+            'source' => 'sc',
             'approval_request_id' => (string)$request->id,
             'request_number' => $request->request_number,
             'rejection_reason' => $reason,
         ];
 
         $this->notifyUser($request->requester, $title, $body, $data);
+    }
+
+    /**
+     * Notify purchasing staff when a new item enters the purchasing phase
+     *
+     * @param \App\Models\ApprovalRequestItem $item
+     * @return void
+     */
+    public function notifyPurchasingStaff(\App\Models\ApprovalRequestItem $item): void
+    {
+        $item->load(['approvalRequest', 'masterItem']);
+
+        // Find all users who have purchasing permissions
+        $purchasingStaff = \App\Models\User::with('role')->get()->filter(function ($user) {
+            return $user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item');
+        })->values();
+
+        if ($purchasingStaff->isEmpty()) {
+            Log::warning('NotificationService: No purchasing staff found to notify for item', [
+                'item_id' => $item->id,
+            ]);
+            return;
+        }
+
+        $itemName = $item->masterItem->name ?? 'Item';
+        $requestNumber = $item->approvalRequest->request_number ?? '-';
+
+        $title = 'Tugas Purchasing Baru';
+        $body = sprintf(
+            'Item %s (%s) siap untuk diproses purchasing',
+            $itemName,
+            $requestNumber
+        );
+
+        $data = [
+            'type' => 'new_purchasing_task',
+            'source' => 'sc',
+            'item_id' => (string)$item->id,
+            'approval_request_id' => (string)$item->approval_request_id,
+        ];
+
+        $this->notifyUsers($purchasingStaff, $title, $body, $data);
+
+        Log::info('NotificationService: Notified purchasing staff about new item', [
+            'item_id' => $item->id,
+            'staff_count' => $purchasingStaff->count(),
+        ]);
     }
 
     /**
@@ -271,6 +352,7 @@ class NotificationService
         // Prepare data payload with purchasing item details
         $data = [
             'type' => 'purchasing_status_change',
+            'source' => 'sc',
             'purchasing_item_id' => (string)$item->id,
             'approval_request_id' => (string)$item->approval_request_id,
             'request_number' => $item->approvalRequest->request_number,
@@ -307,6 +389,58 @@ class NotificationService
             'new_status' => $newStatus,
             'requester_id' => $item->approvalRequest->requester->id,
         ]);
+    }
+
+    /**
+     * Generic notifier for any activated workflow step.
+     * This is driven by workflow data (step + approver type), not hardcoded actions.
+     */
+    public function notifyStepApprover(\App\Models\ApprovalItemStep $step): void
+    {
+        $step->loadMissing(['approvalRequest.requester', 'masterItem', 'requestItem']);
+
+        $approvers = $this->getApproversForStep($step);
+        if ($approvers->isEmpty()) {
+            Log::warning('NotificationService: No approvers found for activated step', [
+                'step_id' => $step->id,
+                'step_name' => $step->step_name,
+                'approver_type' => $step->approver_type,
+            ]);
+            return;
+        }
+
+        $itemName = $step->masterItem->name ?? 'Item';
+        $requestNumber = $step->approvalRequest->request_number ?? '-';
+        $requesterName = $step->approvalRequest->requester->name ?? 'Unknown';
+        $stepName = $step->step_name ?? ('Step #' . $step->step_number);
+        $phaseLabel = ucfirst((string) ($step->step_phase ?? 'approval'));
+
+        $title = 'Tindakan Workflow Diperlukan';
+        $body = sprintf(
+            '[%s] %s untuk %s (%s) dari %s menunggu tindakan Anda.',
+            $phaseLabel,
+            $stepName,
+            $itemName,
+            $requestNumber,
+            $requesterName
+        );
+
+        $data = [
+            'type' => 'workflow_step_required',
+            'source' => 'sc',
+            'approval_request_id' => (string) $step->approval_request_id,
+            'request_number' => $requestNumber,
+            'item_id' => (string) ($step->approval_request_item_id ?? $step->requestItem->id ?? ''),
+            'step_id' => (string) $step->id,
+            'step_name' => $stepName,
+            'step_number' => (string) $step->step_number,
+            'step_phase' => (string) ($step->step_phase ?? 'approval'),
+            'step_type' => (string) ($step->step_type ?? ''),
+            'required_action' => (string) ($step->required_action ?? ''),
+            'item_name' => $itemName,
+        ];
+
+        $this->notifyUsers($approvers, $title, $body, $data);
     }
 
     /**
@@ -364,6 +498,7 @@ class NotificationService
         // Prepare data payload with release step details
         $data = [
             'type' => 'release_approval_required',
+            'source' => 'sc',
             'approval_request_id' => (string)$step->approval_request_id,
             'request_number' => $requestNumber,
             'item_id' => (string)($step->approval_request_item_id ?? $step->requestItem->id ?? ''),
@@ -461,6 +596,7 @@ class NotificationService
         // Prepare data payload
         $data = [
             'type' => $dataType,
+            'source' => 'sc',
             'approval_request_id' => (string)$item->approval_request_id,
             'request_number' => $requestNumber,
             'item_id' => (string)$item->id,

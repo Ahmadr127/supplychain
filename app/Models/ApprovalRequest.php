@@ -263,8 +263,7 @@ class ApprovalRequest extends Model
         $this->items()
             ->whereIn('status', ['pending', 'on progress'])
             ->update([
-                'status' => 'cancelled',
-                'rejected_reason' => 'Request cancelled by requester',
+                'status'      => 'cancelled',
                 'approved_by' => $userId,
                 'approved_at' => now(),
             ]);

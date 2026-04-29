@@ -3,9 +3,9 @@
 @section('title', 'Edit Approval Request')
 
 @section('content')
-<div class="w-full max-w-full overflow-hidden px-0">
+<div class="w-full max-w-full px-0">
     <div class="bg-white w-full max-w-full shadow-none rounded-none">
-        <div class="p-2 max-w-full overflow-hidden">
+        <div class="p-2 max-w-full">
             <form id="approval-form" action="{{ route('approval-requests.update', $approvalRequest) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')

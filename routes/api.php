@@ -12,6 +12,11 @@ use App\Http\Controllers\Api\FcmTokenController;
 use App\Http\Controllers\Api\NotificationApiController;
 use App\Http\Controllers\Api\PurchasingApiController;
 use App\Http\Controllers\Api\ReleaseApiController;
+use App\Http\Controllers\SupplierLookupController;
+use App\Http\Controllers\ItemLookupController;
+use App\Http\Controllers\ApprovalWorkflowController;
+use App\Http\Controllers\MasterItemController;
+use App\Http\Controllers\ApprovalRequestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -132,12 +137,30 @@ Route::middleware('auth:sanctum')->group(function () {
     // ----------------------------------------------------------------
     Route::get('/purchasing/items', [PurchasingApiController::class, 'index']);
     Route::get('/purchasing/items/{id}', [PurchasingApiController::class, 'show']);
-    Route::post('/purchasing/items/{id}/benchmark', [PurchasingApiController::class, 'saveBenchmarking']);
+    Route::post('/purchasing/items/{id}/receive-doc-benchmark', [PurchasingApiController::class, 'receiveDocAndBenchmarking']);
+    Route::post('/purchasing/items/{id}/trial', [PurchasingApiController::class, 'saveTrial']);
     Route::post('/purchasing/items/{id}/select-vendor', [PurchasingApiController::class, 'selectPreferred']);
     Route::post('/purchasing/items/{id}/issue-po', [PurchasingApiController::class, 'issuePO']);
-    Route::post('/purchasing/items/{id}/receive-grn', [PurchasingApiController::class, 'receiveGRN']);
-    Route::post('/purchasing/items/{id}/mark-done', [PurchasingApiController::class, 'markDone']);
+    Route::post('/purchasing/items/{id}/invoice-grn-done', [PurchasingApiController::class, 'invoiceGrnDone']);
     Route::get('/purchasing/status-by-request', [PurchasingApiController::class, 'statusByRequest']);
+
+    // ----------------------------------------------------------------
+    // Supplier Lookup
+    // ----------------------------------------------------------------
+    Route::prefix('suppliers')->group(function () {
+        Route::get('/suggest', [SupplierLookupController::class, 'suggest']);
+        Route::post('/resolve', [SupplierLookupController::class, 'resolve']);
+    });
+
+    // ----------------------------------------------------------------
+    // Item & Workflow Helpers
+    // ----------------------------------------------------------------
+    Route::get('/items/suggest', [ItemLookupController::class, 'suggest']);
+    Route::post('/items/resolve', [ItemLookupController::class, 'resolve']);
+    Route::get('/workflows/{workflow}/steps', [ApprovalWorkflowController::class, 'getSteps']);
+    Route::get('/master-items/by-type/{typeId}', [MasterItemController::class, 'getByType']);
+    Route::get('/approval-requests/workflow-for-item-type/{itemTypeId}', [ApprovalRequestController::class, 'getWorkflowForItemType']);
+    Route::get('/approval-requests/{approvalRequest}/step-status/{stepNumber}', [ApprovalRequestController::class, 'getStepStatus']);
 
     // ----------------------------------------------------------------
     // Release Management  (ReleaseApiController)

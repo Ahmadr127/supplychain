@@ -20,14 +20,15 @@ class CapexAllocationService
         float $amount,
         int $userId
     ): ?CapexAllocation {
+        // Allow reservation even if budget is insufficient (User request: don't block approval)
         if (!$this->hasSufficientBudget($capexItem, $amount)) {
-            Log::warning('CapexAllocation: Budget tidak mencukupi', [
+            Log::warning('CapexAllocation: Budget tidak mencukupi, proceed anyway', [
                 'capex_item_id'  => $capexItem->id,
                 'requested'      => $amount,
                 'available'      => $this->getAvailableBudget($capexItem),
             ]);
-            return null;
         }
+
 
         DB::transaction(function () use ($capexItem, $item, $amount, $userId, &$allocation) {
             // Tambah pending_amount

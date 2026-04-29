@@ -61,7 +61,7 @@ class ApprovalWorkflowController extends Controller
             'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
-            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser',
+            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser,purchasing,maker',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
             'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
@@ -127,7 +127,7 @@ class ApprovalWorkflowController extends Controller
             'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
             'workflow_steps.*.name' => 'required|string|max:255',
-            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser',
+            'workflow_steps.*.step_type' => 'nullable|in:approver,releaser,purchasing,maker',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
             'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
@@ -286,62 +286,10 @@ class ApprovalWorkflowController extends Controller
                     break;
             }
             
-            // Add conditional step settings
-            if (isset($step['is_conditional']) && $step['is_conditional']) {
-                $processedStep['is_conditional'] = true;
-                if (!empty($step['condition_type'])) {
-                    $processedStep['condition_type'] = $step['condition_type'];
-                }
-                if (!empty($step['condition_value'])) {
-                    // Remove dots from formatted number
-                    $processedStep['condition_value'] = (int) str_replace('.', '', $step['condition_value']);
-                }
-            }
+            // Conditional threshold FS feature is deprecated.
+            $processedStep['is_conditional'] = false;
             
-        // Add dynamic step insertion support (NEW)
-            if (isset($step['can_insert_step']) && $step['can_insert_step']) {
-                $processedStep['can_insert_step'] = true;
-                
-                // Process insert step template if provided
-                if (!empty($step['insert_step_template']) && is_array($step['insert_step_template'])) {
-                    $template = $step['insert_step_template'];
-                    
-                    // Only include template if name and approver_type are set
-                    if (!empty($template['name']) && !empty($template['approver_type'])) {
-                        $processedTemplate = [
-                            'name' => trim($template['name']),
-                            'approver_type' => $template['approver_type'],
-                        ];
-                        
-                        // Add approver-specific fields
-                        if (!empty($template['approver_id'])) {
-                            $processedTemplate['approver_id'] = (int) $template['approver_id'];
-                        }
-                        if (!empty($template['approver_role_id'])) {
-                            $processedTemplate['approver_role_id'] = (int) $template['approver_role_id'];
-                        }
-                        if (!empty($template['approver_department_id'])) {
-                            $processedTemplate['approver_department_id'] = (int) $template['approver_department_id'];
-                        }
-                        if (!empty($template['required_action'])) {
-                            $processedTemplate['required_action'] = trim($template['required_action']);
-                        }
-                        if (!empty($template['condition_value'])) {
-                            // Remove dots from formatted number
-                            $processedTemplate['condition_value'] = (int) str_replace('.', '', $template['condition_value']);
-                        }
-                        if (isset($template['can_insert_step']) && $template['can_insert_step']) {
-                            $processedTemplate['can_insert_step'] = true;
-                        } else {
-                            $processedTemplate['can_insert_step'] = false;
-                        }
-                        
-                        $processedStep['insert_step_template'] = $processedTemplate;
-                    }
-                }
-            } else {
-                $processedStep['can_insert_step'] = false;
-            }
+            $processedStep['can_insert_step'] = false;
 
             // Add step type and phase (NEW)
             if (!empty($step['step_type'])) {
@@ -353,6 +301,8 @@ class ApprovalWorkflowController extends Controller
                     if (empty($processedStep['required_action'])) {
                         $processedStep['required_action'] = 'release';
                     }
+                } elseif ($step['step_type'] === 'purchasing') {
+                    $processedStep['step_phase'] = 'purchasing';
                 } else {
                     $processedStep['step_phase'] = 'approval';
                 }

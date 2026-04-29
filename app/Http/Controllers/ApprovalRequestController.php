@@ -880,15 +880,9 @@ class ApprovalRequestController extends Controller
 
     public function destroy(ApprovalRequest $approvalRequest)
     {
-        // Only allow delete if user is the requester
-        if ((int)$approvalRequest->requester_id !== (int)auth()->id()) {
+        // Only allow delete if user is the requester or has manage_approvals permission
+        if ((int)$approvalRequest->requester_id !== (int)auth()->id() && !auth()->user()->hasPermission('manage_approvals')) {
             abort(403, 'Anda tidak memiliki akses untuk menghapus request ini.');
-        }
-
-        // Check if any item is approved or in purchasing/release
-        $hasProcessedItems = $approvalRequest->items()->whereIn('status', ['approved', 'in_purchasing', 'in_release', 'done'])->exists();
-        if ($hasProcessedItems) {
-            return back()->with('error', 'Request tidak dapat dihapus karena terdapat item yang sudah disetujui atau diproses.');
         }
 
         $approvalRequest->delete();
@@ -984,19 +978,17 @@ class ApprovalRequestController extends Controller
 
         // Update item status
         $item->update([
-            'status' => 'rejected',
-            'rejected_reason' => $data['reason'],
-            'approved_by' => null, // Reset approved_by if rejected? Or keep it? Usually rejected items don't have approved_by.
+            'status'      => 'rejected',
+            'approved_by' => null,
             'approved_at' => null,
         ]);
         
         // Update step status
         $currentStep->update([
-            'status' => 'rejected',
+            'status'      => 'rejected',
             'approved_by' => auth()->id(),
             'approved_at' => now(),
-            'rejected_reason' => $data['reason'],
-            'comments' => $request->comments
+            'comments'    => $data['reason'],
         ]);
         
         // $approvalRequest->refreshStatus(); // REMOVED: Status is per-item
@@ -1055,6 +1047,12 @@ class ApprovalRequestController extends Controller
         $approvalRequest->update([
             'received_at' => $data['received_at'],
         ]);
+
+        foreach ($approvalRequest->items as $item) {
+            \App\Models\ApprovalItemStep::syncPurchasingStep($approvalRequest->id, $item->master_item_id, 'purchasing_receive_doc');
+            // New merged purchasing step (receive doc + benchmarking)
+            \App\Models\ApprovalItemStep::syncPurchasingStep($approvalRequest->id, $item->master_item_id, 'purchasing_receive_doc_benchmark');
+        }
 
         return redirect()->back()->with('success', 'Tanggal diterima berhasil disimpan.');
     }
@@ -1749,7 +1747,11 @@ class ApprovalRequestController extends Controller
             // - Approval phase: 'pending' (can be approved immediately)
             // - Release phase: 'pending_purchase' (waiting for purchasing to complete)
             $stepPhase = $step->step_phase ?? 'approval';
-            $initialStatus = ($stepPhase === 'release') ? 'pending_purchase' : 'pending';
+                // Release steps start as 'pending_purchase'. Purchasing steps that come
+                // AFTER a release step (e.g. GRN after release) also start as 'pending_purchase'.
+                $hasReleaseBefore = collect($workflowSteps)
+                    ->contains(fn($s) => ($s->step_phase ?? '') === 'release' && (int)($s->step_number ?? 0) < (int)($step->step_number ?? 0));
+                $initialStatus = ($stepPhase === 'release' || $hasReleaseBefore) ? 'pending_purchase' : 'pending';
             
             \App\Models\ApprovalItemStep::create([
                 'approval_request_id' => $approvalRequest->id,
@@ -1762,12 +1764,7 @@ class ApprovalRequestController extends Controller
                 'approver_role_id' => $step->approver_role_id,
                 'approver_department_id' => $step->approver_department_id,
                 'status' => $initialStatus,
-                'can_insert_step' => $step->can_insert_step ?? false,
-                'insert_step_template' => $step->insert_step_template ?? null,
                 'required_action' => $step->required_action ?? null,
-                'is_conditional' => $step->is_conditional ?? false,
-                'condition_type' => $step->condition_type ?? null,
-                'condition_value' => $step->condition_value ?? null,
                 // NEW: Step type and phase
                 'step_type' => $step->step_type ?? 'approver',
                 'step_phase' => $stepPhase,
@@ -1858,13 +1855,27 @@ class ApprovalRequestController extends Controller
 
             // Re-evaluate workflow if approved (check for workflow switch)
             if ($newStatus === 'approved') {
+                $approvalRequestItem->refresh();
+                $approvalRequestItem->load('approvalRequest');
                 $workflowService = app(\App\Services\WorkflowService::class);
                 $workflowService->reevaluateWorkflow($approvalRequestItem);
             }
 
             if ($newStatus === 'rejected') {
-                // If rejected, mark item as rejected
+                // Mark item as rejected
                 $approvalRequestItem->update(['status' => 'rejected']);
+
+                // Auto-skip all remaining steps after the rejected one
+                \App\Models\ApprovalItemStep::where('approval_request_id', $validated['approval_request_id'])
+                    ->where('master_item_id', $validated['master_item_id'])
+                    ->where('step_number', '>', $step->step_number)
+                    ->whereNotIn('status', ['approved', 'rejected', 'skipped'])
+                    ->update([
+                        'status'      => 'skipped',
+                        'approved_by' => $user->id,
+                        'approved_at' => now(),
+                        'comments'    => 'Otomatis dilewati karena step sebelumnya ditolak.',
+                    ]);
             } else {
                 // If approved, check if all steps for this item are approved
                 $allSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $validated['approval_request_id'])
@@ -1882,6 +1893,8 @@ class ApprovalRequestController extends Controller
                         'approved_by' => $user->id,
                         'approved_at' => now(),
                     ]);
+                    
+                    app(\App\Services\NotificationService::class)->notifyPurchasingStaff($approvalRequestItem);
                 } else {
                     $approvalRequestItem->update(['status' => 'on progress']);
                 }

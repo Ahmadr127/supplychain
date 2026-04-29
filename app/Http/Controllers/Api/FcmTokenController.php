@@ -21,12 +21,12 @@ class FcmTokenController extends Controller
     }
 
     /**
-     * Register FCM device token for the authenticated user
-     * 
+     * Register FCM device token for the authenticated user.
+     *
+     * Multi-device: satu user boleh punya banyak token (tiap HP/install = token berbeda).
+     * Unik per `device_token`; push mengirim ke semua token milik user.
+     *
      * POST /api/fcm-token
-     * 
-     * @param Request $request
-     * @return JsonResponse
      */
     public function store(Request $request): JsonResponse
     {
@@ -56,10 +56,13 @@ class FcmTokenController extends Controller
                 ]
             );
 
+            $tokensRegistered = UserDeviceToken::where('user_id', auth()->id())->count();
+
             Log::info('FCM token registered', [
                 'user_id' => auth()->id(),
                 'device_type' => $validated['device_type'] ?? 'unknown',
                 'token_id' => $deviceToken->id,
+                'tokens_registered_for_user' => $tokensRegistered,
                 'incoming_is_placeholder_exact' => $isPlaceholder,
                 'incoming_token_sha256_prefix' => substr(hash('sha256', $incomingToken), 0, 12),
             ]);
@@ -67,6 +70,10 @@ class FcmTokenController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'FCM Token berhasil didaftarkan',
+                'data' => [
+                    'tokens_registered_for_user' => $tokensRegistered,
+                    'token_id' => $deviceToken->id,
+                ],
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to register FCM token', [
@@ -82,10 +89,15 @@ class FcmTokenController extends Controller
     }
 
     /**
-     * Remove FCM device token (logout)
-     * 
+     * Keep FCM device token on logout.
+     *
+     * Historically this endpoint deleted the token, which caused later
+     * notifications to fail when the same device/account needed to receive
+     * step-based notifications again. We now preserve the token so one user
+     * can stay registered across sessions and across multiple devices.
+     *
      * DELETE /api/fcm-token
-     * 
+     *
      * @param Request $request
      * @return JsonResponse
      */
@@ -97,27 +109,21 @@ class FcmTokenController extends Controller
 
         try {
             $token = trim((string) $validated['device_token']);
-            $deleted = UserDeviceToken::where('device_token', $token)
+            $existing = UserDeviceToken::where('device_token', $token)
                 ->where('user_id', auth()->id())
-                ->delete();
+                ->exists();
 
-            if ($deleted) {
-                Log::info('FCM token removed', [
-                    'user_id' => auth()->id(),
-                    'device_token' => substr($validated['device_token'], 0, 20) . '...',
-                ]);
-
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'FCM Token berhasil dihapus.',
-                    'deleted' => $deleted,
-                ]);
-            }
+            Log::info('FCM token removal skipped to preserve multi-device notifications', [
+                'user_id' => auth()->id(),
+                'token_exists_for_user' => $existing,
+                'device_token' => substr($validated['device_token'], 0, 20) . '...',
+            ]);
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'FCM Token tidak ditemukan atau sudah dihapus.',
+                'message' => 'FCM Token dipertahankan untuk menjaga notifikasi multi-device tetap aktif.',
                 'deleted' => 0,
+                'preserved' => $existing,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to remove FCM token', [

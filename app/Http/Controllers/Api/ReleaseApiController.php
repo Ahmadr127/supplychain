@@ -80,7 +80,7 @@ class ReleaseApiController extends Controller
         if ($requestedStatus) {
             $query->where('status', $requestedStatus);
         } else {
-            $query->whereIn('status', ['in_purchasing', 'in_release', 'approved']);
+            $query->whereIn('status', ['in_release', 'approved']);
         }
 
         // Filter by user permissions (only items user can approve atau privileged roles)
@@ -160,6 +160,23 @@ class ReleaseApiController extends Controller
         $itemArray['purchasing_info'] = $purchasingItem ? $purchasingItem->toArray() : null;
         $itemArray['current_step'] = $currentStep ? $currentStep->toArray() : null;
         $itemArray['next_step'] = $nextStep ? $nextStep->toArray() : null;
+        
+        $itemArray['waiting_for_me'] = false;
+        
+        // Buttons should only show if item is not yet approved/rejected and we have a pending step
+        if ($item->status !== 'approved' && $item->status !== 'rejected') {
+            if ($currentStep && $currentStep->canApprove(auth()->id())) {
+                $itemArray['waiting_for_me'] = true;
+            }
+        }
+
+        // Add latest release note explicitly
+        $latestActionedStep = $item->steps->where('status', '!=', 'pending')
+            ->where('status', '!=', 'pending_purchase')
+            ->sortByDesc('step_number')
+            ->first();
+        
+        $itemArray['release_note'] = $latestActionedStep?->comments ?? $latestActionedStep?->rejected_reason ?? $item->notes;
 
         return response()->json([
             'status' => 'success',
@@ -206,20 +223,10 @@ class ReleaseApiController extends Controller
             $nextStep->update(['status' => 'pending']);
             $this->notificationService->notifyReleaseApprover($nextStep);
         } else {
-            // All release steps approved
+            // All release steps approved — mark the approval_request_item as approved,
+            // but do NOT set purchasing_item to 'done' yet.
+            // The purchasing team still needs to input Invoice & GRN via invoiceGrnDone().
             $item->update(['status' => 'approved']);
-            
-            $purchasingItem = \App\Models\PurchasingItem::where('approval_request_id', $item->approval_request_id)
-                ->where('master_item_id', $item->master_item_id)
-                ->first();
-                
-            if ($purchasingItem) {
-                $purchasingItem->update([
-                    'status' => 'done',
-                    'status_changed_at' => now(),
-                    'status_changed_by' => auth()->id()
-                ]);
-            }
 
             $this->notificationService->notifyReleaseStatusChange($item, 'approved', $request->input('comments', ''));
         }
@@ -287,8 +294,9 @@ class ReleaseApiController extends Controller
         if ($requestedStatus) {
             $query->where('status', $requestedStatus);
         } else {
-            // Include "pending_purchase" (activated after purchasing).
-            $query->whereIn('status', ['pending', 'pending_purchase', 'approved']);
+            // Only show 'pending' (ready for action) or 'approved' (past action).
+            // Exclude 'pending_purchase' as it's not yet ready for the release phase view.
+            $query->whereIn('status', ['pending', 'approved']);
         }
 
         $query->where(function ($q) use ($user) {

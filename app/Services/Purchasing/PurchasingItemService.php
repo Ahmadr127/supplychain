@@ -4,6 +4,7 @@ namespace App\Services\Purchasing;
 
 use App\Models\PurchasingItem;
 use App\Models\PurchasingItemVendor;
+use App\Models\PurchasingItemVendorTrial;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -16,6 +17,113 @@ class PurchasingItemService
     {
         $this->notificationService = $notificationService;
     }
+
+    /**
+     * Step 1 (Merged): Receive doc + benchmarking vendors in one submit.
+     * - Sets approvalRequest.received_at
+     * - Replaces vendor list + benchmark notes
+     * - Moves to benchmarking status (when vendors exist)
+     * - Syncs workflow tracker to merged purchasing step
+     */
+    public function receiveDocAndBenchmarking(
+        PurchasingItem $item,
+        Carbon $receivedAt,
+        array $vendors,
+        ?string $benchmarkNotes = null
+    ): PurchasingItem {
+        $oldStatus = $item->status;
+
+        DB::transaction(function () use ($item, $receivedAt, $vendors, $benchmarkNotes) {
+            $item->approvalRequest->update(['received_at' => $receivedAt]);
+
+            // Replace benchmarking set
+            $item->vendors()->delete();
+            foreach ($vendors as $v) {
+                if (empty($v['supplier_id'])) {
+                    continue;
+                }
+                $unit = (float)($v['unit_price'] ?? 0);
+                $total = (float)($v['total_price'] ?? 0);
+                if ($unit <= 0 && $total <= 0) {
+                    continue;
+                }
+
+                PurchasingItemVendor::create([
+                    'purchasing_item_id' => $item->id,
+                    'supplier_id' => (int)$v['supplier_id'],
+                    'unit_price' => $unit,
+                    'total_price' => $total ?: ($unit * max(1, (int)$item->quantity)),
+                    'is_preferred' => false,
+                    'notes' => $v['notes'] ?? null,
+                ]);
+            }
+
+            $hasVendors = $item->vendors()->exists();
+            $newStatus = $hasVendors ? 'benchmarking' : 'unprocessed';
+
+            $item->update([
+                'status' => $newStatus,
+                'status_changed_at' => now(),
+                'status_changed_by' => auth()->id(),
+                'benchmark_notes' => $benchmarkNotes,
+            ]);
+        });
+
+        $item->approvalRequest->refreshPurchasingStatus();
+        $item = $item->refresh();
+
+        if ($item->vendors()->exists()) {
+            // New merged action
+            \App\Models\ApprovalItemStep::syncPurchasingStep(
+                $item->approval_request_id,
+                $item->master_item_id,
+                'purchasing_receive_doc_benchmark'
+            );
+            // Compatibility: old split actions
+            \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_receive_doc');
+            \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_benchmarking');
+        }
+
+        if ($oldStatus !== $item->status) {
+            $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $item->status);
+        }
+
+        return $item;
+    }
+
+    /**
+     * Step 1: Set received date and transition to benchmarking
+     */
+    public function setReceivedDate(PurchasingItem $item, Carbon $date): PurchasingItem
+    {
+        $oldStatus = $item->status;
+        
+        DB::transaction(function() use ($item, $date) {
+            $item->approvalRequest->update(['received_at' => $date]);
+            
+            // Advance status if it was unprocessed
+            if ($item->status === 'unprocessed') {
+                $item->update([
+                    'status' => 'benchmarking',
+                    'status_changed_at' => now(),
+                    'status_changed_by' => auth()->id(),
+                ]);
+            }
+        });
+
+        $item->approvalRequest->refreshPurchasingStatus();
+        $item = $item->refresh();
+
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_receive_doc');
+        // Compatibility: if workflow uses merged step
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_receive_doc_benchmark');
+
+        // Notify requester about progress
+        $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $item->status);
+
+        return $item;
+    }
+
     /**
      * Save or replace benchmarking vendors for a purchasing item.
      * $vendors = [
@@ -57,16 +165,53 @@ class PurchasingItemService
             ]);
         });
 
-        // refresh aggregated purchasing status
         $item->approvalRequest->refreshPurchasingStatus();
 
-        $item = $item->refresh(['vendors']);
+        $item = $item->refresh();
+
+        if ($item->vendors()->exists()) {
+            \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_benchmarking');
+            // Compatibility: if workflow uses merged step
+            \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_receive_doc_benchmark');
+        }
 
         if ($oldStatus !== $newStatus) {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $newStatus);
         }
 
         return $item;
+    }
+
+    /**
+     * Step: Trial (new).
+     * Stores trial notes per vendor from benchmarking list.
+     */
+    public function saveTrial(PurchasingItem $item, array $vendorTrials): PurchasingItem
+    {
+        DB::transaction(function () use ($item, $vendorTrials) {
+            foreach ($vendorTrials as $row) {
+                if (empty($row['purchasing_item_vendor_id'])) {
+                    continue;
+                }
+                $vendorId = (int) $row['purchasing_item_vendor_id'];
+                $notes = $row['trial_notes'] ?? null;
+
+                $vendor = $item->vendors()->where('id', $vendorId)->first();
+                if (!$vendor) {
+                    continue;
+                }
+
+                PurchasingItemVendorTrial::create([
+                    'purchasing_item_vendor_id' => $vendorId,
+                    'trial_notes' => $notes,
+                    'created_by' => auth()->id(),
+                ]);
+            }
+        });
+
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_trial');
+
+        return $item->refresh();
     }
 
     /**
@@ -102,13 +247,13 @@ class PurchasingItemService
                 'status_changed_by' => auth()->id(),
             ]);
             
-            // 3-Phase Workflow: Activate release steps
-            $this->activateReleaseSteps($item);
         });
 
         $item->approvalRequest->refreshPurchasingStatus();
 
-        $item = $item->refresh(['vendors', 'preferredVendor']);
+        $item = $item->refresh();
+
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_preferred_vendor');
 
         if ($oldStatus !== 'selected') {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'selected');
@@ -189,6 +334,10 @@ class PurchasingItemService
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
 
+        if ($newStatus === 'po_issued' || !empty($item->po_number)) {
+            \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_po');
+        }
+
         if ($oldStatus !== $newStatus) {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, $newStatus);
         }
@@ -203,7 +352,7 @@ class PurchasingItemService
     {
         $oldStatus = $item->status;
         $created = $item->created_at ?: now();
-        $cycle = $grnDate->diffInDays($created);
+        $cycle = (int) $grnDate->copy()->startOfDay()->diffInDays($created->copy()->startOfDay());
         $item->update([
             'grn_date' => $grnDate->toDateString(),
             'proc_cycle_days' => $cycle,
@@ -213,11 +362,49 @@ class PurchasingItemService
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
 
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_invoice');
+        // Compatibility: if workflow uses merged final step
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_invoice_grn_done');
+
         if ($oldStatus !== 'grn_received') {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'grn_received');
         }
 
         return $item;
+    }
+
+    /**
+     * Step (Merged Final): invoice + GRN + done.
+     */
+    public function invoiceGrnDone(PurchasingItem $item, string $invoiceNumber, Carbon $grnDate, ?string $doneNotes = null): PurchasingItem
+    {
+        $oldStatus = $item->status;
+        $created = $item->created_at ?: now();
+        $cycle = (int) $grnDate->copy()->startOfDay()->diffInDays($created->copy()->startOfDay());
+
+        $item->update([
+            'invoice_number' => $invoiceNumber,
+            'grn_date' => $grnDate->toDateString(),
+            'proc_cycle_days' => $cycle,
+            'status' => 'done',
+            'status_changed_at' => now(),
+            'status_changed_by' => auth()->id(),
+            'done_notes' => $doneNotes,
+        ]);
+
+        $item->approvalRequest->refreshPurchasingStatus();
+
+        // New merged final action
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_invoice_grn_done');
+        // Compatibility: old split actions
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_invoice');
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_done');
+
+        if ($oldStatus !== 'done') {
+            $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'done');
+        }
+
+        return $item->refresh();
     }
 
     /**
@@ -234,6 +421,10 @@ class PurchasingItemService
             'done_notes' => $notes,
         ]);
         $item->approvalRequest->refreshPurchasingStatus();
+
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_done');
+        // Compatibility: if workflow uses merged final step
+        \App\Models\ApprovalItemStep::syncPurchasingStep($item->approval_request_id, $item->master_item_id, 'purchasing_invoice_grn_done');
 
         if ($oldStatus !== 'done') {
             $this->notificationService->notifyPurchasingStatusChange($item, $oldStatus, 'done');
