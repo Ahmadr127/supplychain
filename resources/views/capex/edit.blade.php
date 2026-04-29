@@ -21,14 +21,34 @@
             
             <form action="{{ route('capex.update', $capex) }}" method="POST" class="p-6">
                 @csrf
-                @method('PUT')
+                @method('PATCH')
                 
                 <div class="space-y-6">
                     {{-- Read Only Info --}}
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Departemen</label>
-                            <div class="text-gray-900 font-medium">{{ $capex->department->name }}</div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Departemen</label>
+                            @php
+                                $departmentOptions = $departments->map(fn($d) => [
+                                    'id'    => $d->id,
+                                    'label' => $d->code ? "{$d->name} ({$d->code})" : $d->name,
+                                ]);
+                                $hasItems = $capex->items()->exists();
+                            @endphp
+                            <x-searchable-select
+                                name="department_id"
+                                :options="$departmentOptions"
+                                :selected="old('department_id', $capex->department_id)"
+                                placeholder="Pilih Departemen"
+                                searchPlaceholder="Cari departemen..."
+                                width="w-full"
+                                :disabled="$hasItems" />
+                            @if($hasItems)
+                                <p class="text-xs text-gray-500 mt-1">Departemen & Tahun tidak dapat diubah karena sudah ada item.</p>
+                            @endif
+                            @error('department_id')
+                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                            @enderror
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Tahun Anggaran</label>
@@ -37,7 +57,7 @@
                                 value="{{ old('fiscal_year', $capex->fiscal_year) }}"
                                 {{ $capex->items()->exists() ? 'readonly' : '' }}>
                             @if($capex->items()->exists())
-                                <p class="text-xs text-gray-500 mt-1">Tahun tidak dapat diubah karena sudah ada item.</p>
+                                <p class="text-xs text-gray-500 mt-1">Departemen & Tahun tidak dapat diubah karena sudah ada item.</p>
                             @endif
                             @error('fiscal_year')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>

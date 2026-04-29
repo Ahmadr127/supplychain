@@ -5,6 +5,7 @@
     'placeholder'=> 'Semua', // label when nothing selected
     'searchPlaceholder' => 'Cari...',
     'width'      => 'w-72',  // dropdown panel width
+    'disabled'   => false,   // whether the select is disabled
 ])
 
 @php
@@ -43,8 +44,8 @@
     <input type="hidden" name="{{ $name }}" :value="selectedId">
 
     {{-- Trigger button --}}
-    <button type="button" @click="open = !open"
-        class="w-full flex items-center justify-between px-3 py-2 text-sm border border-gray-300 rounded-md bg-white hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+    <button type="button" @click="if(!{{ $disabled ? 'true' : 'false' }}) open = !open"
+        class="w-full flex items-center justify-between px-3 py-2 text-sm border border-gray-300 rounded-md {{ $disabled ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors' }}">
         <span class="truncate text-gray-700" x-text="selectedLabel"></span>
         <i class="fas fa-chevron-down text-gray-400 text-xs ml-2 transition-transform duration-200"
            :class="open ? 'rotate-180' : ''"></i>
