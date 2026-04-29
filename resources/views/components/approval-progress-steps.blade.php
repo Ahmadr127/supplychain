@@ -1,4 +1,4 @@
-@props(['request', 'stepData' => null, 'showMetadata' => false])
+@props(['request', 'stepData' => null, 'showMetadata' => false, 'showAll' => false])
 
 @php
     $requestStatus = $request->status;
@@ -20,6 +20,18 @@
         // Fallback: use workflow template if no stepData
         $workflowSteps = $request->workflow->steps ?? collect();
         $currentStep = 1;
+    }
+
+    // Filter steps: jika showAll = false, sembunyikan step releaser dan step input PO
+    if (!$showAll) {
+        $workflowSteps = collect($workflowSteps)->filter(function ($step) {
+            $type = $step->step_type ?? null;
+            $name = strtolower($step->step_name ?? '');
+            // Sembunyikan step dengan type 'releaser' atau nama mengandung 'po'
+            if ($type === 'releaser') return false;
+            if (str_contains($name, 'po') || str_contains($name, 'input po')) return false;
+            return true;
+        });
     }
 @endphp
 
