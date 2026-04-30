@@ -18,51 +18,66 @@ class HealWorkflowStates extends Command
     {
         $this->info("🚀 Starting workflow states healing process...");
 
-        // Known purchasing and release steps
-        $purchasingSteps = [
-            'benchmarking vendor',
-            'trial vendor',
-            'pilih preferred vendor',
-            'input po',
-            'final approver', // Sering dimasukkan di area purchasing
-            'penerimaan (grn)',
-            'grn'
+        // Known purchasing steps and their required_actions
+        $purchasingMapping = [
+            'benchmarking vendor' => 'purchasing_receive_doc_benchmark',
+            'trial vendor' => 'purchasing_trial',
+            'pilih preferred vendor' => 'purchasing_preferred_vendor',
+            'input po' => 'purchasing_po',
+            'penerimaan (grn)' => 'purchasing_invoice_grn_done',
+            'grn' => 'purchasing_invoice_grn_done',
         ];
 
-        // 1. Backfill ApprovalItemStep
-        $this->info("\n1. Fixing ApprovalItemStep records without step_phase...");
+        // 1. Force Backfill ApprovalItemStep based on step_name
+        $this->info("\n1. Fixing ApprovalItemStep records based on step_name...");
         
-        $stepsToFix = ApprovalItemStep::whereNull('step_phase')->orWhereNull('step_type')->get();
+        $steps = ApprovalItemStep::all();
         $fixedStepsCount = 0;
 
-        foreach ($stepsToFix as $step) {
+        foreach ($steps as $step) {
             $nameLower = strtolower(trim($step->step_name));
-            
-            // Default ke approval
-            $newPhase = $step->step_phase ?? 'approval';
-            $newType = $step->step_type ?? 'approver';
+            $updated = false;
+            $changes = [];
 
             if ($nameLower === 'releaser') {
-                $newPhase = 'release';
-                $newType = 'releaser';
-            } elseif (in_array($nameLower, $purchasingSteps) || str_contains($nameLower, 'purchasing') || str_contains($nameLower, 'vendor')) {
-                $newPhase = 'purchasing';
-                $newType = 'purchasing';
+                if ($step->step_phase !== 'release' || $step->step_type !== 'releaser') {
+                    $changes['step_phase'] = 'release';
+                    $changes['step_type'] = 'releaser';
+                    $updated = true;
+                }
+            } elseif (array_key_exists($nameLower, $purchasingMapping) || str_contains($nameLower, 'purchasing')) {
+                if ($step->step_phase !== 'purchasing' || $step->step_type !== 'purchasing') {
+                    $changes['step_phase'] = 'purchasing';
+                    $changes['step_type'] = 'purchasing';
+                    $updated = true;
+                }
+                
+                // Map required_action if empty or wrong
+                $expectedAction = $purchasingMapping[$nameLower] ?? null;
+                if ($expectedAction && $step->required_action !== $expectedAction) {
+                    $changes['required_action'] = $expectedAction;
+                    $updated = true;
+                }
             }
 
-            $step->update([
-                'step_phase' => $newPhase,
-                'step_type' => $newType,
-            ]);
+            // Also check if any older steps didn't have phase at all but aren't purchasing
+            if (!$updated && empty($step->step_phase)) {
+                $changes['step_phase'] = 'approval';
+                $changes['step_type'] = 'approver';
+                $updated = true;
+            }
 
-            $fixedStepsCount++;
+            if ($updated) {
+                $step->update($changes);
+                $fixedStepsCount++;
+            }
         }
         $this->info("✅ Fixed {$fixedStepsCount} step records.");
 
         // 2. Find and fix stuck items (on progress -> in_purchasing)
         $this->info("\n2. Finding stuck items that should be in purchasing phase...");
         
-        $stuckItems = ApprovalRequestItem::where('status', 'on progress')->get();
+        $stuckItems = ApprovalRequestItem::whereIn('status', ['on progress', 'pending'])->get();
         $fixedItemsCount = 0;
 
         foreach ($stuckItems as $item) {
