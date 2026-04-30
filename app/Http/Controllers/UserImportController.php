@@ -47,15 +47,19 @@ class UserImportController extends Controller
 
     public function import(Request $request)
     {
+        // Prevent PHP from timing out during large imports
+        set_time_limit(0);
+        ini_set('memory_limit', '256M');
+
         try {
             // Validate file
             $validated = $request->validate([
-                'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
+                'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
                 'set_as_head' => 'nullable|boolean',
             ]);
 
             $file = $request->file('file');
-            
+
             if (!$file) {
                 return redirect()->route('users.import')
                     ->with('error', 'File tidak ditemukan');
@@ -63,171 +67,159 @@ class UserImportController extends Controller
 
             $setAsHead = $request->boolean('set_as_head');
 
-            DB::beginTransaction();
-
             $spreadsheet = IOFactory::load($file->getPathname());
-            $worksheet = $spreadsheet->getActiveSheet();
-            $rows = $worksheet->toArray();
+            $worksheet   = $spreadsheet->getActiveSheet();
+            $rows        = $worksheet->toArray();
 
-            // Skip header row
+            // Parse header row to find column indices
             $headerRow = array_map(function($val) {
                 return strtolower(trim((string)$val));
             }, $rows[0]);
 
-            // Default indices if headers mismatch (fallback to new template format)
-            $nipIdx = array_search('nip', $headerRow);
-            $nipIdx = $nipIdx !== false ? $nipIdx : 1;
-
-            $nameIdx = array_search('nama karyawan', $headerRow);
-            $nameIdx = $nameIdx !== false ? $nameIdx : 2;
-
+            $nipIdx     = array_search('nip', $headerRow);
+            $nipIdx     = $nipIdx !== false ? $nipIdx : 1;
+            $nameIdx    = array_search('nama karyawan', $headerRow);
+            $nameIdx    = $nameIdx !== false ? $nameIdx : 2;
             $orgNameIdx = array_search('organisasi', $headerRow);
             $orgNameIdx = $orgNameIdx !== false ? $orgNameIdx : 3;
-
             $orgCodeIdx = array_search('kode organisasi', $headerRow);
-            // If code not found, assume user uploaded old format
-            
-            $posIdx = array_search('posisi pekerjaan', $headerRow);
-            $posIdx = $posIdx !== false ? $posIdx : ($orgCodeIdx !== false ? 5 : 4);
+            $posIdx     = array_search('posisi pekerjaan', $headerRow);
+            $posIdx     = $posIdx !== false ? $posIdx : ($orgCodeIdx !== false ? 5 : 4);
+            $roleIdx    = array_search('jabatan', $headerRow);
+            $roleIdx    = $roleIdx !== false ? $roleIdx : ($orgCodeIdx !== false ? 6 : 5);
 
-            $roleIdx = array_search('jabatan', $headerRow);
-            $roleIdx = $roleIdx !== false ? $roleIdx : ($orgCodeIdx !== false ? 6 : 5);
-
-            array_shift($rows);
+            array_shift($rows); // Remove header row
 
             $imported = 0;
-            $errors = [];
-            
-            // Get manager permissions for new roles
-            $managerRole = Role::where('name', 'manager')->first();
-            $managerPermissions = $managerRole ? $managerRole->permissions()->pluck('permissions.id')->toArray() : [];
-            
-            // Fallback to dashboard permission if manager role not found
-            if (empty($managerPermissions)) {
-                $managerPermissions = Permission::whereIn('name', ['view_dashboard'])->pluck('id')->toArray();
-            }
+            $errors   = [];
 
+            // --- Pre-load lookups into memory ---
+            $managerRole = Role::where('name', 'manager')->first();
+            $managerPermissions = $managerRole
+                ? $managerRole->permissions()->pluck('permissions.id')->toArray()
+                : Permission::whereIn('name', ['view_dashboard'])->pluck('id')->toArray();
+
+            // Cache by name and by code
+            $deptByName = Department::all()->keyBy('name')->toArray();
+            $deptByCode = Department::all()->keyBy('code')->toArray();
+            $roleCache  = Role::all()->keyBy('name')->toArray();
+
+            // PostgreSQL: wrap each row in its own transaction
+            // so one failed row does NOT abort subsequent rows
             foreach ($rows as $index => $row) {
                 $rowNumber = $index + 2;
 
-                // Skip empty rows
                 if (empty(array_filter($row))) {
                     continue;
                 }
 
+                DB::beginTransaction();
                 try {
-                    $nik = trim($row[$nipIdx] ?? '');
-                    $name = trim($row[$nameIdx] ?? '');
+                    $nik              = trim($row[$nipIdx] ?? '');
+                    $name             = trim($row[$nameIdx] ?? '');
                     $organizationName = trim($row[$orgNameIdx] ?? '');
                     $organizationCode = $orgCodeIdx !== false ? trim($row[$orgCodeIdx] ?? '') : '';
-                    $position = trim($row[$posIdx] ?? '');
-                    $roleName = trim($row[$roleIdx] ?? 'staff');
+                    $position         = trim($row[$posIdx] ?? '');
+                    $roleName         = trim($row[$roleIdx] ?? 'staff');
 
                     if (!$nik || !$name) {
+                        DB::rollBack();
                         $errors[] = "Baris {$rowNumber}: NIK dan Nama wajib diisi";
                         continue;
                     }
 
-                    // Find or create department
+                    // --- Department (cached, safe against duplicate codes) ---
                     $department = null;
                     if ($organizationName || $organizationCode) {
                         // Priority 1: Find by Code if provided
-                        if ($organizationCode) {
-                            $department = Department::where('code', $organizationCode)->first();
+                        if ($organizationCode && isset($deptByCode[$organizationCode])) {
+                            $department = Department::find($deptByCode[$organizationCode]['id']);
                         }
-                        
-                        // Priority 2: Find by Name if Code not found or not provided
-                        if (!$department && $organizationName) {
-                            $department = Department::where('name', $organizationName)->first();
+
+                        // Priority 2: Find by Name
+                        if (!$department && $organizationName && isset($deptByName[$organizationName])) {
+                            $department = Department::find($deptByName[$organizationName]['id']);
                         }
-                        
+
+                        // Priority 3: Create new department
                         if (!$department && $organizationName) {
-                            // If user doesn't provide code, generate one from name
-                            $baseCode = $organizationCode ? $organizationCode : strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $organizationName), 0, 10));
-                            $code = $baseCode;
+                            $baseCode = $organizationCode
+                                ? $organizationCode
+                                : strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $organizationName), 0, 10));
+                            $code    = $baseCode;
                             $counter = 1;
-                            
                             while (Department::where('code', $code)->exists()) {
-                                $code = $baseCode . $counter;
-                                $counter++;
+                                $code = $baseCode . $counter++;
                             }
-                            
-                            $department = Department::create([
-                                'name' => $organizationName,
-                                'code' => $code,
-                                'description' => $organizationName,
-                                'is_active' => true,
-                            ]);
+
+                            $department = Department::firstOrCreate(
+                                ['name' => $organizationName],
+                                ['code' => $code, 'description' => $organizationName, 'is_active' => true]
+                            );
+                            $deptByName[$organizationName] = $department->toArray();
+                            $deptByCode[$department->code]  = $department->toArray();
                         } elseif ($department && $organizationCode && $department->code !== $organizationCode) {
-                            // Optional: Update the code if it was found by name and a new code is provided
                             $department->update(['code' => $organizationCode]);
+                            $deptByCode[$organizationCode] = $department->fresh()->toArray();
                         }
                     }
 
-                    // Find or create role
+                    // --- Role (cached) ---
                     $roleSlug = strtolower(str_replace(' ', '_', $roleName));
-                    $role = Role::where('name', $roleSlug)->first();
-                    
-                    if (!$role) {
-                        $role = Role::create([
-                            'name' => $roleSlug,
-                            'display_name' => $roleName,
-                            'description' => "Role {$roleName}",
-                        ]);
-                        
-                        // Assign manager permissions to new role
-                        if (!empty($managerPermissions)) {
+                    if (isset($roleCache[$roleSlug])) {
+                        $role = Role::find($roleCache[$roleSlug]['id']);
+                    } else {
+                        $role = Role::firstOrCreate(
+                            ['name' => $roleSlug],
+                            ['display_name' => $roleName, 'description' => "Role {$roleName}"]
+                        );
+                        if ($role->wasRecentlyCreated && !empty($managerPermissions)) {
                             $role->permissions()->sync($managerPermissions);
                         }
+                        $roleCache[$roleSlug] = $role->toArray();
                     }
 
-                    // Generate username from name (without titles)
+                    // --- Username (unique) ---
                     $nameWithoutTitle = $this->extractNameWithoutTitle($name);
-                    $username = strtolower(str_replace(' ', '.', preg_replace('/[^A-Za-z0-9\s]/', '', $nameWithoutTitle)));
-                    $baseUsername = $username;
-                    $counter = 1;
-                    
+                    $baseUsername = strtolower(str_replace(' ', '.', preg_replace('/[^A-Za-z0-9\s]/', '', $nameWithoutTitle)));
+                    $username = $baseUsername;
+                    $counter  = 1;
                     while (User::where('username', $username)->where('nik', '!=', $nik)->exists()) {
-                        $username = $baseUsername . $counter;
-                        $counter++;
+                        $username = $baseUsername . $counter++;
                     }
 
-                    // Generate email
-                    $email = $username . '@azra.com';
+                    // --- Email (unique) ---
+                    $email   = $username . '@azra.com';
                     $counter = 1;
                     while (User::where('email', $email)->where('nik', '!=', $nik)->exists()) {
-                        $email = $baseUsername . $counter . '@azra.com';
-                        $counter++;
+                        $email = $baseUsername . $counter++ . '@azra.com';
                     }
 
-                    // Create or update user
+                    // --- Create or Update User ---
                     $user = User::where('nik', $nik)->first();
-
                     if ($user) {
                         $user->update([
-                            'name' => $name,
+                            'name'     => $name,
                             'username' => $username,
-                            'email' => $email,
-                            'role_id' => $role->id,
+                            'email'    => $email,
+                            'role_id'  => $role->id,
                         ]);
                     } else {
                         $user = User::create([
-                            'nik' => $nik,
-                            'name' => $name,
+                            'nik'      => $nik,
+                            'name'     => $name,
                             'username' => $username,
-                            'email' => $email,
+                            'email'    => $email,
                             'password' => Hash::make('rsazra'),
-                            'role_id' => $role->id,
+                            'role_id'  => $role->id,
                         ]);
                     }
 
-                    // Attach to department
+                    // --- Attach to Department ---
                     if ($department) {
-                        // Detach ALL previous departments to avoid duplication if user moves department
                         $user->departments()->detach();
-                        
                         $user->departments()->attach($department->id, [
-                            'position' => $position,
+                            'position'   => $position,
                             'is_primary' => true,
                             'is_manager' => $setAsHead,
                             'start_date' => now(),
@@ -238,13 +230,13 @@ class UserImportController extends Controller
                         }
                     }
 
+                    DB::commit();
                     $imported++;
                 } catch (\Exception $e) {
+                    DB::rollBack();
                     $errors[] = "Baris {$rowNumber}: " . $e->getMessage();
                 }
             }
-
-            DB::commit();
 
             if (!empty($errors)) {
                 return redirect()->route('users.import')
@@ -259,11 +251,11 @@ class UserImportController extends Controller
                 ->withErrors($e->errors())
                 ->withInput();
         } catch (\Exception $e) {
-            DB::rollBack();
             return redirect()->route('users.import')
                 ->with('error', 'Gagal mengimport file: ' . $e->getMessage());
         }
     }
+
 
     public function downloadTemplate()
     {

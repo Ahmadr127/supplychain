@@ -148,7 +148,7 @@
                         </div>
                     </td>
                     <td class="w-1/3">
-                        <x-approval-progress-steps :request="$row->request" :step-data="$row->itemData" :show-metadata="true" />
+                        <x-approval-progress-steps :request="$row->request" :step-data="$row->itemData" :show-metadata="true" :show-all="true" />
                     </td>
                     <td class="w-20">
                         <x-approval-status-badge :status="$row->itemData->status" />

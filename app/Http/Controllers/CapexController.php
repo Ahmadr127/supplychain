@@ -140,22 +140,23 @@ class CapexController extends Controller
     public function update(Request $request, Capex $capex)
     {
         $validated = $request->validate([
+            'department_id' => 'required|exists:departments,id',
             'fiscal_year' => 'required|integer|min:2020|max:2100',
             'notes' => 'nullable|string|max:500',
             'status' => 'required|in:draft,active,closed',
         ]);
 
-        // Check uniqueness if year changed
-        if ($request->fiscal_year != $capex->fiscal_year) {
-            // Check if items exist (prevent year change if items exist to maintain ID consistency)
+        // Check uniqueness if year or department changed
+        if ($request->fiscal_year != $capex->fiscal_year || $request->department_id != $capex->department_id) {
+            // Check if items exist (prevent change if items exist to maintain ID consistency)
             if ($capex->items()->exists()) {
                 return back()->withErrors([
-                    'fiscal_year' => 'Tahun anggaran tidak dapat diubah karena sudah ada item yang terdaftar. Hapus semua item terlebih dahulu jika ingin mengubah tahun.'
+                    'fiscal_year' => 'Tahun anggaran atau departemen tidak dapat diubah karena sudah ada item yang terdaftar. Hapus semua item terlebih dahulu.'
                 ])->withInput();
             }
 
             // Check if target year already exists for this department
-            $exists = Capex::where('department_id', $capex->department_id)
+            $exists = Capex::where('department_id', $request->department_id)
                 ->where('fiscal_year', $request->fiscal_year)
                 ->where('id', '!=', $capex->id)
                 ->exists();

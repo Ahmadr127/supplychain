@@ -24,14 +24,19 @@
                     {{-- Department --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Departemen</label>
-                        <select name="department_id" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">Pilih Departemen</option>
-                            @foreach($departments as $dept)
-                                <option value="{{ $dept->id }}" {{ old('department_id') == $dept->id ? 'selected' : '' }}>
-                                    {{ $dept->name }} ({{ $dept->code }})
-                                </option>
-                            @endforeach
-                        </select>
+                        @php
+                            $departmentOptions = $departments->map(fn($d) => [
+                                'id'    => $d->id,
+                                'label' => $d->code ? "{$d->name} ({$d->code})" : $d->name,
+                            ]);
+                        @endphp
+                        <x-searchable-select
+                            name="department_id"
+                            :options="$departmentOptions"
+                            :selected="old('department_id')"
+                            placeholder="Pilih Departemen"
+                            searchPlaceholder="Cari departemen..."
+                            width="w-full" />
                         @error('department_id')
                             <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                         @enderror
