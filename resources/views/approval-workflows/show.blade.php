@@ -75,20 +75,7 @@
                                 <p class="mt-1 text-sm text-gray-900">{{ $approvalWorkflow->created_at->format('d M Y H:i') }}</p>
                             </div>
                             
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Sifat Pengadaan</label>
-                                <p class="mt-1">
-                                    @if($approvalWorkflow->procurementType)
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                            {{ $approvalWorkflow->procurementType->name }} ({{ $approvalWorkflow->procurementType->code }})
-                                        </span>
-                                    @else
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                            Umum (Semua Sifat)
-                                        </span>
-                                    @endif
-                                </p>
-                            </div>
+
                             
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Range Nominal</label>

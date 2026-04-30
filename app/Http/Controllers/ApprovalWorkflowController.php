@@ -35,7 +35,7 @@ class ApprovalWorkflowController extends Controller
             $query->where('is_active', $request->status === 'active');
         }
 
-        $workflows = $query->with('procurementType')->latest()->paginate(10)->withQueryString();
+        $workflows = $query->latest()->paginate(10)->withQueryString();
         
         return view('approval-workflows.index', compact('workflows'));
     }
@@ -45,9 +45,7 @@ class ApprovalWorkflowController extends Controller
         $roles = Role::all();
         $departments = Department::where('is_active', true)->get();
         $users = User::with('role')->get();
-        $procurementTypes = \App\Models\ProcurementType::where('is_active', true)->get();
-        
-        return view('approval-workflows.create', compact('roles', 'departments', 'users', 'procurementTypes'));
+        return view('approval-workflows.create', compact('roles', 'departments', 'users'));
     }
 
     public function store(Request $request)
@@ -56,7 +54,6 @@ class ApprovalWorkflowController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'procurement_type_id' => 'required|exists:procurement_types,id',
             'nominal_min' => 'required|string',
             'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
@@ -87,7 +84,6 @@ class ApprovalWorkflowController extends Controller
             'name' => $request->name,
             'type' => $request->type,
             'description' => $request->description,
-            'procurement_type_id' => $request->procurement_type_id,
             'nominal_range' => $nominalRange,
             'nominal_min' => $nominalMin,
             'nominal_max' => $nominalMax,
@@ -101,7 +97,7 @@ class ApprovalWorkflowController extends Controller
 
     public function show(ApprovalWorkflow $approvalWorkflow)
     {
-        $approvalWorkflow->load('requests.requester', 'procurementType');
+        $approvalWorkflow->load('requests.requester');
         
         return view('approval-workflows.show', compact('approvalWorkflow'));
     }
@@ -111,9 +107,7 @@ class ApprovalWorkflowController extends Controller
         $roles = Role::all();
         $departments = Department::where('is_active', true)->get();
         $users = User::with('role')->get();
-        $procurementTypes = \App\Models\ProcurementType::where('is_active', true)->get();
-        
-        return view('approval-workflows.edit', compact('approvalWorkflow', 'roles', 'departments', 'users', 'procurementTypes'));
+        return view('approval-workflows.edit', compact('approvalWorkflow', 'roles', 'departments', 'users'));
     }
 
     public function update(Request $request, ApprovalWorkflow $approvalWorkflow)
@@ -122,7 +116,6 @@ class ApprovalWorkflowController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'procurement_type_id' => 'required|exists:procurement_types,id',
             'nominal_min' => 'required|string',
             'nominal_max' => 'nullable|string',
             'workflow_steps' => 'required|array|min:1',
@@ -153,7 +146,6 @@ class ApprovalWorkflowController extends Controller
             'name' => $request->name,
             'type' => $request->type,
             'description' => $request->description,
-            'procurement_type_id' => $request->procurement_type_id,
             'nominal_range' => $nominalRange,
             'nominal_min' => $nominalMin,
             'nominal_max' => $nominalMax,

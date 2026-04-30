@@ -60,24 +60,7 @@
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Konfigurasi Pengadaan</h3>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {{-- Sifat Pengadaan --}}
-            <div>
-                <label for="procurement_type_id" class="block text-sm font-medium text-gray-700 mb-2">
-                    Sifat Pengadaan <span class="text-red-500">*</span>
-                </label>
-                @php
-                    $procOptions = $procurementTypes->map(fn($p) => ['id' => $p->id, 'label' => $p->name]);
-                @endphp
-                <x-searchable-select 
-                    name="procurement_type_id" 
-                    :options="$procOptions" 
-                    :selected="old('procurement_type_id', $approvalWorkflow->procurement_type_id ?? '')"
-                    placeholder="-- Pilih Sifat Pengadaan --"
-                    width="w-full" />
-                @error('procurement_type_id')
-                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                @enderror
-            </div>
+
 
             {{-- Nominal Min --}}
             <div>
