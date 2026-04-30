@@ -482,11 +482,38 @@
 
             // approver_type is not required for purchasing steps
             const isPurchasingStep = stepTypeSelect && stepTypeSelect.value === 'purchasing';
-            if (!isPurchasingStep && typeSelect && !typeSelect.value) {
-                isValid = false;
-                typeSelect.classList.add('border-red-500');
-            } else if (typeSelect) {
-                typeSelect.classList.remove('border-red-500');
+            if (!isPurchasingStep && typeSelect) {
+                if (!typeSelect.value) {
+                    isValid = false;
+                    typeSelect.classList.add('border-red-500');
+                } else {
+                    typeSelect.classList.remove('border-red-500');
+                    
+                    // Validate the specific ID input
+                    const selectedType = typeSelect.value;
+                    let idInput = null;
+                    if (selectedType === 'user') {
+                        idInput = item.querySelector('input[name*="[approver_id]"]');
+                    } else if (selectedType === 'role') {
+                        idInput = item.querySelector('input[name*="[approver_role_id]"]');
+                    } else if (selectedType === 'department_manager') {
+                        idInput = item.querySelector('input[name*="[approver_department_id]"]');
+                    }
+                    
+                    if (idInput) {
+                        const button = idInput.nextElementSibling;
+                        if (!idInput.value) {
+                            isValid = false;
+                            if (button && button.tagName === 'BUTTON') {
+                                button.classList.add('border-red-500');
+                            }
+                        } else {
+                            if (button && button.tagName === 'BUTTON') {
+                                button.classList.remove('border-red-500');
+                            }
+                        }
+                    }
+                }
             }
         });
 

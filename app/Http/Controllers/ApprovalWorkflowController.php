@@ -60,9 +60,9 @@ class ApprovalWorkflowController extends Controller
             'workflow_steps.*.name' => 'required|string|max:255',
             'workflow_steps.*.step_type' => 'nullable|in:approver,releaser,purchasing,maker',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
-            'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
-            'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
-            'workflow_steps.*.approver_department_id' => 'nullable|exists:departments,id',
+            'workflow_steps.*.approver_id' => 'required_if:workflow_steps.*.approver_type,user|nullable|exists:users,id',
+            'workflow_steps.*.approver_role_id' => 'required_if:workflow_steps.*.approver_type,role|nullable|exists:roles,id',
+            'workflow_steps.*.approver_department_id' => 'required_if:workflow_steps.*.approver_type,department_manager|nullable|exists:departments,id',
             'is_active' => 'boolean'
         ]);
 
@@ -89,6 +89,7 @@ class ApprovalWorkflowController extends Controller
             'nominal_max' => $nominalMax,
             'priority' => $this->calculatePriority($nominalMax),
             'workflow_steps' => $workflowSteps,
+            'steps' => $workflowSteps,
             'is_active' => $request->has('is_active')
         ]);
 
@@ -122,9 +123,9 @@ class ApprovalWorkflowController extends Controller
             'workflow_steps.*.name' => 'required|string|max:255',
             'workflow_steps.*.step_type' => 'nullable|in:approver,releaser,purchasing,maker',
             'workflow_steps.*.approver_type' => 'required|in:user,role,department_manager,requester_department_manager,any_department_manager',
-            'workflow_steps.*.approver_id' => 'nullable|exists:users,id',
-            'workflow_steps.*.approver_role_id' => 'nullable|exists:roles,id',
-            'workflow_steps.*.approver_department_id' => 'nullable|exists:departments,id',
+            'workflow_steps.*.approver_id' => 'required_if:workflow_steps.*.approver_type,user|nullable|exists:users,id',
+            'workflow_steps.*.approver_role_id' => 'required_if:workflow_steps.*.approver_type,role|nullable|exists:roles,id',
+            'workflow_steps.*.approver_department_id' => 'required_if:workflow_steps.*.approver_type,department_manager|nullable|exists:departments,id',
             'is_active' => 'boolean'
         ]);
 
@@ -151,6 +152,7 @@ class ApprovalWorkflowController extends Controller
             'nominal_max' => $nominalMax,
             'priority' => $this->calculatePriority($nominalMax),
             'workflow_steps' => $workflowSteps,
+            'steps' => $workflowSteps,
             'is_active' => $request->has('is_active')
         ]);
 
