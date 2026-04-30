@@ -95,6 +95,11 @@ class InitializeItemSteps extends Command
                 DB::beginTransaction();
                 try {
                     foreach ($workflowSteps as $step) {
+                        $stepPhase = $step->step_phase ?? 'approval';
+                        $hasReleaseBefore = collect($workflowSteps)
+                            ->contains(fn($s) => ($s->step_phase ?? '') === 'release' && (int)($s->step_number ?? 0) < (int)($step->step_number ?? 0));
+                        $initialStatus = ($stepPhase === 'release' || $hasReleaseBefore) ? 'pending_purchase' : 'pending';
+
                         ApprovalItemStep::create([
                             'approval_request_id' => $request->id,
                             'master_item_id' => $item->master_item_id,
@@ -104,7 +109,11 @@ class InitializeItemSteps extends Command
                             'approver_id' => $step->approver_id,
                             'approver_role_id' => $step->approver_role_id,
                             'approver_department_id' => $step->approver_department_id,
-                            'status' => 'pending',
+                            'status' => $initialStatus,
+                            'required_action' => $step->required_action ?? null,
+                            'step_type' => $step->step_type ?? 'approver',
+                            'step_phase' => $stepPhase,
+                            'scope_process' => $step->scope_process ?? null,
                         ]);
                         $totalSteps++;
                     }

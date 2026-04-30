@@ -322,7 +322,10 @@ class ApprovalItemApprovalController extends Controller
                     ->where('status', 'pending')
                     ->where(function($q) {
                         $q->where('step_phase', 'approval')
-                          ->orWhereNull('step_phase');
+                          ->orWhere(function($sub) {
+                              $sub->whereNull('step_phase')
+                                  ->whereNotIn('step_type', ['purchasing', 'releaser']);
+                          });
                     })
                     ->orderBy('step_number')
                     ->first();
