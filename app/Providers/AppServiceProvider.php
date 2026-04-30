@@ -26,13 +26,8 @@ class AppServiceProvider extends ServiceProvider
         // Register custom middleware
         $this->app['router']->aliasMiddleware('permission', \App\Http\Middleware\CheckPermission::class);
 
-        // Deteksi HTTPS secara otomatis dari header server.
-        // Bekerja di lokal (HTTP) maupun production (HTTPS) tanpa perlu mengubah .env.
-        $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')
-            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
-            || (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] === 'on');
-
-        if ($isHttps) {
+        // Force HTTPS jika di set di .env (untuk mengatasi warning form submission not secure di production)
+        if (env('FORCE_HTTPS', false)) {
             URL::forceScheme('https');
         }
     }
