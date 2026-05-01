@@ -68,6 +68,11 @@ class ReportController extends Controller
                         })->orWhereDoesntHave('purchasingItems');
                     });
                 });
+            } elseif ($ps === 'benchmarking') {
+                // "Pemilihan vendor" mencakup benchmarking (vendor diinput) DAN selected (preferred dipilih, PO belum)
+                $q->whereHas('purchasingItems', function($pi) {
+                    $pi->whereIn('status', ['benchmarking', 'selected']);
+                });
             } else {
                 $q->whereHas('purchasingItems', function($pi) use ($ps) {
                     $pi->where('status', $ps);
