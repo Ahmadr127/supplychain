@@ -90,8 +90,6 @@ class ReportController extends Controller
         if ($s = trim((string)$request->get('search', ''))) {
             $q->where(function($w) use ($s){
                 $w->where('request_number', 'like', "%$s%")
-                  ->orWhere('description', 'like', "%$s%")
-                  ->orWhere('status', 'like', "%$s%")
                   ->orWhereHas('items.masterItem', function($mi) use($s){
                       $mi->where('name', 'like', "%$s%");
                   });
