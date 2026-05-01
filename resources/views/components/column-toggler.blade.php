@@ -4,7 +4,7 @@
 ])
 
 @php
-$defaultVisible = ['no','nama_pengaju','process','jenis','tanggal_pengajuan','detail','keterangan','unit_pengaju'];
+$defaultVisible = ['no','no_input','nama_pengaju','process','jenis','tanggal_pengajuan','detail','unit_pengaju'];
 $columnsData    = collect($columns)->map(fn($c) => ['field' => $c['field'] ?? '', 'label' => $c['label'] ?? ''])->values()->all();
 @endphp
 
