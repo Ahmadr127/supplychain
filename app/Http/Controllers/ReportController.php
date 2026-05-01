@@ -468,8 +468,8 @@ class ReportController extends Controller
 
     public function processPurchasing(Request $request)
     {
-        // Authorization: only users with manage_purchasing or process_purchasing_item may access
-        if (!(auth()->user()?->hasPermission('manage_purchasing') || auth()->user()?->hasPermission('process_purchasing_item'))) {
+        // Authorization: users with manage_purchasing, process_purchasing_item, or manage_vendor may access
+        if (!(auth()->user()?->hasPermission('manage_purchasing') || auth()->user()?->hasPermission('process_purchasing_item') || auth()->user()?->hasPermission('manage_vendor'))) {
             abort(403, 'Unauthorized action.');
         }
         $id = (int) $request->query('purchasing_item_id');

@@ -109,7 +109,7 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
             Step ini diproses melalui modul <strong>Purchasing</strong>, bukan di halaman ini.
             Silakan buka halaman Purchasing untuk melanjutkan proses.
         </p>
-        @if(auth()->check() && (auth()->user()->hasPermission('process_purchasing_item') || auth()->user()->hasPermission('view_process_purchasing')))
+        @if(auth()->check() && (auth()->user()->hasPermission('process_purchasing_item') || auth()->user()->hasPermission('view_process_purchasing') || auth()->user()->hasPermission('manage_vendor')))
             @if($purchasingItem)
                 <a href="{{ route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $purchasingItem->id]) }}"
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md transition-colors">

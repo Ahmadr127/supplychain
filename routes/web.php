@@ -291,7 +291,7 @@ Route::middleware('auth')->group(function () {
         Route::get('reports/approval-requests', [ReportController::class, 'approvalRequests'])->name('reports.approval-requests');
     });
 
-    Route::middleware('permission:process_purchasing_item')->group(function () {
+    Route::middleware('permission:process_purchasing_item|manage_vendor')->group(function () {
         // Report Purchasing process page (server-rendered)
         Route::get('reports/approval-requests/process-purchasing', [\App\Http\Controllers\ReportController::class, 'processPurchasing'])
             ->name('reports.approval-requests.process-purchasing');
