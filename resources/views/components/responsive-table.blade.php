@@ -4,7 +4,8 @@
     'createLabel' => 'Tambah Data',
     'filters' => null,
     'pagination' => null,
-    'emptyMessage' => 'Tidak ada data',
+    'perPageSlot' => null,
+    'emptyMessage' => 'Belum ada data',
     'emptyIcon' => 'fas fa-inbox',
     'emptyActionRoute' => null,
     'emptyActionLabel' => 'Tambah Data Pertama',
@@ -91,15 +92,20 @@
         @if($pagination)
             <div class="px-4 py-3 border-t border-gray-200 bg-white">
                 <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <!-- Show entries info -->
-                    <div class="text-sm text-gray-700">
-                        <span class="font-medium">Menampilkan</span>
-                        <span class="font-semibold text-gray-900">{{ $pagination->firstItem() ?? 0 }}</span>
-                        <span class="font-medium">sampai</span>
-                        <span class="font-semibold text-gray-900">{{ $pagination->lastItem() ?? 0 }}</span>
-                        <span class="font-medium">dari</span>
-                        <span class="font-semibold text-gray-900">{{ $pagination->total() }}</span>
-                        <span class="font-medium">entri</span>
+                    <div class="flex items-center gap-3">
+                        {{-- Per-page slot (injected from parent) --}}
+                        @if($perPageSlot)
+                            {{ $perPageSlot }}
+                        @endif
+                        <div class="text-sm text-gray-700">
+                            <span class="font-medium">Menampilkan</span>
+                            <span class="font-semibold text-gray-900">{{ $pagination->firstItem() ?? 0 }}</span>
+                            <span class="font-medium">sampai</span>
+                            <span class="font-semibold text-gray-900">{{ $pagination->lastItem() ?? 0 }}</span>
+                            <span class="font-medium">dari</span>
+                            <span class="font-semibold text-gray-900">{{ $pagination->total() }}</span>
+                            <span class="font-medium">entri</span>
+                        </div>
                     </div>
                     
                     <!-- Custom Pagination -->

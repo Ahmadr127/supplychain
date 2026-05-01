@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use App\Models\ApprovalRequest;
 use App\Models\SubmissionType;
 use App\Models\Department;
 use App\Models\ItemCategory;
 use App\Models\PurchasingItem;
+use App\Models\User;
 use App\Services\Purchasing\PurchasingItemService;
 use Carbon\Carbon;
 
@@ -18,7 +20,8 @@ class ReportController extends Controller
         $q = ApprovalRequest::query()
             ->with([
                 'submissionType:id,name',
-                'requester.departments' => function($q){ $q->wherePivot('is_primary', true); },
+                'requester' => fn($q) => $q->select('id','name'),
+                'requester.departments' => function($q){ $q->wherePivot('is_primary', true)->select('departments.id','departments.name'); },
                 'items.masterItem' => function($q){
                     $q->select('id','name','item_category_id')
                       ->with(['itemCategory:id,name']);
@@ -47,11 +50,23 @@ class ReportController extends Controller
                 $w->where('departments.id', $deptId)->where('user_departments.is_primary', true);
             });
         }
+        // Default filter: manage_vendor user defaults to 'benchmarking' when no filters set
+        if (!$request->filled('purchasing_status')
+            && !$request->filled('reset')
+            && auth()->user()?->hasPermission('manage_vendor')
+            && !$request->hasAny(['search','date_from','year','department_id','category_id','submission_type_id','requester_id'])
+        ) {
+            $request->merge(['purchasing_status' => 'benchmarking']);
+        }
+
         if ($request->filled('status')) {
             $q->where('status', $request->status);
         } else {
             // Default: exclude rejected and cancelled requests
             $q->whereNotIn('status', ['rejected', 'cancelled']);
+        }
+        if ($request->filled('requester_id')) {
+            $q->where('requester_id', (int) $request->requester_id);
         }
         // Filter by purchasing item status if provided
         if ($request->filled('purchasing_status')) {
@@ -232,7 +247,9 @@ class ReportController extends Controller
                 $row = [
                     'approval_request_id' => $req->id,
                     'master_item_id' => $m->id,
+                    'no'   => '',  // nomor urut diisi di bawah
                     'no_input' => $req->request_number ?? '-',
+                    'nama_pengaju' => $req->requester?->name ?? '-',
                     'process' => $processText,
                     // also include raw code for color mapping in view
                     'process_code' => $itemPurchasingStatusCode,
@@ -240,7 +257,7 @@ class ReportController extends Controller
                     'jenis' => $m->name ?? '-',
                     'unit_pengaju' => $primaryDept ?? '-',
                     'tanggal_pengajuan' => $createdAt?->format('Y-m-d') ?? '-',
-                    'tanggal_terima_dokumen' => $req->received_at ? \Carbon\Carbon::parse($req->received_at)->format('Y-m-d') : '-',
+                    'tanggal_terima_dokumen' => $req->received_at ? Carbon::parse($req->received_at)->format('Y-m-d') : '-',
                     'umur_pengajuan' => $ageText,
                     // Per-item No Surat from item
                     'no_surat' => ($item->letter_number ?? '-') ?: '-',
@@ -274,7 +291,7 @@ class ReportController extends Controller
                     // PO/INV/GRN/Cycle
                     'invoice' => $pi?->invoice_number ?? '-',
                     'po_number' => $pi?->po_number ?? '-',
-                    'grn_date' => $pi?->grn_date ? \Carbon\Carbon::parse($pi->grn_date)->format('Y-m-d') : '-',
+                    'grn_date' => $pi?->grn_date ? Carbon::parse($pi->grn_date)->format('Y-m-d') : '-',
                     'proc_cycle' => $procText,
                 ];
 
@@ -359,6 +376,13 @@ class ReportController extends Controller
         $departments = Department::orderBy('name')->get(['id','name']);
         $categories = ItemCategory::orderBy('name')->get(['id','name']);
 
+        // Fill nomor urut (row number, global across pages)
+        $startNo = ($requests->currentPage() - 1) * $perPage + 1;
+        foreach ($rows as $i => &$row) {
+            $row['no'] = $startNo + $i;
+        }
+        unset($row);
+
         // Calculate status counts based on current filters (except status filter itself)
         // We clone the query $q but we need to remove the status filter if it was applied
         // Since $q is already built with filters, we can't easily remove one.
@@ -422,58 +446,60 @@ class ReportController extends Controller
 
         return view('reports.approval-requests.index', [
             'columns' => [
-                ['label' => 'NO INPUT','field' => 'no_input','width' => 'w-36'],
+                ['label' => 'No',              'field' => 'no',              'width' => 'w-12'],
+                ['label' => 'NO INPUT',         'field' => 'no_input',        'width' => 'w-36'],
+                ['label' => 'Nama Pengaju',     'field' => 'nama_pengaju',    'width' => 'w-40'],
                 [
                     'label' => 'PROCESS',
+                    'field' => 'process',
                     'width' => 'w-32',
                     'render' => function($row){
                         $code = $row['process_code'] ?? 'unprocessed';
                         $text = $row['process'] ?? '-';
-                        // Map purchasing status to Tailwind classes (align with my-requests.blade.php)
                         $cls = match($code){
                             'pending_approval' => 'bg-yellow-100 text-yellow-800',
-                            'benchmarking' => 'bg-red-600 text-white',
-                            'selected' => 'bg-yellow-400 text-black',
-                            'po_issued' => 'bg-orange-500 text-white',
-                            'grn_received' => 'bg-green-600 text-white',
-                            'done' => 'bg-green-700 text-white',
-                            'unprocessed' => 'bg-gray-200 text-gray-800',
-                            default => 'bg-gray-200 text-gray-800',
+                            'benchmarking'     => 'bg-red-600 text-white',
+                            'selected'         => 'bg-yellow-400 text-black',
+                            'po_issued'        => 'bg-orange-500 text-white',
+                            'grn_received'     => 'bg-green-600 text-white',
+                            'done'             => 'bg-green-700 text-white',
+                            'unprocessed'      => 'bg-gray-200 text-gray-800',
+                            default            => 'bg-gray-200 text-gray-800',
                         };
                         return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium '.$cls.'">'.e($text).'</span>';
                     }
                 ],
-                ['label' => 'Jenis Barang/Jasa/Program Kerja','field' => 'jenis','width' => 'w-56'],
-                ['label' => 'Unit Pengaju','field' => 'unit_pengaju','width' => 'w-48'],
-                ['label' => 'Tanggal Pengajuan','field' => 'tanggal_pengajuan','width' => 'w-40'],
-                ['label' => 'Tanggal Terima Dokumen','field' => 'tanggal_terima_dokumen','width' => 'w-48'],
-                ['label' => 'Umur Pengajuan','field' => 'umur_pengajuan','width' => 'w-32'],
-                ['label' => 'No Surat','field' => 'no_surat','width' => 'w-40'],
-                ['label' => 'Tahun Pengadaan','field' => 'tahun_pengadaan','width' => 'w-32'],
-                ['label' => 'Detail Barang/jasa/program kerja','field' => 'detail','width' => 'w-[28rem]'],
-                ['label' => 'Unit Peruntukan','field' => 'unit_peruntukan','width' => 'w-40'],
-                ['label' => 'Kategori','field' => 'kategori','width' => 'w-56'],
-                ['label' => 'Keterangan','field' => 'keterangan','width' => 'w-56'],
-                ['label' => 'Qty','field' => 'qty','width' => 'w-20'],
+                ['label' => 'Jenis Barang/Jasa/Program Kerja', 'field' => 'jenis',                  'width' => 'w-56'],
+                ['label' => 'Unit Pengaju',                    'field' => 'unit_pengaju',            'width' => 'w-48'],
+                ['label' => 'Tanggal Pengajuan',               'field' => 'tanggal_pengajuan',       'width' => 'w-40'],
+                ['label' => 'Tanggal Terima Dokumen',          'field' => 'tanggal_terima_dokumen',  'width' => 'w-48'],
+                ['label' => 'Umur Pengajuan',                  'field' => 'umur_pengajuan',          'width' => 'w-32'],
+                ['label' => 'No Surat',                        'field' => 'no_surat',                'width' => 'w-40'],
+                ['label' => 'Tahun Pengadaan',                 'field' => 'tahun_pengadaan',         'width' => 'w-32'],
+                ['label' => 'Detail Barang/Jasa/Program Kerja','field' => 'detail',                  'width' => 'w-[28rem]'],
+                ['label' => 'Unit Peruntukan',                 'field' => 'unit_peruntukan',         'width' => 'w-40'],
+                ['label' => 'Kategori',                        'field' => 'kategori',                'width' => 'w-56'],
+                ['label' => 'Keterangan',                      'field' => 'keterangan',              'width' => 'w-56'],
+                ['label' => 'Qty',                             'field' => 'qty',                     'width' => 'w-20'],
                 // Benchmarking vendors (up to 3)
-                ['label' => 'BM Supplier 1','field' => 'bm_supplier_1','width' => 'w-56'],
-                ['label' => 'BM Unit Price 1','field' => 'bm_unit_price_1','width' => 'w-40'],
-                ['label' => 'BM Total Price 1','field' => 'bm_total_price_1','width' => 'w-40'],
-                ['label' => 'BM Supplier 2','field' => 'bm_supplier_2','width' => 'w-56'],
-                ['label' => 'BM Unit Price 2','field' => 'bm_unit_price_2','width' => 'w-40'],
-                ['label' => 'BM Total Price 2','field' => 'bm_total_price_2','width' => 'w-40'],
-                ['label' => 'BM Supplier 3','field' => 'bm_supplier_3','width' => 'w-56'],
-                ['label' => 'BM Unit Price 3','field' => 'bm_unit_price_3','width' => 'w-40'],
-                ['label' => 'BM Total Price 3','field' => 'bm_total_price_3','width' => 'w-40'],
+                ['label' => 'BM Supplier 1',    'field' => 'bm_supplier_1',   'width' => 'w-56'],
+                ['label' => 'BM Unit Price 1',  'field' => 'bm_unit_price_1', 'width' => 'w-40'],
+                ['label' => 'BM Total Price 1', 'field' => 'bm_total_price_1','width' => 'w-40'],
+                ['label' => 'BM Supplier 2',    'field' => 'bm_supplier_2',   'width' => 'w-56'],
+                ['label' => 'BM Unit Price 2',  'field' => 'bm_unit_price_2', 'width' => 'w-40'],
+                ['label' => 'BM Total Price 2', 'field' => 'bm_total_price_2','width' => 'w-40'],
+                ['label' => 'BM Supplier 3',    'field' => 'bm_supplier_3',   'width' => 'w-56'],
+                ['label' => 'BM Unit Price 3',  'field' => 'bm_unit_price_3', 'width' => 'w-40'],
+                ['label' => 'BM Total Price 3', 'field' => 'bm_total_price_3','width' => 'w-40'],
                 // Preferred vendor
-                ['label' => 'Preferred Supplier','field' => 'pref_supplier','width' => 'w-56'],
-                ['label' => 'Preferred Unit Price','field' => 'pref_unit_price','width' => 'w-40'],
-                ['label' => 'Preferred Total Price','field' => 'pref_total_price','width' => 'w-40'],
+                ['label' => 'Preferred Supplier',    'field' => 'pref_supplier',   'width' => 'w-56'],
+                ['label' => 'Preferred Unit Price',  'field' => 'pref_unit_price', 'width' => 'w-40'],
+                ['label' => 'Preferred Total Price', 'field' => 'pref_total_price','width' => 'w-40'],
                 // PO/INV/GRN/CYCLE
-                ['label' => 'INV','field' => 'invoice','width' => 'w-40'],
-                ['label' => 'PO','field' => 'po_number','width' => 'w-40'],
-                ['label' => 'Tanggal GRN','field' => 'grn_date','width' => 'w-40'],
-                ['label' => 'Proc Cycle','field' => 'proc_cycle','width' => 'w-32'],
+                ['label' => 'INV',         'field' => 'invoice',   'width' => 'w-40'],
+                ['label' => 'PO',          'field' => 'po_number', 'width' => 'w-40'],
+                ['label' => 'Tanggal GRN', 'field' => 'grn_date',  'width' => 'w-40'],
+                ['label' => 'Proc Cycle',  'field' => 'proc_cycle','width' => 'w-32'],
             ],
             'rows' => $rows,
             'paginator' => $requests,
@@ -482,8 +508,35 @@ class ReportController extends Controller
             'departments' => $departments,
             'categories' => $categories,
             'statusCounts' => $statusCounts,
-            'purchasingCounts' => $purchasingCounts,
+            'purchasingCounts'  => $purchasingCounts,
+            'requesterName'     => request('requester_id')
+                ? User::find((int) request('requester_id'))?->name
+                : null,
         ]);
+    }
+
+    /**
+     * AJAX endpoint: lazy-load filter dropdown options.
+     * Endpoint: GET /ajax/reports/filter-options/{type}?q=search
+     */
+    public function filterOptions(Request $request, string $type): JsonResponse
+    {
+        $search = trim($request->get('q', ''));
+        $limit  = 40;
+
+        $results = match($type) {
+            'departments'      => Department::when($search, fn($q) => $q->where('name', 'ilike', "%$search%"))
+                                    ->orderBy('name')->limit($limit)->get(['id','name']),
+            'categories'       => ItemCategory::when($search, fn($q) => $q->where('name', 'ilike', "%$search%"))
+                                    ->orderBy('name')->limit($limit)->get(['id','name']),
+            'submission_types' => SubmissionType::when($search, fn($q) => $q->where('name', 'ilike', "%$search%"))
+                                    ->orderBy('name')->limit($limit)->get(['id','name']),
+            'requesters'       => User::when($search, fn($q) => $q->where('name', 'ilike', "%$search%"))
+                                    ->orderBy('name')->limit($limit)->get(['id','name']),
+            default            => collect(),
+        };
+
+        return response()->json($results);
     }
 
     public function processPurchasing(Request $request)
