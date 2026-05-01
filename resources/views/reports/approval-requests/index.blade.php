@@ -10,18 +10,16 @@
     emptyMessage="Belum ada data">
 
     <x-slot name="filters">
-
-
         <form method="GET" class="w-full" id="filter-form">
             <div class="space-y-2" x-data="{ showAdvanced: false }" @toggle-advanced-filter.window="showAdvanced = !showAdvanced">
                 <!-- Main Filter Bar -->
                 <div class="flex flex-col lg:flex-row gap-2">
                     <!-- Search Section -->
-                    <div class="flex flex-1 gap-2 items-center">
-                        <div class="flex-1 max-w-md">
+                    <div class="flex flex-1 gap-2 items-center flex-wrap">
+                        <div class="flex-1 min-w-[180px] max-w-md">
                             <div class="relative">
                                 <input type="text" name="search" value="{{ request('search') }}" 
-                                       placeholder="Cari request..."
+                                       placeholder="Cari no request / nama barang..."
                                        class="w-full h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 <svg class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -49,8 +47,7 @@
                         
                         <!-- Submit Button -->
                         <button type="submit" class="h-9 px-4 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors">
-                            <i class="fas fa-search mr-1"></i>
-                            Filter
+                            <i class="fas fa-search mr-1"></i>Filter
                         </button>
                     </div>
                     
@@ -79,18 +76,32 @@
                     </div>
                 </div>
                 
-                <!-- Advanced Filters Row (shown below main filter) -->
+                <!-- Advanced Filters Row -->
                 <div x-show="showAdvanced" x-transition 
                      class="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                    
+                    <!-- Tanggal Pengajuan -->
                     <div class="flex-1 min-w-[150px]">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Tanggal</label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Tanggal Pengajuan</label>
                         <input type="date" id="single-date" 
                                value="{{ request('date_from') && request('date_to') && request('date_from')===request('date_to') ? request('date_from') : '' }}" 
                                class="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <input type="hidden" name="date_from" id="date_from" value="{{ request('date_from') }}">
                         <input type="hidden" name="date_to" id="date_to" value="{{ request('date_to') }}">
                     </div>
+
+                    <!-- Tahun Pengadaan -->
+                    <div class="flex-1 min-w-[120px]">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Tahun Pengadaan</label>
+                        <select name="year" class="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Tahun</option>
+                            @for($y = now()->year; $y >= now()->year - 5; $y--)
+                                <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>{{ $y }}</option>
+                            @endfor
+                        </select>
+                    </div>
                     
+                    <!-- Jenis Pengajuan -->
                     <div class="flex-1 min-w-[150px]">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Jenis Pengajuan</label>
                         <select name="submission_type_id" class="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -101,6 +112,7 @@
                         </select>
                     </div>
                     
+                    <!-- Unit Pengaju -->
                     <div class="flex-1 min-w-[150px]">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Unit Pengaju</label>
                         <select name="department_id" class="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -110,9 +122,52 @@
                             @endforeach
                         </select>
                     </div>
-                    
-                    
+
+                    <!-- Kategori Barang -->
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Kategori Barang</label>
+                        <select name="category_id" class="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Semua Kategori</option>
+                            @foreach($categories as $c)
+                                <option value="{{ $c->id }}" {{ request('category_id') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
+
+                <!-- Active Filter Badges -->
+                @php
+                    $activeFilters = array_filter([
+                        request('search') ? 'Pencarian: "' . request('search') . '"' : null,
+                        request('purchasing_status') ? 'Status: ' . match(request('purchasing_status')) {
+                            'unprocessed' => 'Belum diproses',
+                            'benchmarking' => 'Pemilihan vendor',
+                            'selected'     => 'Proses PR & PO',
+                            'po_issued'    => 'Proses di vendor',
+                            'grn_received' => 'Barang diterima',
+                            'done'         => 'Selesai',
+                            default        => request('purchasing_status'),
+                        } : null,
+                        request('date_from') ? 'Tanggal: ' . request('date_from') : null,
+                        request('year')      ? 'Tahun: '   . request('year')      : null,
+                        request('submission_type_id') ? 'Jenis: '    . ($submissionTypes->firstWhere('id', request('submission_type_id'))?->name ?? '-') : null,
+                        request('department_id')      ? 'Unit: '     . ($departments->firstWhere('id',     request('department_id'))?->name      ?? '-') : null,
+                        request('category_id')        ? 'Kategori: ' . ($categories->firstWhere('id',      request('category_id'))?->name        ?? '-') : null,
+                    ]);
+                @endphp
+                @if(count($activeFilters) > 0)
+                    <div class="flex flex-wrap gap-1.5 items-center">
+                        <span class="text-xs text-gray-500">Filter aktif:</span>
+                        @foreach($activeFilters as $label)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ $label }}
+                            </span>
+                        @endforeach
+                        <a href="{{ route('reports.approval-requests') }}" class="text-xs text-red-500 hover:text-red-700 underline ml-1">
+                            Hapus semua
+                        </a>
+                    </div>
+                @endif
                 
                 <!-- Status Legend with Counts -->
                 <div class="flex flex-wrap gap-2 py-1">
@@ -130,8 +185,6 @@
 
 </x-responsive-table>
 
- 
-
 @endsection
 
 @push('scripts')
@@ -146,12 +199,12 @@ function exportData() {
 // Keep single date in sync with backend date_from/date_to
 document.addEventListener('DOMContentLoaded', function(){
     const single = document.getElementById('single-date');
-    const from = document.getElementById('date_from');
-    const to = document.getElementById('date_to');
-    if(single){
+    const from   = document.getElementById('date_from');
+    const to     = document.getElementById('date_to');
+    if (single) {
         single.addEventListener('change', function(){
             from.value = this.value || '';
-            to.value = this.value || '';
+            to.value   = this.value || '';
         });
     }
 });

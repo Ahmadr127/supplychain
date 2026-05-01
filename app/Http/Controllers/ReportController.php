@@ -53,9 +53,26 @@ class ReportController extends Controller
             // Default: exclude rejected and cancelled requests
             $q->whereNotIn('status', ['rejected', 'cancelled']);
         }
-        // Filter by purchasing process/status if provided
+        // Filter by purchasing item status if provided
         if ($request->filled('purchasing_status')) {
-            $q->where('purchasing_status', $request->purchasing_status);
+            $ps = $request->purchasing_status;
+            if ($ps === 'unprocessed') {
+                // Items that are ready for purchasing but have no purchasing item yet,
+                // OR have a purchasing item with status 'unprocessed'
+                $q->where(function($w) {
+                    $w->whereHas('items', function($i) {
+                        $i->whereIn('status', ['in_purchasing', 'approved', 'in_release']);
+                    })->where(function($w2) {
+                        $w2->whereHas('purchasingItems', function($pi) {
+                            $pi->where('status', 'unprocessed');
+                        })->orWhereDoesntHave('purchasingItems');
+                    });
+                });
+            } else {
+                $q->whereHas('purchasingItems', function($pi) use ($ps) {
+                    $pi->where('status', $ps);
+                });
+            }
         }
         if ($request->filled('year')) {
             $q->whereYear('created_at', (int)$request->year);
