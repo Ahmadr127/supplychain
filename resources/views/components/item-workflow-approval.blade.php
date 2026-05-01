@@ -109,18 +109,26 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
             Step ini diproses melalui modul <strong>Purchasing</strong>, bukan di halaman ini.
             Silakan buka halaman Purchasing untuk melanjutkan proses.
         </p>
-        @if(auth()->check() && (auth()->user()->hasPermission('process_purchasing_item') || auth()->user()->hasPermission('view_process_purchasing') || auth()->user()->hasPermission('manage_vendor')))
-            @if($purchasingItem)
+        @if(auth()->check() && $purchasingItem)
+            @if(auth()->user()->hasPermission('manage_vendor'))
+                {{-- Manager Keuangan: langsung ke form pemilihan vendor --}}
+                <a href="{{ route('purchasing.items.vendor', $purchasingItem) }}"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md transition-colors">
+                    <i class="fas fa-arrow-right"></i> Pilih Vendor
+                </a>
+            @elseif(auth()->user()->hasPermission('process_purchasing_item') || auth()->user()->hasPermission('view_process_purchasing'))
+                {{-- Tim Purchasing: ke halaman proses purchasing lengkap --}}
                 <a href="{{ route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $purchasingItem->id]) }}"
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md transition-colors">
                     <i class="fas fa-arrow-right"></i> Buka Modul Purchasing
                 </a>
-            @else
-                <a href="{{ route('reports.approval-requests') }}"
-                   class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md transition-colors">
-                    <i class="fas fa-arrow-right"></i> Buka Modul Purchasing
-                </a>
             @endif
+        @elseif(auth()->check() && (auth()->user()->hasPermission('process_purchasing_item') || auth()->user()->hasPermission('view_process_purchasing')))
+            {{-- Fallback jika purchasingItem belum ada --}}
+            <a href="{{ route('reports.approval-requests') }}"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md transition-colors">
+                <i class="fas fa-arrow-right"></i> Buka Modul Purchasing
+            </a>
         @endif
     </div>
 
