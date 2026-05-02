@@ -9,14 +9,11 @@
  */
 
 use App\Models\ApprovalRequest;
-use App\Models\ApprovalRequestItem;
 use App\Models\ApprovalItemStep;
-use App\Models\PurchasingItem;
 
 $REQUEST_NUMBER = 'PNM-5'; // Ganti jika perlu
 
-echo "\n";
-echo "========================================================\n";
+echo "\n========================================================\n";
 echo " DEBUG REQUEST: $REQUEST_NUMBER\n";
 echo "========================================================\n\n";
 
@@ -30,112 +27,100 @@ if (!$req) {
     exit;
 }
 
-// ── APPROVAL REQUEST ──────────────────────────────────────
-echo "┌─ APPROVAL REQUEST\n";
-echo "│  ID             : {$req->id}\n";
-echo "│  Request Number : {$req->request_number}\n";
-echo "│  Status         : {$req->status}\n";
-echo "│  Purchasing Status: " . ($req->purchasing_status ?? 'NULL') . "\n";
-echo "│  Workflow ID    : {$req->workflow_id}\n";
-echo "│  Created At     : {$req->created_at}\n";
-echo "└────────────────────────────────────────────────────\n\n";
+// ── APPROVAL REQUEST
+echo "=== APPROVAL REQUEST ===\n";
+echo "  ID               : {$req->id}\n";
+echo "  Request Number   : {$req->request_number}\n";
+echo "  Status DB        : {$req->status}\n";
+echo "  Purchasing Status: " . ($req->purchasing_status ?? 'NULL') . "\n";
+echo "  Workflow ID      : {$req->workflow_id}\n";
+echo "  Created At       : {$req->created_at}\n\n";
 
-// ── ITEMS ──────────────────────────────────────────────────
-echo "┌─ APPROVAL REQUEST ITEMS (" . $req->items->count() . " item)\n";
+// ── ITEMS
+echo "=== APPROVAL REQUEST ITEMS (" . $req->items->count() . " item) ===\n\n";
+
 foreach ($req->items as $idx => $item) {
     $itemNo = $idx + 1;
-    echo "│\n";
-    echo "│  [$itemNo] Item ID        : {$item->id}\n";
-    echo "│      Master Item    : " . ($item->masterItem->name ?? '(null)') . " (ID: {$item->master_item_id})\n";
-    echo "│      Status         : {$item->status}\n";
-    echo "│      Unit Price     : " . ($item->unit_price ?? 'NULL') . "\n";
-    echo "│      Total Price    : " . ($item->total_price ?? 'NULL') . "\n";
-    echo "│      Approved By    : " . ($item->approved_by ?? 'NULL') . "\n";
-    echo "│      Approved At    : " . ($item->approved_at ?? 'NULL') . "\n";
+    $masterName = optional($item->masterItem)->name ?? '(null)';
 
-    // ── STEPS untuk item ini ──
+    echo "--- Item #$itemNo ---\n";
+    echo "  item_id       : {$item->id}\n";
+    echo "  master_item   : $masterName (ID: {$item->master_item_id})\n";
+    echo "  status        : {$item->status}\n";
+    echo "  unit_price    : " . ($item->unit_price ?? 'NULL') . "\n";
+    echo "  total_price   : " . ($item->total_price ?? 'NULL') . "\n";
+    echo "  approved_by   : " . ($item->approved_by ?? 'NULL') . "\n\n";
+
+    // STEPS
     $steps = ApprovalItemStep::where('approval_request_id', $req->id)
         ->where('approval_request_item_id', $item->id)
         ->orderBy('step_number')
         ->get();
 
-    echo "│\n";
-    echo "│      STEPS (" . $steps->count() . " step):\n";
+    echo "  STEPS (" . $steps->count() . " step):\n";
     if ($steps->isEmpty()) {
-        echo "│        (tidak ada steps)\n";
+        echo "    (tidak ada steps)\n";
     }
     foreach ($steps as $step) {
-        $icon = match($step->status) {
-            'approved'        => '✅',
-            'pending'         => '⏳',
-            'pending_purchase'=> '🛒',
-            'skipped'         => '⏭️',
-            'rejected'        => '❌',
-            default           => '❓',
-        };
-        echo "│        {$icon} Step #{$step->step_number} [{$step->step_phase ?? 'approval'}] {$step->step_name}\n";
-        echo "│              Status    : {$step->status}\n";
-        echo "│              Type      : {$step->step_type}\n";
-        echo "│              Action    : " . ($step->required_action ?? '-') . "\n";
-        echo "│              Approver  : " . ($step->approved_by ?? 'NULL') . "\n";
-        echo "│              Phase     : " . ($step->step_phase ?? 'NULL') . "\n";
+        $icon = ($step->status === 'approved') ? '[OK]'
+              : (($step->status === 'pending')  ? '[PENDING]'
+              : (($step->status === 'skipped')  ? '[SKIP]'
+              : (($step->status === 'rejected') ? '[REJECT]' : '[' . strtoupper($step->status) . ']')));
+        echo "    $icon Step #{$step->step_number} | phase={$step->step_phase} | type={$step->step_type} | {$step->step_name}\n";
+        echo "         status={$step->status} | approver=" . ($step->approved_by ?? 'NULL') . " | action=" . ($step->required_action ?? '-') . "\n";
     }
 
-    // ── PURCHASING ITEM untuk item ini ──
+    // PURCHASING ITEM
     $pi = $req->purchasingItems->firstWhere('master_item_id', $item->master_item_id);
-    echo "│\n";
+    echo "\n  PURCHASING ITEM:\n";
     if ($pi) {
-        echo "│      PURCHASING ITEM:\n";
-        echo "│        PI ID     : {$pi->id}\n";
-        echo "│        PI Status : {$pi->status}\n";
-        echo "│        PO Number : " . ($pi->po_number ?? 'NULL') . "\n";
-        echo "│        GRN Date  : " . ($pi->grn_date ?? 'NULL') . "\n";
+        echo "    PI ID     : {$pi->id}\n";
+        echo "    PI Status : {$pi->status}\n";
+        echo "    PO Number : " . ($pi->po_number ?? 'NULL') . "\n";
+        echo "    GRN Date  : " . ($pi->grn_date ?? 'NULL') . "\n";
     } else {
-        echo "│      PURCHASING ITEM: ❌ TIDAK ADA\n";
+        echo "    >> TIDAK ADA purchasing item untuk item ini!\n";
     }
+    echo "\n";
 }
 
-echo "│\n";
-echo "└────────────────────────────────────────────────────\n\n";
+// ── DIAGNOSIS (logika sama persis dengan ReportController)
+echo "=== DIAGNOSIS (simulasi ReportController) ===\n\n";
 
-// ── DIAGNOSIS ──────────────────────────────────────────────
-echo "┌─ DIAGNOSIS\n";
 foreach ($req->items as $item) {
+    $masterName = optional($item->masterItem)->name ?? '-';
     $pi = $req->purchasingItems->firstWhere('master_item_id', $item->master_item_id);
 
-    // Logika yg sama dengan ReportController
     if ($pi) {
         $code = $pi->status;
     } elseif (in_array($item->status, ['in_purchasing', 'approved', 'in_release'])) {
-        $code = $item->status; // Setelah fix: tampil 'Menunggu Proses'
+        $code = $item->status;
     } else {
-        $code = 'pending_approval'; // Masih menunggu approval
+        $code = 'pending_approval';
     }
 
-    $label = match($code) {
-        'pending_approval' => 'Menunggu Approval  ← MASALAH: belum masuk purchasing',
-        'in_purchasing'    => 'Menunggu Proses    ← OK: approval selesai, belum ada PI',
-        'approved'         => 'Menunggu Proses    ← OK: approved tapi belum ada PI',
-        'in_release'       => 'Menunggu Proses    ← OK: dalam release phase',
-        'unprocessed'      => 'Belum diproses     ← OK: PI ada, belum diproses',
-        'benchmarking'     => 'Pemilihan vendor   ← OK: benchmarking',
-        'selected'         => 'Proses PR & PO     ← OK',
-        'po_issued'        => 'Proses di vendor   ← OK',
-        'grn_received'     => 'Barang diterima    ← OK',
-        'done'             => 'Selesai            ← OK',
-        default            => strtoupper($code),
-    };
+    $labels = [
+        'pending_approval' => 'Menunggu Approval  [MASALAH]',
+        'in_purchasing'    => 'Menunggu Proses    [OK]',
+        'approved'         => 'Menunggu Proses    [OK]',
+        'in_release'       => 'Menunggu Proses    [OK]',
+        'unprocessed'      => 'Belum diproses     [OK]',
+        'benchmarking'     => 'Pemilihan vendor   [OK]',
+        'selected'         => 'Proses PR & PO     [OK]',
+        'po_issued'        => 'Proses di vendor   [OK]',
+        'grn_received'     => 'Barang diterima    [OK]',
+        'done'             => 'Selesai            [OK]',
+    ];
+    $label = $labels[$code] ?? strtoupper($code);
 
-    echo "│  Item #{$item->id} ({$item->masterItem->name ?? '-'})\n";
-    echo "│    item->status           : {$item->status}\n";
-    echo "│    PI exists              : " . ($pi ? "YA (status: {$pi->status})" : "TIDAK") . "\n";
-    echo "│    process_code (report)  : $code\n";
-    echo "│    Ditampilkan sebagai    : $label\n";
-    echo "│\n";
+    echo "  Item #{$item->id} ($masterName)\n";
+    echo "    item->status          : {$item->status}\n";
+    echo "    PI exists             : " . ($pi ? "YA (PI status: {$pi->status})" : "TIDAK") . "\n";
+    echo "    process_code (report) : $code\n";
+    echo "    Tampil di laporan     : $label\n";
 
-    // Cek kenapa mungkin masih pending_approval
     if ($code === 'pending_approval') {
-        echo "│    ⚠️  KENAPA pending_approval?\n";
+        echo "\n    >> KENAPA pending_approval?\n";
 
         $pendingSteps = ApprovalItemStep::where('approval_request_id', $req->id)
             ->where('approval_request_item_id', $item->id)
@@ -143,61 +128,77 @@ foreach ($req->items as $item) {
             ->get();
 
         if ($pendingSteps->isNotEmpty()) {
-            echo "│      → Ada " . $pendingSteps->count() . " step yang masih PENDING:\n";
+            echo "       Ada " . $pendingSteps->count() . " step yang masih PENDING:\n";
             foreach ($pendingSteps as $s) {
-                echo "│        - Step #{$s->step_number} [{$s->step_phase ?? 'approval'}] {$s->step_name} (type: {$s->step_type})\n";
+                echo "       - Step #{$s->step_number} [{$s->step_phase}] {$s->step_name} (type:{$s->step_type})\n";
             }
+        } else {
+            echo "       Tidak ada step pending ditemukan.\n";
         }
 
-        $allStepsApproved = ApprovalItemStep::where('approval_request_id', $req->id)
+        $notDone = ApprovalItemStep::where('approval_request_id', $req->id)
             ->where('approval_request_item_id', $item->id)
             ->whereNotIn('status', ['approved', 'skipped'])
             ->count();
-
-        echo "│      → Steps belum approved/skipped: $allStepsApproved\n";
-        echo "│      → item->status adalah: '{$item->status}'\n";
-        echo "│        (Harus 'in_purchasing', 'approved', atau 'in_release' agar masuk purchasing)\n";
+        echo "       Steps belum done/skip : $notDone\n";
+        echo "       item->status adalah   : '{$item->status}'\n";
+        echo "       (Harus 'in_purchasing'/'approved'/'in_release' agar masuk purchasing)\n";
     }
+    echo "\n";
 }
 
-echo "└────────────────────────────────────────────────────\n\n";
-
-// ── SARAN FIX ──────────────────────────────────────────────
-echo "┌─ SARAN TINDAKAN\n";
+// ── SARAN FIX
+echo "=== SARAN TINDAKAN ===\n\n";
 
 $needFix = false;
 foreach ($req->items as $item) {
     $pi = $req->purchasingItems->firstWhere('master_item_id', $item->master_item_id);
 
-    // Cek: semua approval step sudah done, tapi item status masih on progress
     $openApprovalSteps = ApprovalItemStep::where('approval_request_id', $req->id)
         ->where('approval_request_item_id', $item->id)
         ->where('step_phase', 'approval')
         ->whereNotIn('status', ['approved', 'skipped'])
         ->count();
 
-    $hasPurchasingSteps = ApprovalItemStep::where('approval_request_id', $req->id)
+    $hasPurchasingOrReleaseSteps = ApprovalItemStep::where('approval_request_id', $req->id)
         ->where('approval_request_item_id', $item->id)
         ->whereIn('step_phase', ['purchasing', 'release'])
         ->exists();
 
-    if ($openApprovalSteps === 0 && $hasPurchasingSteps && !in_array($item->status, ['in_purchasing', 'in_release', 'approved'])) {
-        echo "│  ⚠️  Item #{$item->id}: semua approval step SELESAI tapi status masih '{$item->status}'\n";
-        echo "│     → Perlu difix: update status ke 'in_purchasing'\n";
+    if ($openApprovalSteps === 0
+        && $hasPurchasingOrReleaseSteps
+        && !in_array($item->status, ['in_purchasing', 'in_release', 'approved'])
+    ) {
+        echo "  [!] Item #{$item->id}: semua approval SELESAI tapi status masih '{$item->status}'\n";
+        echo "      Solusi: update item status ke 'in_purchasing'\n";
+        echo "      Command: App\Models\ApprovalRequestItem::find({$item->id})->update(['status' => 'in_purchasing']);\n\n";
         $needFix = true;
     }
 
-    if ($openApprovalSteps === 0 && !$hasPurchasingSteps && $item->status === 'on progress') {
-        echo "│  ⚠️  Item #{$item->id}: workflow lama (no release steps), status masih '{$item->status}'\n";
-        echo "│     → Perlu difix: update status ke 'approved'\n";
+    if ($openApprovalSteps === 0
+        && !$hasPurchasingOrReleaseSteps
+        && !in_array($item->status, ['approved', 'rejected', 'cancelled'])
+    ) {
+        echo "  [!] Item #{$item->id}: workflow lama, semua step OK tapi status '{$item->status}'\n";
+        echo "      Solusi: update item status ke 'approved'\n";
+        echo "      Command: App\Models\ApprovalRequestItem::find({$item->id})->update(['status' => 'approved']);\n\n";
+        $needFix = true;
+    }
+
+    // Cek apakah PI seharusnya ada tapi tidak ada
+    if (in_array($item->status, ['in_purchasing']) && !$pi) {
+        echo "  [!] Item #{$item->id}: status 'in_purchasing' tapi TIDAK ADA PurchasingItem!\n";
+        echo "      Solusi: buat purchasing item manual\n";
+        echo "      Command: App\Models\PurchasingItem::firstOrCreate(['approval_request_id'=>{$req->id},'master_item_id'=>{$item->master_item_id}],['quantity'=>{$item->quantity},'status'=>'unprocessed']);\n\n";
         $needFix = true;
     }
 }
 
 if (!$needFix) {
-    echo "│  ✅ Tidak ada masalah yang terdeteksi dari sisi step.\n";
-    echo "│     Jika masih tampil salah, coba clear cache:\n";
-    echo "│       php artisan view:clear\n";
+    echo "  [OK] Tidak ada masalah terdeteksi.\n";
+    echo "       Jika masih tampil salah, coba: php artisan view:clear\n";
 }
 
-echo "└────────────────────────────────────────────────────\n\n";
+echo "\n========================================================\n";
+echo " SELESAI\n";
+echo "========================================================\n\n";
