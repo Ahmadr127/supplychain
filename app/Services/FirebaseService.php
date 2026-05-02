@@ -6,6 +6,7 @@ use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging;
 use Kreait\Firebase\Exception\FirebaseException;
 use GuzzleHttp\Client;
+use Kreait\Firebase\Http\HttpClientOptions;
 use Illuminate\Support\Facades\Log;
 
 class FirebaseService
@@ -32,10 +33,14 @@ class FirebaseService
         }
 
         try {
-            $client = new Client(['version' => 1.1]);
+            $options = HttpClientOptions::default()->withGuzzleConfig([
+                'version' => 1.1,
+            ]);
+
             $factory = (new Factory)
                 ->withServiceAccount($credentials)
-                ->withHttpClient($client);
+                ->withHttpClientOptions($options);
+
             $this->messaging = $factory->createMessaging();
 
             return $this->messaging;
