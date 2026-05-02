@@ -312,39 +312,29 @@ class ApprovalItemStep extends Model
      * Marks the specific purchasing step as approved and activates the next step
      * strictly by step_number order (dynamic, not restricted by step_phase).
      */
-    public static function syncPurchasingStep(int $approvalRequestId, int $masterItemId, string $requiredAction)
+    public static function syncPurchasingStep(int $approvalRequestId, int $masterItemId, string $actionType)
     {
         $step = static::where('approval_request_id', $approvalRequestId)
             ->where('master_item_id', $masterItemId)
             ->where('step_phase', 'purchasing')
-            ->where(function ($q) use ($requiredAction) {
-                $q->where('required_action', $requiredAction);
-                
-                // Fallback to step_name if required_action is NULL
-                if (in_array($requiredAction, ['purchasing_receive_doc_benchmark', 'purchasing_benchmarking'])) {
-                    $q->orWhere(function($sq) {
-                        $sq->whereNull('required_action')->where('step_name', 'like', '%Benchmark%');
+            ->where(function ($q) use ($actionType) {
+                if (in_array($actionType, ['purchasing_receive_doc_benchmark', 'purchasing_benchmarking'])) {
+                    $q->where('step_name', 'like', '%Benchmark%');
+                } elseif ($actionType === 'purchasing_trial') {
+                    $q->where('step_name', 'like', '%Trial%');
+                } elseif ($actionType === 'purchasing_preferred_vendor') {
+                    $q->where('step_name', 'like', '%Preferred%');
+                } elseif ($actionType === 'purchasing_po') {
+                    $q->where('step_name', 'like', '%PO%')
+                      ->orWhere('step_name', 'like', '%Purchase Order%');
+                } elseif (in_array($actionType, ['purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done'])) {
+                    $q->where(function($sub) {
+                        $sub->where('step_name', 'like', '%GRN%')
+                            ->orWhere('step_name', 'like', '%Penerimaan%')
+                            ->orWhere('step_name', 'like', '%Invoice%');
                     });
-                } elseif ($requiredAction === 'purchasing_trial') {
-                    $q->orWhere(function($sq) {
-                        $sq->whereNull('required_action')->where('step_name', 'like', '%Trial%');
-                    });
-                } elseif ($requiredAction === 'purchasing_preferred_vendor') {
-                    $q->orWhere(function($sq) {
-                        $sq->whereNull('required_action')->where('step_name', 'like', '%Preferred%');
-                    });
-                } elseif ($requiredAction === 'purchasing_po') {
-                    $q->orWhere(function($sq) {
-                        $sq->whereNull('required_action')->where('step_name', 'like', '%PO%');
-                    });
-                } elseif (in_array($requiredAction, ['purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done'])) {
-                    $q->orWhere(function($sq) {
-                        $sq->whereNull('required_action')->where(function($sub) {
-                            $sub->where('step_name', 'like', '%GRN%')
-                                ->orWhere('step_name', 'like', '%Penerimaan%')
-                                ->orWhere('step_name', 'like', '%Invoice%');
-                        });
-                    });
+                } else {
+                    $q->where('step_name', 'NON_MATCHING_DUMMY_STRING'); // Fail gracefully
                 }
             })
             ->whereIn('status', ['pending', 'pending_purchase'])

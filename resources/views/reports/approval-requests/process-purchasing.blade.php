@@ -84,8 +84,10 @@
         // ── Deteksi data purchasing (sama dengan API getDynamicWorkflowSteps) ──
         $step1Done = !empty($item->approvalRequest?->received_at);   // Benchmarking
         $step2Done = $item->vendors()->exists();                       // Vendor data ada
-        $hasTrial  = $purchasingSteps->contains(fn($s) => $s->required_action === 'purchasing_trial');
-        $trialStep = $purchasingSteps->firstWhere('required_action', 'purchasing_trial');
+        $trialStep = $purchasingSteps->first(function($s) {
+            return stripos($s->step_name, 'Trial') !== false;
+        });
+        $hasTrial  = $trialStep !== null;
         $trialDone = $trialStep && $trialStep->status === 'approved';
         $effectiveTrialDone = !$hasTrial || $trialDone;
         $step3Done = !empty($item->preferred_vendor_id);              // Vendor dipilih

@@ -47,7 +47,9 @@ class PurchasingApiController extends Controller
         $step1Done = !empty($item->approvalRequest?->received_at);
         $step2Done = $item->vendors()->exists();
         
-        $trialStep = $steps->firstWhere('required_action', 'purchasing_trial');
+        $trialStep = $steps->first(function($s) {
+            return stripos($s->step_name, 'Trial') !== false;
+        });
         $hasTrial  = $trialStep !== null;
         $trialDone = $trialStep && $trialStep->status === 'approved';
 
