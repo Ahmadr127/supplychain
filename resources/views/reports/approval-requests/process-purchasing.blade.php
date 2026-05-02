@@ -276,9 +276,11 @@
                             Menunggu proses Release selesai terlebih dahulu.
                         </div>
                     @endif
+                @endif {{-- end: if $pState === 'locked' --}}
             </div>
         </div>
     @endforeach
+
 
 
     {{-- Release Steps (tampilkan secara terpisah di bawah) --}}
