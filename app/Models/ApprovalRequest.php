@@ -162,6 +162,8 @@ class ApprovalRequest extends Model
 
         $allApproved = $items->every(fn($item) => $item->status === 'approved');
         $anyRejected = $items->contains(fn($item) => $item->status === 'rejected');
+        // Item sudah masuk fase purchasing (approval selesai, menunggu proses purchasing)
+        $anyInPurchasing = $items->contains(fn($item) => in_array($item->status, ['in_purchasing', 'in_release']));
         
         $newStatus = 'on progress';
 
@@ -169,6 +171,10 @@ class ApprovalRequest extends Model
             $newStatus = 'rejected';
         } elseif ($allApproved) {
             $newStatus = 'approved';
+        } elseif ($anyInPurchasing && !$anyRejected) {
+            // Setidaknya 1 item sudah masuk purchasing/release phase
+            // Status request = 'in_purchasing' untuk membedakan dari "masih approval"
+            $newStatus = 'in_purchasing';
         }
         
         if ($this->status !== $newStatus) {

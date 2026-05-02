@@ -63,6 +63,7 @@ class ReportController extends Controller
             $q->where('status', $request->status);
         } else {
             // Default: exclude rejected and cancelled requests
+            // 'in_purchasing' adalah status valid (approval selesai, masuk fase purchasing)
             $q->whereNotIn('status', ['rejected', 'cancelled']);
         }
         if ($request->filled('requester_id')) {
@@ -177,23 +178,28 @@ class ReportController extends Controller
                 if ($pi) {
                     $itemPurchasingStatusCode = $pi->status;
                 } else {
-                    // If no purchasing item, check approval status
+                    // If no purchasing item, check approval_request_item status
                     if (in_array($item->status, ['in_purchasing', 'approved', 'in_release'])) {
-                        $itemPurchasingStatusCode = 'unprocessed'; // Ready for purchasing but no PI yet
+                        // Approval selesai, tapi purchasing item belum dibuat
+                        // Tampilkan berdasarkan item status secara spesifik
+                        $itemPurchasingStatusCode = $item->status; // 'in_purchasing', 'approved', atau 'in_release'
                     } else {
-                        $itemPurchasingStatusCode = 'pending_approval'; // Not ready yet
+                        $itemPurchasingStatusCode = 'pending_approval'; // Masih dalam proses approval
                     }
                 }
 
                 $itemPurchasingStatusText = match($itemPurchasingStatusCode) {
                     'pending_approval' => 'Menunggu Approval',
-                    'unprocessed' => 'Belum diproses',
-                    'benchmarking' => 'Pemilihan vendor',
-                    'selected' => 'Proses PR & PO',
-                    'po_issued' => 'Proses di vendor',
-                    'grn_received' => 'Barang diterima',
-                    'done' => 'Selesai',
-                    default => strtoupper($itemPurchasingStatusCode),
+                    'unprocessed'      => 'Belum diproses',
+                    'in_purchasing'    => 'Menunggu Proses',   // Approval selesai, belum ada PI
+                    'approved'         => 'Menunggu Proses',   // Legacy: approved tapi belum ada PI
+                    'in_release'       => 'Menunggu Proses',   // Dalam release phase
+                    'benchmarking'     => 'Pemilihan vendor',
+                    'selected'         => 'Proses PR & PO',
+                    'po_issued'        => 'Proses di vendor',
+                    'grn_received'     => 'Barang diterima',
+                    'done'             => 'Selesai',
+                    default            => strtoupper($itemPurchasingStatusCode),
                 };
 
                 // Process text: show purchasing status only
@@ -458,6 +464,9 @@ class ReportController extends Controller
                         $text = $row['process'] ?? '-';
                         $cls = match($code){
                             'pending_approval' => 'bg-yellow-100 text-yellow-800',
+                            'in_purchasing'    => 'bg-blue-500 text-white',   // Approval selesai, menunggu proses
+                            'approved'         => 'bg-blue-500 text-white',   // Legacy tanpa PI
+                            'in_release'       => 'bg-blue-500 text-white',   // Dalam release phase
                             'benchmarking'     => 'bg-red-600 text-white',
                             'selected'         => 'bg-yellow-400 text-black',
                             'po_issued'        => 'bg-orange-500 text-white',
