@@ -33,7 +33,7 @@ class FirebaseService
         }
 
         try {
-            $options = HttpClientOptions::default()->withGuzzleConfig([
+            $options = HttpClientOptions::default()->withGuzzleConfigOptions([
                 'version' => 1.1,
             ]);
 
