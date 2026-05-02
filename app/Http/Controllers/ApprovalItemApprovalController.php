@@ -349,7 +349,11 @@ class ApprovalItemApprovalController extends Controller
                     $item->refresh();
 
                     $this->createPurchasingItem($item);
-                    Log::info('🟩 Item status: ' . $item->status . ' | PI created', ['item_id' => $item->id]);
+                    
+                    // Notify purchasing staff that a new item needs processing
+                    app(\App\Services\NotificationService::class)->notifyPurchasingStaff($item);
+                    
+                    Log::info('🟩 Item status: ' . $item->status . ' | PI created & notified', ['item_id' => $item->id]);
 
                 } else {
                     // Step berikutnya adalah approval → lanjut proses approval

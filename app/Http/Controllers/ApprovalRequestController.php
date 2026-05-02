@@ -1877,23 +1877,49 @@ class ApprovalRequestController extends Controller
                         'comments'    => 'Otomatis dilewati karena step sebelumnya ditolak.',
                     ]);
             } else {
-                // If approved, check if all steps for this item are approved
-                $allSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $validated['approval_request_id'])
+                // If approved, check the next pending step
+                $nextStep = \App\Models\ApprovalItemStep::where('approval_request_id', $validated['approval_request_id'])
                     ->where('master_item_id', $validated['master_item_id'])
-                    ->get();
+                    ->where('step_number', '>', $step->step_number)
+                    ->whereNotIn('status', ['approved', 'skipped'])
+                    ->orderBy('step_number')
+                    ->first();
 
-                $allApproved = $allSteps->every(fn($s) => $s->status === 'approved');
-                $anyRejected = $allSteps->contains(fn($s) => $s->status === 'rejected');
-
-                if ($anyRejected) {
-                    $approvalRequestItem->update(['status' => 'rejected']);
-                } elseif ($allApproved) {
+                if (!$nextStep) {
+                    // Semua step selesai -> final approved
                     $approvalRequestItem->update([
                         'status' => 'approved',
                         'approved_by' => $user->id,
                         'approved_at' => now(),
                     ]);
+                    // Create purchasing item if not exists
+                    $exists = $approvalRequestItem->approvalRequest->purchasingItems()
+                        ->where('master_item_id', $validated['master_item_id'])
+                        ->exists();
+                    if (!$exists) {
+                        $approvalRequestItem->approvalRequest->purchasingItems()->create([
+                            'master_item_id' => $validated['master_item_id'],
+                            'quantity' => (int)($approvalRequestItem->quantity ?? 1),
+                            'status' => 'unprocessed',
+                        ]);
+                    }
+                } elseif (in_array($nextStep->step_phase, ['purchasing', 'release'])) {
+                    // Masuk fase purchasing
+                    $approvalRequestItem->update(['status' => 'in_purchasing']);
                     
+                    // Create purchasing item if not exists
+                    $exists = $approvalRequestItem->approvalRequest->purchasingItems()
+                        ->where('master_item_id', $validated['master_item_id'])
+                        ->exists();
+                    if (!$exists) {
+                        $approvalRequestItem->approvalRequest->purchasingItems()->create([
+                            'master_item_id' => $validated['master_item_id'],
+                            'quantity' => (int)($approvalRequestItem->quantity ?? 1),
+                            'status' => 'unprocessed',
+                        ]);
+                    }
+
+                    // Notify purchasing staff
                     app(\App\Services\NotificationService::class)->notifyPurchasingStaff($approvalRequestItem);
                 } else {
                     $approvalRequestItem->update(['status' => 'on progress']);

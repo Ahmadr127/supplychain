@@ -317,7 +317,36 @@ class ApprovalItemStep extends Model
         $step = static::where('approval_request_id', $approvalRequestId)
             ->where('master_item_id', $masterItemId)
             ->where('step_phase', 'purchasing')
-            ->where('required_action', $requiredAction)
+            ->where(function ($q) use ($requiredAction) {
+                $q->where('required_action', $requiredAction);
+                
+                // Fallback to step_name if required_action is NULL
+                if (in_array($requiredAction, ['purchasing_receive_doc_benchmark', 'purchasing_benchmarking'])) {
+                    $q->orWhere(function($sq) {
+                        $sq->whereNull('required_action')->where('step_name', 'like', '%Benchmark%');
+                    });
+                } elseif ($requiredAction === 'purchasing_trial') {
+                    $q->orWhere(function($sq) {
+                        $sq->whereNull('required_action')->where('step_name', 'like', '%Trial%');
+                    });
+                } elseif ($requiredAction === 'purchasing_preferred_vendor') {
+                    $q->orWhere(function($sq) {
+                        $sq->whereNull('required_action')->where('step_name', 'like', '%Preferred%');
+                    });
+                } elseif ($requiredAction === 'purchasing_po') {
+                    $q->orWhere(function($sq) {
+                        $sq->whereNull('required_action')->where('step_name', 'like', '%PO%');
+                    });
+                } elseif (in_array($requiredAction, ['purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done'])) {
+                    $q->orWhere(function($sq) {
+                        $sq->whereNull('required_action')->where(function($sub) {
+                            $sub->where('step_name', 'like', '%GRN%')
+                                ->orWhere('step_name', 'like', '%Penerimaan%')
+                                ->orWhere('step_name', 'like', '%Invoice%');
+                        });
+                    });
+                }
+            })
             ->whereIn('status', ['pending', 'pending_purchase'])
             ->first();
 
