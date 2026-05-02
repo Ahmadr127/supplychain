@@ -34,7 +34,7 @@ class FirebaseService
 
         try {
             $options = HttpClientOptions::default()->withGuzzleConfigOptions([
-                'version' => 1.1,
+                'version' => '1.1',
             ]);
 
             $factory = (new Factory)
