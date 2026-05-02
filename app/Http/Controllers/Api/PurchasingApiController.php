@@ -51,7 +51,7 @@ class PurchasingApiController extends Controller
             return stripos($s->step_name, 'Trial') !== false;
         });
         $hasTrial  = $trialStep !== null;
-        $trialDone = $trialStep && $trialStep->status === 'approved';
+        $trialDone = $trialStep && in_array($trialStep->status, ['approved', 'skipped']);
 
         $effectiveTrialDone = !$hasTrial || $trialDone;
 

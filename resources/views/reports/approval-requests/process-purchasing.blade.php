@@ -88,7 +88,7 @@
             return stripos($s->step_name, 'Trial') !== false;
         });
         $hasTrial  = $trialStep !== null;
-        $trialDone = $trialStep && $trialStep->status === 'approved';
+        $trialDone = $trialStep && in_array($trialStep->status, ['approved', 'skipped']);
         $effectiveTrialDone = !$hasTrial || $trialDone;
         $step3Done = !empty($item->preferred_vendor_id);              // Vendor dipilih
         $step4Done = !empty($item->po_number);                        // PO issued
