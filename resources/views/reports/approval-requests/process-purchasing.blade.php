@@ -276,10 +276,10 @@
                             Menunggu proses Release selesai terlebih dahulu.
                         </div>
                     @endif
-                @endif
             </div>
         </div>
     @endforeach
+
 
     {{-- Release Steps (tampilkan secara terpisah di bawah) --}}
     @if($releaseSteps->isNotEmpty())
