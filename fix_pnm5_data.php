@@ -3,21 +3,18 @@
 /**
  * fix_pnm5_data.php
  *
- * Perbaiki data PNM-5 (ID:12) yang terlanjur tidak masuk purchasing
- * karena bug controller (approval step 10-11 ditemukan lebih dulu dari
- * purchasing step 6-9, sehingga item tidak pernah di-set in_purchasing).
+ * Perbaiki data PNM-5 yang terlanjur tidak masuk purchasing.
  *
- * Apa yang dilakukan script ini:
- *  1. Update approval_request_item #12 → status 'in_purchasing'
- *  2. Buat PurchasingItem jika belum ada
- *  3. Update approval_request #12 → status 'in_purchasing'
+ * Logika yang dipakai SAMA dengan controller yang sudah diperbaiki:
+ *   → Ambil step berikutnya berdasarkan step_number
+ *   → Jika phase-nya purchasing/release → set item ke in_purchasing
+ *   → Jika phase-nya approval           → item memang masih on progress
  *
  * Jalankan:
  *   php artisan tinker --execute="require base_path('fix_pnm5_data.php');"
  */
 
 use App\Models\ApprovalRequest;
-use App\Models\ApprovalRequestItem;
 use App\Models\ApprovalItemStep;
 use App\Models\PurchasingItem;
 
@@ -39,110 +36,109 @@ if (!$req) {
 echo "Request ID   : {$req->id}\n";
 echo "Status saat  : {$req->status}\n\n";
 
-$fixed = false;
+$anyFixed = false;
 
 foreach ($req->items as $item) {
     $masterName = optional($item->masterItem)->name ?? '(null)';
-
     echo "--- Item #{$item->id} ($masterName) ---\n";
-    echo "  Status saat ini  : {$item->status}\n";
+    echo "  Status saat ini : {$item->status}\n";
 
-    // Cek semua approval steps sudah selesai
-    $openApprovalSteps = ApprovalItemStep::where('approval_request_id', $req->id)
+    // Cari step terakhir yang sudah approved (langkah approval terakhir selesai)
+    $lastApprovedStep = ApprovalItemStep::where('approval_request_id', $req->id)
         ->where('approval_request_item_id', $item->id)
-        ->where('step_phase', 'approval')
-        ->whereNotIn('status', ['approved', 'skipped'])
-        ->orderBy('step_number')
-        ->get();
+        ->where('status', 'approved')
+        ->orderBy('step_number', 'desc')
+        ->first();
 
-    // Cek ada purchasing step berikutnya
-    $nextPurchasingStep = ApprovalItemStep::where('approval_request_id', $req->id)
+    if (!$lastApprovedStep) {
+        echo "  [SKIP] Belum ada step yang di-approve.\n\n";
+        continue;
+    }
+
+    echo "  Last approved step : #{$lastApprovedStep->step_number} [{$lastApprovedStep->step_phase}] {$lastApprovedStep->step_name}\n";
+
+    // Logika SAMA dengan controller: ambil step berikutnya berdasarkan step_number
+    $nextStep = ApprovalItemStep::where('approval_request_id', $req->id)
         ->where('approval_request_item_id', $item->id)
-        ->whereIn('step_phase', ['purchasing', 'release'])
+        ->where('step_number', '>', $lastApprovedStep->step_number)
         ->whereNotIn('status', ['approved', 'skipped'])
         ->orderBy('step_number')
         ->first();
 
-    echo "  Open approval steps : " . $openApprovalSteps->count() . "\n";
+    if (!$nextStep) {
+        echo "  Next step : (tidak ada) → seharusnya approved\n";
 
-    if ($openApprovalSteps->isNotEmpty()) {
-        echo "  [SKIP] Masih ada approval step yang belum selesai:\n";
-        foreach ($openApprovalSteps as $s) {
-            echo "         - Step #{$s->step_number} [{$s->step_phase}] {$s->step_name} (status: {$s->status})\n";
+        if (!in_array($item->status, ['approved'])) {
+            $item->update(['status' => 'approved', 'approved_by' => null, 'approved_at' => now()]);
+            $item->refresh();
+            echo "  [FIXED] Item status → approved\n";
+            $anyFixed = true;
+        } else {
+            echo "  [OK] Status sudah approved.\n";
         }
-        echo "\n";
-        continue;
-    }
 
-    if (!$nextPurchasingStep) {
-        echo "  [INFO] Tidak ada purchasing step berikutnya, skip.\n\n";
-        continue;
-    }
+    } elseif (in_array($nextStep->step_phase, ['purchasing', 'release'])) {
+        echo "  Next step : #{$nextStep->step_number} [{$nextStep->step_phase}] {$nextStep->step_name}\n";
+        echo "              → Step berikutnya adalah PURCHASING/RELEASE\n";
+        echo "              → Item HARUS in_purchasing\n";
 
-    echo "  Next purchasing step: #{$nextPurchasingStep->step_number} [{$nextPurchasingStep->step_phase}] {$nextPurchasingStep->step_name}\n";
+        // 1. Update item status
+        if (!in_array($item->status, ['in_purchasing', 'in_release'])) {
+            $item->update(['status' => 'in_purchasing']);
+            $item->refresh();
+            echo "  [FIXED] Item status → in_purchasing\n";
+            $anyFixed = true;
+        } else {
+            echo "  [OK] Item status sudah: {$item->status}\n";
+        }
 
-    // 1. Update item status
-    if (!in_array($item->status, ['in_purchasing', 'in_release', 'approved'])) {
-        $item->update(['status' => 'in_purchasing']);
-        $item->refresh();
-        echo "  [FIXED] Item status diubah: on progress -> in_purchasing\n";
-        $fixed = true;
+        // 2. Buat PurchasingItem jika belum ada
+        $pi = PurchasingItem::where('approval_request_id', $req->id)
+            ->where('master_item_id', $item->master_item_id)
+            ->first();
+
+        if (!$pi) {
+            $pi = PurchasingItem::create([
+                'approval_request_id' => $req->id,
+                'master_item_id'      => $item->master_item_id,
+                'quantity'            => $item->quantity,
+                'status'              => 'unprocessed',
+            ]);
+            echo "  [CREATED] PurchasingItem baru (ID: {$pi->id})\n";
+            $anyFixed = true;
+        } else {
+            echo "  [OK] PurchasingItem sudah ada (ID: {$pi->id}, status: {$pi->status})\n";
+        }
+
     } else {
-        echo "  [OK] Item status sudah: {$item->status}\n";
-    }
-
-    // 2. Buat PurchasingItem jika belum ada
-    $pi = PurchasingItem::where('approval_request_id', $req->id)
-        ->where('master_item_id', $item->master_item_id)
-        ->first();
-
-    if (!$pi) {
-        $pi = PurchasingItem::create([
-            'approval_request_id' => $req->id,
-            'master_item_id'      => $item->master_item_id,
-            'quantity'            => $item->quantity,
-            'status'              => 'unprocessed',
-        ]);
-        echo "  [CREATED] PurchasingItem baru dibuat (ID: {$pi->id})\n";
-        $fixed = true;
-    } else {
-        echo "  [OK] PurchasingItem sudah ada (ID: {$pi->id}, status: {$pi->status})\n";
+        echo "  Next step : #{$nextStep->step_number} [{$nextStep->step_phase}] {$nextStep->step_name}\n";
+        echo "              → Step berikutnya adalah APPROVAL → item memang on progress, tidak perlu fix.\n";
     }
 
     echo "\n";
 }
 
-// 3. Refresh request status
+// Update approval_request status
 $req->refresh()->load('items');
-$anyInPurchasing = $req->items->contains(function ($i) {
-    return in_array($i->status, ['in_purchasing', 'in_release']);
-});
-$allApproved = $req->items->every(fn($i) => $i->status === 'approved');
-$anyRejected = $req->items->contains(fn($i) => $i->status === 'rejected');
+$anyInPurchasing = $req->items->contains(fn($i) => in_array($i->status, ['in_purchasing', 'in_release']));
+$allApproved     = $req->items->every(fn($i) => $i->status === 'approved');
+$anyRejected     = $req->items->contains(fn($i) => $i->status === 'rejected');
 
 $newReqStatus = 'on progress';
-if ($anyRejected) {
-    $newReqStatus = 'rejected';
-} elseif ($allApproved) {
-    $newReqStatus = 'approved';
-} elseif ($anyInPurchasing) {
-    $newReqStatus = 'in_purchasing';
-}
+if ($anyRejected)         { $newReqStatus = 'rejected'; }
+elseif ($allApproved)     { $newReqStatus = 'approved'; }
+elseif ($anyInPurchasing) { $newReqStatus = 'in_purchasing'; }
 
 if ($req->status !== $newReqStatus) {
     $req->update(['status' => $newReqStatus]);
-    echo "[FIXED] ApprovalRequest status: {$req->status} -> $newReqStatus\n\n";
-    $fixed = true;
+    echo "[FIXED] ApprovalRequest status → $newReqStatus\n\n";
+    $anyFixed = true;
 } else {
     echo "[OK] ApprovalRequest status sudah benar: {$req->status}\n\n";
 }
 
-// Hasil akhir
 echo "========================================================\n";
-if ($fixed) {
-    echo " SELESAI: Data berhasil diperbaiki!\n";
-    echo " Silakan refresh halaman /reports/approval-requests\n";
-} else {
-    echo " Tidak ada perubahan yang diperlukan.\n";
-}
+echo $anyFixed
+    ? " SELESAI: Data berhasil diperbaiki!\n Silakan refresh /reports/approval-requests\n"
+    : " Tidak ada perubahan yang diperlukan.\n";
 echo "========================================================\n\n";
