@@ -206,28 +206,26 @@ class ApprovalItemApiController extends Controller
                     $item->update(['status' => 'in_release']);
                 }
             } else {
-                $nextApproval = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
+                // Ambil step berikutnya berdasarkan urutan — putuskan dari phase-nya.
+                $nextStep = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
                     ->where('approval_request_item_id', $item->id)
                     ->where('step_number', '>', $currentStep->step_number)
-                    ->where('status', 'pending')
-                    ->where(fn($q) => $q->where('step_phase', 'approval')->orWhereNull('step_phase'))
-                    ->orderBy('step_number')->first();
+                    ->whereNotIn('status', ['approved', 'skipped'])
+                    ->orderBy('step_number')
+                    ->first();
 
-                if (!$nextApproval) {
-                    $hasRelease = ApprovalItemStep::where('approval_request_id', $approvalRequest->id)
-                        ->where('approval_request_item_id', $item->id)
-                        ->where('step_phase', 'release')->exists();
-
-                    $newStatus = $hasRelease ? 'in_purchasing' : 'approved';
-                    $item->update(
-                        $hasRelease 
-                            ? ['status' => $newStatus] 
-                            : ['status' => $newStatus, 'approved_by' => Auth::id(), 'approved_at' => now()]
-                    );
-
-                    // Notify purchasing staff that a new item arrived
+                if (!$nextStep) {
+                    // Tidak ada step tersisa → fully approved
+                    $item->update(['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()]);
                     app(\App\Services\NotificationService::class)->notifyPurchasingStaff($item);
+
+                } elseif (in_array($nextStep->step_phase, ['purchasing', 'release'])) {
+                    // Step berikutnya adalah purchasing/release → masuk fase purchasing
+                    $item->update(['status' => 'in_purchasing']);
+                    app(\App\Services\NotificationService::class)->notifyPurchasingStaff($item);
+
                 } else {
+                    // Step berikutnya adalah approval → lanjut proses approval
                     $item->update(['status' => 'on progress']);
                 }
             }
