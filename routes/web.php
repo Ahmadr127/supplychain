@@ -291,7 +291,7 @@ Route::middleware('auth')->group(function () {
         Route::get('reports/approval-requests', [ReportController::class, 'approvalRequests'])->name('reports.approval-requests');
     });
 
-    Route::middleware('permission:process_purchasing_item')->group(function () {
+    Route::middleware('permission:process_purchasing_item|manage_vendor')->group(function () {
         // Report Purchasing process page (server-rendered)
         Route::get('reports/approval-requests/process-purchasing', [\App\Http\Controllers\ReportController::class, 'processPurchasing'])
             ->name('reports.approval-requests.process-purchasing');
@@ -353,6 +353,9 @@ Route::middleware('auth')->group(function () {
         ->name('api.purchasing.items.show');
     Route::post('ajax/purchasing/items/resolve', [\App\Http\Controllers\ReportController::class, 'resolvePurchasingItemByRequestAndItem'])
         ->name('api.purchasing.items.resolve');
+    // Filter options AJAX for reports page (lazy-load dropdowns)
+    Route::get('ajax/reports/filter-options/{type}', [\App\Http\Controllers\ReportController::class, 'filterOptions'])
+        ->name('api.reports.filter-options');
     // Purchasing Status details (JSON)
     Route::get('ajax/purchasing/status/{approvalRequest}', [PurchasingItemController::class, 'statusDetailsByRequest'])
         ->name('api.purchasing.status');

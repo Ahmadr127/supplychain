@@ -37,7 +37,7 @@ class InitializeItemSteps extends Command
         $force = $this->option('force');
         
         // Get requests to process
-        $query = ApprovalRequest::with(['workflow.steps', 'items']);
+        $query = ApprovalRequest::with(['workflow', 'items']);
         
         if ($requestId) {
             $query->where('id', $requestId);
@@ -64,7 +64,7 @@ class InitializeItemSteps extends Command
                 continue;
             }
             
-            $workflowSteps = $request->workflow->steps()->orderBy('step_number')->get();
+            $workflowSteps = $request->workflow->steps->sortBy('step_number')->values();
             
             if ($workflowSteps->isEmpty()) {
                 $this->warn("  ⚠️  No workflow steps found. Skipping.");

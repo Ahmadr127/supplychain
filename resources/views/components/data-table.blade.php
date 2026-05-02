@@ -24,7 +24,7 @@
                 @endif
                 
                 @foreach($columns as $column)
-                    <th class="{{ $column['width'] ?? 'w-auto' }} px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th data-col="{{ $column['field'] ?? '' }}" class="{{ $column['width'] ?? 'w-auto' }} px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         {{ $column['label'] }}
                     </th>
                 @endforeach
@@ -48,7 +48,7 @@
                     @endif
                     
                     @foreach($columns as $column)
-                        <td class="{{ $column['width'] ?? 'w-auto' }} px-6 py-4">
+                        <td data-col="{{ $column['field'] ?? '' }}" class="{{ $column['width'] ?? 'w-auto' }} px-6 py-4">
                             <div class="min-w-0">
                                 @if(isset($column['render']))
                                     {!! $column['render']($item, $index) !!}
