@@ -167,7 +167,9 @@
                         <div class="text-xs text-gray-500">Data Vendor (min 1, disarankan 3) • Qty: {{ (int) $item->quantity }}</div>
                         <div id="vendors-wrapper" class="space-y-2">
                             @for($i = 0; $i < 3; $i++)
-                                @php($v = optional($item->vendors->values()->get($i)))
+                                @php
+                                    $v = optional($item->vendors->values()->get($i));
+                                @endphp
                                 <div class="grid grid-cols-4 gap-2 items-center vendor-row">
                                     <div class="relative">
                                         <input type="hidden" name="vendors[{{ $i }}][supplier_id]" class="supplier-id" value="{{ $v->supplier_id ?? '' }}" />
@@ -195,7 +197,9 @@
                         @else
                             <div class="space-y-2">
                                 @foreach($item->vendors as $i => $v)
-                                    @php($trial = $v->latestTrial)
+                                    @php
+                                        $trial = $v->latestTrial;
+                                    @endphp
                                     <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
                                         <div class="text-sm font-semibold text-gray-800">{{ $v->supplier->name ?? '-' }}</div>
                                         <input type="hidden" name="trials[{{ $i }}][purchasing_item_vendor_id]" value="{{ $v->id }}" />
