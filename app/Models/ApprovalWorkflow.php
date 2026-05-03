@@ -9,6 +9,24 @@ class ApprovalWorkflow extends Model
 {
     use HasFactory;
 
+    /** Standard purchasing step keys available in this system */
+    public const PURCHASING_STEP_KEYS = [
+        'benchmarking',
+        'trial',
+        'preferred_vendor',
+        'po',
+        'invoice_grn_done',
+    ];
+
+    /** Default label map for purchasing step keys */
+    public const PURCHASING_STEP_LABELS = [
+        'benchmarking'     => 'Benchmarking Vendor',
+        'trial'            => 'Trial Vendor',
+        'preferred_vendor' => 'Pilih Preferred Vendor',
+        'po'               => 'Input PO',
+        'invoice_grn_done' => 'Invoice & GRN (Selesai)',
+    ];
+
     protected $fillable = [
         'name',
         'type',
@@ -18,22 +36,25 @@ class ApprovalWorkflow extends Model
         'is_active',
         'item_type_id',
         'is_specific_type',
-        // NEW: Procurement type and nominal-based workflow selection
+        // Procurement type and nominal-based workflow selection
         'procurement_type_id',
         'nominal_min',
         'nominal_max',
         'nominal_range',   // low, medium, high
         'priority',        // For workflow selection ordering
+        // Purchasing step configuration (which steps are enabled for this workflow)
+        'purchasing_step_config',
     ];
 
     protected $casts = [
-        'workflow_steps' => 'array',
-        'steps' => 'array',
-        'is_active' => 'boolean',
-        'is_specific_type' => 'boolean',
-        'nominal_min' => 'decimal:2',
-        'nominal_max' => 'decimal:2',
-        'priority' => 'integer',
+        'workflow_steps'         => 'array',
+        'steps'                  => 'array',
+        'is_active'              => 'boolean',
+        'is_specific_type'       => 'boolean',
+        'nominal_min'            => 'decimal:2',
+        'nominal_max'            => 'decimal:2',
+        'priority'               => 'integer',
+        'purchasing_step_config' => 'array',
     ];
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -149,6 +170,83 @@ class ApprovalWorkflow extends Model
     public function countReleaseSteps(): int
     {
         return $this->getReleasePhaseSteps()->count();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PURCHASING STEP CONFIG
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Get the normalized purchasing step config.
+     * If purchasing_step_config is null, returns the default (all enabled, standard order).
+     * Always returns a Collection of objects with: step_key, label, enabled, order, allow_skip.
+     */
+    public function getEnabledPurchasingSteps(): \Illuminate\Support\Collection
+    {
+        $config = $this->purchasing_step_config;
+
+        if (empty($config)) {
+            // Default: all steps enabled
+            return $this->buildDefaultPurchasingStepConfig();
+        }
+
+        return collect($config)
+            ->map(fn($step) => (object) [
+                'step_key'   => $step['step_key']   ?? '',
+                'label'      => $step['label']      ?? (self::PURCHASING_STEP_LABELS[$step['step_key'] ?? ''] ?? $step['step_key']),
+                'enabled'    => (bool) ($step['enabled']    ?? true),
+                'order'      => (int)  ($step['order']      ?? 99),
+                'allow_skip' => (bool) ($step['allow_skip'] ?? false),
+            ])
+            ->filter(fn($s) => $s->enabled && in_array($s->step_key, self::PURCHASING_STEP_KEYS))
+            ->sortBy('order')
+            ->values();
+    }
+
+    /**
+     * Check whether a specific purchasing step key is enabled in this workflow.
+     */
+    public function isPurchasingStepEnabled(string $stepKey): bool
+    {
+        $config = $this->purchasing_step_config;
+
+        if (empty($config)) {
+            // Default: all steps enabled
+            return in_array($stepKey, self::PURCHASING_STEP_KEYS);
+        }
+
+        $found = collect($config)->firstWhere('step_key', $stepKey);
+        return $found && (bool) ($found['enabled'] ?? true);
+    }
+
+    /**
+     * Check whether a purchasing step allows being skipped.
+     */
+    public function isPurchasingStepSkippable(string $stepKey): bool
+    {
+        $config = $this->purchasing_step_config;
+
+        if (empty($config)) {
+            // Default: trial is skippable, others are not
+            return $stepKey === 'trial';
+        }
+
+        $found = collect($config)->firstWhere('step_key', $stepKey);
+        return $found ? (bool) ($found['allow_skip'] ?? false) : false;
+    }
+
+    /**
+     * Build the default purchasing step config (all enabled, standard order).
+     */
+    public function buildDefaultPurchasingStepConfig(): \Illuminate\Support\Collection
+    {
+        return collect([
+            (object) ['step_key' => 'benchmarking',     'label' => 'Benchmarking Vendor',   'enabled' => true, 'order' => 1, 'allow_skip' => false],
+            (object) ['step_key' => 'trial',            'label' => 'Trial Vendor',           'enabled' => true, 'order' => 2, 'allow_skip' => true],
+            (object) ['step_key' => 'preferred_vendor', 'label' => 'Pilih Preferred Vendor', 'enabled' => true, 'order' => 3, 'allow_skip' => false],
+            (object) ['step_key' => 'po',               'label' => 'Input PO',               'enabled' => true, 'order' => 4, 'allow_skip' => false],
+            (object) ['step_key' => 'invoice_grn_done', 'label' => 'Invoice & GRN (Selesai)','enabled' => true, 'order' => 5, 'allow_skip' => false],
+        ]);
     }
 
     // Scope untuk workflow aktif

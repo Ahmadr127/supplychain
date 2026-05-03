@@ -81,16 +81,17 @@ class ApprovalWorkflowController extends Controller
         $nominalRange = $this->calculateNominalRange($nominalMax);
 
         $workflow = ApprovalWorkflow::create([
-            'name' => $request->name,
-            'type' => $request->type,
-            'description' => $request->description,
-            'nominal_range' => $nominalRange,
-            'nominal_min' => $nominalMin,
-            'nominal_max' => $nominalMax,
-            'priority' => $this->calculatePriority($nominalMax),
-            'workflow_steps' => $workflowSteps,
-            'steps' => $workflowSteps,
-            'is_active' => $request->has('is_active')
+            'name'                   => $request->name,
+            'type'                   => $request->type,
+            'description'            => $request->description,
+            'nominal_range'          => $nominalRange,
+            'nominal_min'            => $nominalMin,
+            'nominal_max'            => $nominalMax,
+            'priority'               => $this->calculatePriority($nominalMax),
+            'workflow_steps'         => $workflowSteps,
+            'steps'                  => $workflowSteps,
+            'is_active'              => $request->has('is_active'),
+            'purchasing_step_config' => $this->processPurchasingStepConfig($request->purchasing_step_config),
         ]);
 
         return redirect()->route('approval-workflows.index')->with('success', 'Approval workflow berhasil dibuat!');
@@ -144,16 +145,17 @@ class ApprovalWorkflowController extends Controller
         $nominalRange = $this->calculateNominalRange($nominalMax);
 
         $approvalWorkflow->update([
-            'name' => $request->name,
-            'type' => $request->type,
-            'description' => $request->description,
-            'nominal_range' => $nominalRange,
-            'nominal_min' => $nominalMin,
-            'nominal_max' => $nominalMax,
-            'priority' => $this->calculatePriority($nominalMax),
-            'workflow_steps' => $workflowSteps,
-            'steps' => $workflowSteps,
-            'is_active' => $request->has('is_active')
+            'name'                   => $request->name,
+            'type'                   => $request->type,
+            'description'            => $request->description,
+            'nominal_range'          => $nominalRange,
+            'nominal_min'            => $nominalMin,
+            'nominal_max'            => $nominalMax,
+            'priority'               => $this->calculatePriority($nominalMax),
+            'workflow_steps'         => $workflowSteps,
+            'steps'                  => $workflowSteps,
+            'is_active'              => $request->has('is_active'),
+            'purchasing_step_config' => $this->processPurchasingStepConfig($request->purchasing_step_config),
         ]);
 
         return redirect()->route('approval-workflows.index')->with('success', 'Approval workflow berhasil diperbarui!');
@@ -217,6 +219,36 @@ class ApprovalWorkflowController extends Controller
         }
         
         return 30;  // > 50 juta
+    }
+
+    /**
+     * Process purchasing_step_config from form input.
+     * Expects array: [step_key => ['enabled' => '1', 'allow_skip' => '1']]
+     * Returns null if no step config submitted (use default).
+     */
+    private function processPurchasingStepConfig(?array $configInput): ?array
+    {
+        if (empty($configInput)) {
+            return null; // null = use all default steps
+        }
+
+        $validKeys = \App\Models\ApprovalWorkflow::PURCHASING_STEP_KEYS;
+        $labels    = \App\Models\ApprovalWorkflow::PURCHASING_STEP_LABELS;
+        $result    = [];
+        $order     = 1;
+
+        foreach ($validKeys as $key) {
+            $stepInput = $configInput[$key] ?? [];
+            $result[]  = [
+                'step_key'   => $key,
+                'label'      => $labels[$key] ?? $key,
+                'enabled'    => isset($stepInput['enabled']) && $stepInput['enabled'] == '1',
+                'order'      => $order++,
+                'allow_skip' => isset($stepInput['allow_skip']) && $stepInput['allow_skip'] == '1',
+            ];
+        }
+
+        return $result;
     }
 
     /**
