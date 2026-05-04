@@ -304,9 +304,6 @@
                         <option value="purchasing" ${data.step_type === 'purchasing' ? 'selected' : ''} style="color:#2563eb;font-weight:600;">🛒 Purchasing (Proses Pembelian)</option>
                         <option value="releaser" ${data.step_type === 'releaser' ? 'selected' : ''}>Releaser (Setelah Purchasing)</option>
                     </select>
-                    <p id="purchasing_note_${stepNumber}" class="mt-1 text-xs text-blue-600 ${data.step_type === 'purchasing' ? '' : 'hidden'}">
-                        ℹ️ Step ini diproses oleh tim Purchasing (6 langkah: Terima Dok → Benchmarking → Vendor → PO → Invoice → Done)
-                    </p>
                 </div>
 
                 <div id="approver_type_section_${stepNumber}">
@@ -331,16 +328,35 @@
                               placeholder="Contoh: Manager unit input harga dan approve">${data.description || ''}</textarea>
                 </div>
 
-                <div>
+                <div id="action_approval_section_${stepNumber}" style="display: ${data.step_type === 'purchasing' ? 'none' : 'block'};">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-cog text-blue-600 mr-1"></i>
                         Required Action
                     </label>
                     <select name="workflow_steps[${stepNumber}][required_action]"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            id="required_action_select_${stepNumber}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            ${data.step_type === 'purchasing' ? 'disabled' : ''}>
                         <option value="">Tidak ada aksi khusus</option>
                         <option value="input_price" ${data.required_action === 'input_price' ? 'selected' : ''}>Input Harga (Manager)</option>
                         <option value="verify_budget" ${data.required_action === 'verify_budget' ? 'selected' : ''}>Verifikasi Budget + Upload FS</option>
+                    </select>
+                </div>
+
+                <div id="action_purchasing_section_${stepNumber}" style="display: ${data.step_type === 'purchasing' ? 'block' : 'none'};">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-shopping-cart text-blue-600 mr-1"></i>
+                        Langkah Purchasing
+                    </label>
+                    <select name="workflow_steps[${stepNumber}][required_action]"
+                            id="purchasing_action_select_${stepNumber}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            ${data.step_type === 'purchasing' ? '' : 'disabled'}>
+                        <option value="purchasing_receive_doc_benchmark" ${data.required_action === 'purchasing_receive_doc_benchmark' ? 'selected' : ''}>Terima Dok & Benchmarking</option>
+                        <option value="purchasing_trial" ${data.required_action === 'purchasing_trial' ? 'selected' : ''}>Trial Vendor</option>
+                        <option value="purchasing_preferred_vendor" ${data.required_action === 'purchasing_preferred_vendor' ? 'selected' : ''}>Pilih Preferred Vendor</option>
+                        <option value="purchasing_po" ${data.required_action === 'purchasing_po' ? 'selected' : ''}>Input PO</option>
+                        <option value="purchasing_invoice_grn_done" ${data.required_action === 'purchasing_invoice_grn_done' ? 'selected' : ''}>Invoice & GRN (Selesai)</option>
                     </select>
                 </div>
 
@@ -397,6 +413,13 @@
                     const newName = name.replace(/workflow_steps\[\d+\]/, `workflow_steps[${stepNumber}]`);
                     input.setAttribute('name', newName);
                 }
+                
+                // Update onchange handlers that pass stepNumber (e.g. handleStepTypeChange(this, 1))
+                const onchange = input.getAttribute('onchange');
+                if (onchange && onchange.match(/,\s*\d+\)/)) {
+                    const newOnchange = onchange.replace(/,\s*\d+\)/, `, ${stepNumber})`);
+                    input.setAttribute('onchange', newOnchange);
+                }
             });
 
             const elementsWithId = item.querySelectorAll('[id*="_"]');
@@ -410,24 +433,29 @@
         });
     }
 
-    // Handle step type change (show/hide approver section for purchasing)
+    // Handle step type change
     function handleStepTypeChange(select, stepNumber) {
         const stepType = select.value;
         const approverSection = document.getElementById(`approver_type_section_${stepNumber}`);
-        const purchasingNote = document.getElementById(`purchasing_note_${stepNumber}`);
-        const approverTypeSelect = document.getElementById(`approver_type_select_${stepNumber}`);
+        const actionApproval = document.getElementById(`action_approval_section_${stepNumber}`);
+        const actionPurchasing = document.getElementById(`action_purchasing_section_${stepNumber}`);
+        const requiredActionSelect = document.getElementById(`required_action_select_${stepNumber}`);
+        const purchasingActionSelect = document.getElementById(`purchasing_action_select_${stepNumber}`);
 
         if (stepType === 'purchasing') {
-            // Hide approver section — purchasing is handled by purchasing system
-            if (approverSection) approverSection.style.display = 'none';
-            if (purchasingNote) purchasingNote.classList.remove('hidden');
-            // Clear approver_type value so it doesn't conflict
-            if (approverTypeSelect) approverTypeSelect.value = '';
-            // Hide all approver-specific fields
-            document.querySelectorAll(`[id^="approver_"][id$="_${stepNumber}"]`).forEach(f => f.style.display = 'none');
+            // Show purchasing action select, hide regular action select
+            if (actionApproval) { actionApproval.style.display = 'none'; requiredActionSelect.disabled = true; }
+            if (actionPurchasing) { actionPurchasing.style.display = 'block'; purchasingActionSelect.disabled = false; }
+            
+            // Note: purchasing steps now require roles (e.g. purchasing or manager_keuangan)
+            // So we leave the approverSection VISIBLE.
+            if (approverSection) approverSection.style.display = 'block';
         } else {
-            if (approverSection) approverSection.style.display = '';
-            if (purchasingNote) purchasingNote.classList.add('hidden');
+            // Show regular action select, hide purchasing action select
+            if (actionApproval) { actionApproval.style.display = 'block'; requiredActionSelect.disabled = false; }
+            if (actionPurchasing) { actionPurchasing.style.display = 'none'; purchasingActionSelect.disabled = true; }
+            
+            if (approverSection) approverSection.style.display = 'block';
         }
     }
 
@@ -526,61 +554,4 @@
 </script>
 
 {{-- Purchasing Step Config Section --}}
-@php
-    $availableSteps = \App\Models\ApprovalWorkflow::PURCHASING_STEP_KEYS;
-    $stepLabels     = \App\Models\ApprovalWorkflow::PURCHASING_STEP_LABELS;
-    $existingConfig = $approvalWorkflow->purchasing_step_config ?? null;
-    $configByKey = collect($existingConfig)->keyBy('step_key');
-@endphp
 
-<div class="bg-white rounded-none shadow-none p-6 border-t border-gray-200" id="purchasing-config-section">
-    <h3 class="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-        </svg>
-        Konfigurasi Langkah Purchasing
-    </h3>
-    <p class="text-sm text-gray-500 mb-4">
-        Pilih langkah purchasing yang aktif untuk workflow ini. Jika tidak ada yang dipilih (semua dinonaktifkan), sistem akan menggunakan semua 5 langkah default.
-    </p>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        @foreach($availableSteps as $idx => $stepKey)
-            @php
-                $cfg       = $configByKey->get($stepKey);
-                $enabled   = $cfg ? (bool) ($cfg['enabled'] ?? true) : true;
-                $allowSkip = $cfg ? (bool) ($cfg['allow_skip'] ?? ($stepKey === 'trial')) : ($stepKey === 'trial');
-                $label     = $stepLabels[$stepKey] ?? $stepKey;
-            @endphp
-            <div class="border border-gray-200 rounded-lg p-3 bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors">
-                <div class="flex items-start justify-between mb-2">
-                    <span class="text-sm font-semibold text-gray-700">{{ ($idx + 1) }}. {{ $label }}</span>
-                    <span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded font-mono">{{ $stepKey }}</span>
-                </div>
-                <div class="space-y-2">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox"
-                               name="purchasing_step_config[{{ $stepKey }}][enabled]"
-                               value="1"
-                               class="w-4 h-4 rounded border-gray-300 text-blue-600"
-                               {{ $enabled ? 'checked' : '' }}
-                               id="psc_enabled_{{ $stepKey }}" />
-                        <span class="text-sm text-gray-700">Aktifkan step ini</span>
-                    </label>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox"
-                               name="purchasing_step_config[{{ $stepKey }}][allow_skip]"
-                               value="1"
-                               class="w-4 h-4 rounded border-gray-300 text-amber-500"
-                               {{ $allowSkip ? 'checked' : '' }}
-                               id="psc_skip_{{ $stepKey }}" />
-                        <span class="text-sm text-gray-600">Boleh dilewati</span>
-                    </label>
-                </div>
-            </div>
-        @endforeach
-    </div>
-    <p class="text-xs text-gray-400 mt-3">
-        ℹ️ Urutan langkah mengikuti urutan standar di atas. Step yang dinonaktifkan akan dianggap selesai secara otomatis (kondisi skip).
-    </p>
-</div>

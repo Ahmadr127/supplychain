@@ -10,7 +10,6 @@ class PendingReleasesStatsService
 {
     /**
      * Get statistics for pending release requests (same scope as release-requests/my-pending page).
-     * Page uses only approver_id and approver_role_id (no department).
      *
      * @return array
      */
@@ -19,9 +18,9 @@ class PendingReleasesStatsService
         $user = Auth::user();
 
         $query = ApprovalItemStep::where('step_phase', 'release')
-            ->where(function ($q) use ($user) {
-                $q->where('approver_id', $user->id)
-                    ->orWhere('approver_role_id', $user->role_id);
+            ->whereUserMatchesStepApprover($user)
+            ->whereHas('approvalRequest', function ($q) {
+                $q->whereNotIn('status', ['cancelled']);
             });
 
         $stats = (clone $query)
@@ -80,9 +79,9 @@ class PendingReleasesStatsService
 
         return ApprovalItemStep::where('step_phase', 'release')
             ->where('status', 'pending')
-            ->where(function ($q) use ($user) {
-                $q->where('approver_id', $user->id)
-                    ->orWhere('approver_role_id', $user->role_id);
+            ->whereUserMatchesStepApprover($user)
+            ->whereHas('approvalRequest', function ($q) {
+                $q->whereNotIn('status', ['cancelled']);
             })
             ->with(['approvalRequest', 'masterItem', 'requestItem'])
             ->latest('created_at')

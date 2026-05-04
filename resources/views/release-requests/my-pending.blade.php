@@ -19,10 +19,23 @@
 
     {{-- Status Counts --}}
     @if(isset($statusCounts))
+    @php
+        $activeReleaseCount = ($statusCounts['pending'] ?? 0) + ($statusCounts['pending_purchase'] ?? 0);
+    @endphp
     <div class="flex flex-wrap gap-2 mb-4">
-        <a href="{{ route('release-requests.my-pending', ['status' => 'pending', 'search' => request('search')]) }}">
-            <x-approval-status-badge status="pending" :count="$statusCounts['pending']" variant="{{ !request('status') || request('status') === 'pending' ? 'solid' : 'subtle' }}" />
+        <a href="{{ route('release-requests.my-pending', ['search' => request('search')]) }}" title="Pending + menunggu purchasing">
+            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium {{ !request('status') ? 'bg-yellow-500 text-white' : 'bg-yellow-100 text-yellow-800 border border-yellow-200' }}">
+                Aktif: {{ $activeReleaseCount }}
+            </span>
         </a>
+        <a href="{{ route('release-requests.my-pending', ['status' => 'pending', 'search' => request('search')]) }}">
+            <x-approval-status-badge status="pending" :count="$statusCounts['pending']" variant="{{ request('status') === 'pending' ? 'solid' : 'subtle' }}" />
+        </a>
+        @if(($statusCounts['pending_purchase'] ?? 0) > 0)
+        <a href="{{ route('release-requests.my-pending', ['status' => 'pending_purchase', 'search' => request('search')]) }}">
+            <x-approval-status-badge status="pending_purchase" :count="$statusCounts['pending_purchase']" variant="{{ request('status') === 'pending_purchase' ? 'solid' : 'subtle' }}" />
+        </a>
+        @endif
         <a href="{{ route('release-requests.my-pending', ['status' => 'approved', 'search' => request('search')]) }}">
             <x-approval-status-badge status="approved" :count="$statusCounts['approved']" variant="{{ request('status') === 'approved' ? 'solid' : 'subtle' }}" />
         </a>

@@ -11,6 +11,8 @@ use App\Models\ItemCategory;
 use App\Models\PurchasingItem;
 use App\Models\User;
 use App\Services\Purchasing\PurchasingItemService;
+use App\Services\Purchasing\PurchasingTypeService;
+use App\Models\ApprovalItemStep;
 use Carbon\Carbon;
 
 class ReportController extends Controller
@@ -548,7 +550,7 @@ class ReportController extends Controller
         return response()->json($results);
     }
 
-    public function processPurchasing(Request $request)
+    public function processPurchasing(Request $request, PurchasingTypeService $typeService)
     {
         // Authorization: users with manage_purchasing, process_purchasing_item, or manage_vendor may access
         if (!(auth()->user()?->hasPermission('manage_purchasing') || auth()->user()?->hasPermission('process_purchasing_item') || auth()->user()?->hasPermission('manage_vendor'))) {
@@ -574,11 +576,23 @@ class ReportController extends Controller
         // Dynamic workflow steps: purchasing + release phases, ordered by step_number.
         // Including release steps is critical so that the state resolution respects
         // the full workflow order (e.g. GRN step locked until release steps are done).
-        $purchasingSteps = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+        $purchasingSteps = ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
             ->where('master_item_id', $item->master_item_id)
             ->whereIn('step_phase', ['purchasing', 'release'])
             ->orderBy('step_number')
             ->get();
+
+        $user = auth()->user();
+        $canPurchasing = $user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item');
+        $canVendor     = $user->hasPermission('manage_vendor');
+
+        $pSteps = $typeService->resolvePurchasingSteps(
+            $item,
+            $canPurchasing,
+            $canVendor,
+            $purchasingSteps->where('step_phase', 'purchasing'),
+            $purchasingSteps->where('step_phase', 'release'),
+        );
         
         // Add status counts for consistency
         $statusCounts = \App\Models\ApprovalRequestItem::select('status', \DB::raw('count(*) as count'))
@@ -627,7 +641,15 @@ class ReportController extends Controller
             'done' => $piCounts['done'] ?? 0,
         ];
 
-        return view('reports.approval-requests.process-purchasing', compact('item', 'statusCounts', 'purchasingCounts', 'purchasingSteps'));
+        return view('reports.approval-requests.process-purchasing', compact(
+            'item',
+            'statusCounts',
+            'purchasingCounts',
+            'purchasingSteps',
+            'pSteps',
+            'canPurchasing',
+            'canVendor',
+        ));
     }
 
     public function vendorForm(PurchasingItem $purchasingItem)

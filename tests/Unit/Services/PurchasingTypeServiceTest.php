@@ -51,7 +51,7 @@ class PurchasingTypeServiceTest extends TestCase
         $item  = $this->makeItem();
         $steps = $this->service->resolvePurchasingSteps($item, true, true, collect(), collect());
 
-        $benchmarking = $steps->firstWhere('step_key', 'benchmarking');
+        $benchmarking = $steps->firstWhere('canonical_step_key', 'benchmarking');
         $this->assertNotNull($benchmarking);
         $this->assertTrue($benchmarking->active);
         $this->assertFalse($benchmarking->locked);
@@ -62,8 +62,52 @@ class PurchasingTypeServiceTest extends TestCase
         $item  = $this->makeItem();
         $steps = $this->service->resolvePurchasingSteps($item, false, false, collect(), collect());
 
-        $benchmarking = $steps->firstWhere('step_key', 'benchmarking');
+        $benchmarking = $steps->firstWhere('canonical_step_key', 'benchmarking');
         $this->assertTrue($benchmarking->locked);
+    }
+
+    public function test_tracker_mode_label_and_form_follow_required_action_not_step_name()
+    {
+        $item = $this->makeItem();
+
+        $step = Mockery::mock(ApprovalItemStep::class)->makePartial();
+        $step->id = 500;
+        $step->step_number = 5;
+        $step->status = 'pending';
+        $step->required_action = 'purchasing_invoice_grn_done';
+        $step->step_name = 'done';
+
+        $steps = $this->service->resolvePurchasingSteps($item, true, true, collect([$step]), collect());
+        $ui = $steps->first();
+
+        $this->assertSame('purchasing_invoice_grn_done', $ui->required_action);
+        $this->assertStringContainsString('Invoice', $ui->label);
+        $this->assertSame('grn', $ui->form);
+    }
+
+    public function test_tracker_mode_trial_locked_when_status_pending_purchase()
+    {
+        $item = $this->makeItemWithVendors();
+
+        $bench = Mockery::mock(ApprovalItemStep::class)->makePartial();
+        $bench->id = 1;
+        $bench->step_number = 1;
+        $bench->status = 'approved';
+        $bench->required_action = 'purchasing_benchmarking';
+        $bench->step_name = 'Custom';
+
+        $trial = Mockery::mock(ApprovalItemStep::class)->makePartial();
+        $trial->id = 2;
+        $trial->step_number = 2;
+        $trial->status = 'pending_purchase';
+        $trial->required_action = 'purchasing_trial';
+        $trial->step_name = 'Custom';
+
+        $resolved = $this->service->resolvePurchasingSteps($item, true, true, collect([$bench, $trial]), collect());
+        $trialUi = $resolved->first(fn($s) => $s->required_action === 'purchasing_trial');
+
+        $this->assertNotNull($trialUi);
+        $this->assertTrue($trialUi->locked);
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -90,7 +134,7 @@ class PurchasingTypeServiceTest extends TestCase
 
         $steps = $this->service->resolvePurchasingSteps($item, true, true, $purchasingSteps, collect());
 
-        $preferred = $steps->firstWhere('step_key', 'preferred_vendor');
+        $preferred = $steps->firstWhere('canonical_step_key', 'preferred_vendor');
         // Should be active because trial is not in config (effectively skipped)
         $this->assertNotNull($preferred);
     }
@@ -100,7 +144,7 @@ class PurchasingTypeServiceTest extends TestCase
         $item  = $this->makeItemWithVendors(); // benchmarking done, but no preferred vendor
         $steps = $this->service->resolvePurchasingSteps($item, true, true, collect(), collect());
 
-        $po = $steps->firstWhere('step_key', 'po');
+        $po = $steps->firstWhere('canonical_step_key', 'po');
         $this->assertNotNull($po);
         $this->assertTrue($po->locked);
     }
@@ -110,7 +154,7 @@ class PurchasingTypeServiceTest extends TestCase
         $item  = $this->makeItemWithPreferred(); // preferred set, no PO
         $steps = $this->service->resolvePurchasingSteps($item, true, true, collect(), collect());
 
-        $grn = $steps->firstWhere('step_key', 'invoice_grn_done');
+        $grn = $steps->firstWhere('canonical_step_key', 'invoice_grn_done');
         $this->assertNotNull($grn);
         $this->assertTrue($grn->locked);
     }
@@ -128,7 +172,7 @@ class PurchasingTypeServiceTest extends TestCase
             $item, true, true, collect(), collect([$releaseStep])
         );
 
-        $grn = $steps->firstWhere('step_key', 'invoice_grn_done');
+        $grn = $steps->firstWhere('canonical_step_key', 'invoice_grn_done');
         $this->assertTrue($grn->locked);
     }
 
@@ -145,7 +189,7 @@ class PurchasingTypeServiceTest extends TestCase
             $item, true, true, collect(), collect([$releaseStep])
         );
 
-        $grn = $steps->firstWhere('step_key', 'invoice_grn_done');
+        $grn = $steps->firstWhere('canonical_step_key', 'invoice_grn_done');
         $this->assertTrue($grn->active || $grn->done);
     }
 
@@ -156,7 +200,7 @@ class PurchasingTypeServiceTest extends TestCase
             $item, true, true, collect(), collect() // no release steps
         );
 
-        $grn = $steps->firstWhere('step_key', 'invoice_grn_done');
+        $grn = $steps->firstWhere('canonical_step_key', 'invoice_grn_done');
         $this->assertTrue($grn->active || $grn->done);
     }
 

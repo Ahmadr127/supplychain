@@ -87,7 +87,6 @@
                     <span class="font-semibold {{ $pState === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">{{ $pStep->label }}</span>
                 </div>
                 @if($pStep->allow_skip && $pState === 'locked')
-                    <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Dapat Dilewati</span>
                 @elseif($pState === 'done')
                     <span class="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Done</span>
                 @endif

@@ -1182,8 +1182,16 @@ class ApprovalRequestController extends Controller
                                   });
                             })
                             ->whereHas('approvalRequest', function($q) {
-                                // Show all active requests (not cancelled)
-                                $q->whereIn('status', ['pending', 'on progress', 'approved', 'rejected']);
+                                // Include in_purchasing / in_release: one item may be in purchasing while
+                                // sibling items on the same request are still in the approval chain.
+                                $q->whereIn('status', [
+                                    'pending',
+                                    'on progress',
+                                    'approved',
+                                    'rejected',
+                                    'in_purchasing',
+                                    'in_release',
+                                ]);
                             })
                             // Enforce sequential workflow visibility
                             // A step is visible if:
@@ -1367,7 +1375,12 @@ class ApprovalRequestController extends Controller
                     })
                     ->where('status', 'pending')
                     ->whereHas('approvalRequest', function($q) {
-                        $q->whereIn('status', ['pending', 'on progress']);
+                        $q->whereIn('status', [
+                            'pending',
+                            'on progress',
+                            'in_purchasing',
+                            'in_release',
+                        ]);
                     })
                     // Enforce sequential workflow for counts
                     ->whereNotExists(function($sub) {
@@ -1709,7 +1722,7 @@ class ApprovalRequestController extends Controller
      * 3-Phase Workflow:
      * - Phase 1 (approval): Maker + Approvers → status = 'pending'
      * - Phase 2 (purchasing): Handled by PurchasingItem (existing)
-     * - Phase 3 (release): Releasers → status = 'pending_purchase' (activated after purchasing)
+     * - Phase 3 (release): Releasers → status = 'pending' (order via step_number / prior approvals)
      */
     private function initializeItemSteps(ApprovalRequest $approvalRequest, ApprovalRequestItem $item): void
     {
@@ -1743,16 +1756,10 @@ class ApprovalRequestController extends Controller
         $releaseStepCount = 0;
         
         foreach ($workflowSteps as $step) {
-            // Determine initial status based on phase
-            // - Approval phase: 'pending' (can be approved immediately)
-            // - Release phase: 'pending_purchase' (waiting for purchasing to complete)
+            // Initial status: see ApprovalItemStep::initialStatusForWorkflowStep()
             $stepPhase = $step->step_phase ?? 'approval';
-                // Release steps start as 'pending_purchase'. Purchasing steps that come
-                // AFTER a release step (e.g. GRN after release) also start as 'pending_purchase'.
-                $hasReleaseBefore = collect($workflowSteps)
-                    ->contains(fn($s) => ($s->step_phase ?? '') === 'release' && (int)($s->step_number ?? 0) < (int)($step->step_number ?? 0));
-                $initialStatus = ($stepPhase === 'release' || $hasReleaseBefore) ? 'pending_purchase' : 'pending';
-            
+            $initialStatus = \App\Models\ApprovalItemStep::initialStatusForWorkflowStep($step, $workflowSteps);
+
             \App\Models\ApprovalItemStep::create([
                 'approval_request_id' => $approvalRequest->id,
                 'approval_request_item_id' => $item->id,

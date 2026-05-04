@@ -18,8 +18,8 @@ class ReleaseRequestController extends Controller
         // Get items that are in release phase or have release steps
         $query = ApprovalRequestItem::query()
             ->with(['masterItem.itemType', 'masterItem.itemCategory', 'masterItem.unit', 'approvalRequest.requester'])
-            ->whereHas('approvalRequest', function($q) {
-                $q->whereIn('status', ['on progress', 'approved']);
+            ->whereHas('approvalRequest', function ($q) {
+                $q->whereIn('status', ['on progress', 'approved', 'in_purchasing', 'in_release']);
             });
 
         // Filter by status
@@ -51,13 +51,10 @@ class ReleaseRequestController extends Controller
         if (!$hasPrivilegedRole) {
             $query->whereHas('approvalRequest', function($q) use ($user) {
                 // Filter by items with release steps this user can approve
-                $q->whereHas('itemSteps', function($q2) use ($user) {
+                $q->whereHas('itemSteps', function ($q2) use ($user) {
                     $q2->where('step_phase', 'release')
-                       ->where('status', 'pending')
-                       ->where(function($q3) use ($user) {
-                           $q3->where('approver_id', $user->id)
-                              ->orWhere('approver_role_id', $user->role_id);
-                       });
+                        ->where('status', 'pending')
+                        ->whereUserMatchesStepApprover($user);
                 });
             });
         }
@@ -65,8 +62,8 @@ class ReleaseRequestController extends Controller
         $releaseItems = $query->orderBy('updated_at', 'desc')->paginate(20);
         
         // Calculate status counts
-        $statusCounts = \App\Models\ApprovalRequestItem::whereHas('approvalRequest', function($q) {
-                $q->whereIn('status', ['on progress', 'approved']);
+        $statusCounts = \App\Models\ApprovalRequestItem::whereHas('approvalRequest', function ($q) {
+                $q->whereIn('status', ['on progress', 'approved', 'in_purchasing', 'in_release']);
             })
             ->whereIn('status', ['in_purchasing', 'in_release', 'done'])
             ->select('status', \DB::raw('count(*) as count'))
@@ -111,9 +108,9 @@ class ReleaseRequestController extends Controller
         $user = auth()->user();
         
         $query = ApprovalItemStep::where('step_phase', 'release')
-            ->where(function($q) use ($user) {
-                $q->where('approver_id', $user->id)
-                  ->orWhere('approver_role_id', $user->role_id);
+            ->whereUserMatchesStepApprover($user)
+            ->whereHas('approvalRequest', function ($q) {
+                $q->whereNotIn('status', ['cancelled']);
             });
 
         // Search
@@ -133,8 +130,7 @@ class ReleaseRequestController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         } else {
-            // Default: show both pending and approved items to satisfy user request
-            $query->whereIn('status', ['pending', 'approved']);
+            $query->whereIn('status', ['pending', 'pending_purchase', 'approved']);
         }
 
         $pendingReleaseSteps = $query->with(['approvalRequest', 'masterItem'])
@@ -143,20 +139,21 @@ class ReleaseRequestController extends Controller
 
         // Calculate counts for my pending releases
         // We want to show counts of release steps assigned to me by status
-        $statusCounts = ApprovalItemStep::where('step_phase', 'release')
-            ->where(function($q) use ($user) {
-                $q->where('approver_id', $user->id)
-                  ->orWhere('approver_role_id', $user->role_id);
+        $rawCounts = ApprovalItemStep::where('step_phase', 'release')
+            ->whereUserMatchesStepApprover($user)
+            ->whereHas('approvalRequest', function ($q) {
+                $q->whereNotIn('status', ['cancelled']);
             })
             ->select('status', \DB::raw('count(*) as count'))
             ->groupBy('status')
             ->pluck('count', 'status')
             ->toArray();
-            
+
         $statusCounts = [
-            'pending' => $statusCounts['pending'] ?? 0,
-            'approved' => $statusCounts['approved'] ?? 0,
-            'rejected' => $statusCounts['rejected'] ?? 0,
+            'pending' => $rawCounts['pending'] ?? 0,
+            'pending_purchase' => $rawCounts['pending_purchase'] ?? 0,
+            'approved' => $rawCounts['approved'] ?? 0,
+            'rejected' => $rawCounts['rejected'] ?? 0,
         ];
 
         return view('release-requests.my-pending', compact('pendingReleaseSteps', 'statusCounts'));

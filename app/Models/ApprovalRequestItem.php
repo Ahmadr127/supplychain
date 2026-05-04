@@ -157,6 +157,7 @@ class ApprovalRequestItem extends Model
     {
         return $this->steps()
             ->where('status', 'pending')
+            ->orderBy('step_number')
             ->first();
     }
 

@@ -459,6 +459,15 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
 
                 <!-- Submit Button -->
                 <button type="submit"
+                    @if($isReleaseStep)
+                    :onclick="action === 'approve' ? 'return confirm(\'Yakin melakukan release untuk item ini?\')' : (action === 'reject' ?
+                        'return confirm(\'Yakin reject item ini?\')' :
+                        'return confirm(\'Yakin reset item ke pending?\')')"
+                    :class="action === 'approve' ?
+                        'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500' :
+                        (action === 'reject' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' :
+                            'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500')"
+                    @else
                     :onclick="action === 'approve' ? 'return confirm(\'Yakin approve item ini?\')' : (action === 'reject' ?
                         'return confirm(\'Yakin reject item ini?\')' :
                         'return confirm(\'Yakin reset item ke pending?\')')"
@@ -466,9 +475,14 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                         'bg-green-600 hover:bg-green-700 focus:ring-green-500' :
                         (action === 'reject' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' :
                             'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500')"
+                    @endif
                     class="w-full text-white font-semibold py-2 px-3 rounded-md text-sm transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-1">
                     <span x-show="action === 'approve'">
-                        <i class="fas fa-check mr-1.5"></i>Approve
+                        @if($isReleaseStep)
+                            <i class="fas fa-paper-plane mr-1.5"></i>Release
+                        @else
+                            <i class="fas fa-check mr-1.5"></i>Approve
+                        @endif
                     </span>
                     <span x-show="action === 'reject'">
                         <i class="fas fa-times mr-1.5"></i>Reject

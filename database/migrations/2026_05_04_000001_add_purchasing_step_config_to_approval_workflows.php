@@ -9,8 +9,9 @@ return new class extends Migration
     /**
      * Add purchasing_step_config JSON column to approval_workflows.
      *
-     * This column stores which purchasing steps are enabled for this workflow
-     * and their configuration (order, allow_skip).
+     * Used when a request has no per-item purchasing-phase ApprovalItemStep rows
+     * (legacy). Otherwise purchasing UI order and forms follow each item step’s
+     * required_action (Langkah Purchasing), not this JSON and not step_name.
      *
      * Example value:
      * [

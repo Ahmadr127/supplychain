@@ -11,38 +11,182 @@ use Illuminate\Support\Facades\Log;
 /**
  * PurchasingTypeService
  *
- * Single source of truth for resolving which purchasing steps should be shown
- * for a given PurchasingItem. Both the web controller and the API controller
- * delegate to this service — no duplication of step-logic.
+ * Resolves which purchasing forms to show and their done/active/locked state.
  *
- * Step resolution order:
- *  1. Load the ApprovalWorkflow linked to the ApprovalRequest.
- *  2. Read `purchasing_step_config` (null = all 5 default steps enabled).
- *  3. For each enabled step, compute: done?, active?, locked?
- *     - Conditional skip: a step is treated as "effectively done" when it is
- *       either truly done OR disabled/skippable in config.
- *  4. Return a flat Collection of step-objects ready for view/API rendering.
+ * **Workflow-driven (preferred):** when there are `ApprovalItemStep` rows with
+ * `step_phase = purchasing`, order and behaviour follow those rows only. Each row’s
+ * `required_action` (Langkah Purchasing from the workflow editor) selects the form —
+ * **step_name is not used for logic.**
+ *
+ * **Legacy:** if there are no purchasing-phase tracker rows, fall back to
+ * `approval_workflows.purchasing_step_config` (or the default 5-step template).
  */
 class PurchasingTypeService
 {
-    // ────────────────────────────────────────────────────────────────────────
-    // PUBLIC API
-    // ────────────────────────────────────────────────────────────────────────
+    /** required_action (DB) → canonical step_key used for flags / config lookup */
+    private const REQUIRED_ACTION_TO_CANONICAL = [
+        'purchasing_receive_doc_benchmark' => 'benchmarking',
+        'purchasing_benchmarking'          => 'benchmarking',
+        'purchasing_receive_doc'           => 'benchmarking',
+        'purchasing_trial'                 => 'trial',
+        'purchasing_preferred_vendor'      => 'preferred_vendor',
+        'purchasing_po'                    => 'po',
+        'purchasing_invoice_grn_done'      => 'invoice_grn_done',
+        'purchasing_invoice'               => 'invoice_grn_done',
+        'purchasing_done'                  => 'invoice_grn_done',
+    ];
+
+    private const REQUIRED_ACTION_LABELS = [
+        'purchasing_receive_doc_benchmark' => 'Terima Dok & Benchmarking',
+        'purchasing_benchmarking'          => 'Benchmarking Vendor',
+        'purchasing_receive_doc'           => 'Terima Dokumen',
+        'purchasing_trial'                 => 'Trial Vendor',
+        'purchasing_preferred_vendor'      => 'Pilih Preferred Vendor',
+        'purchasing_po'                    => 'Input PO',
+        'purchasing_invoice_grn_done'      => 'Invoice & GRN (Selesai)',
+        'purchasing_invoice'               => 'Invoice',
+        'purchasing_done'                  => 'Selesai',
+    ];
+
+    public function resolvePurchasingSteps(
+        PurchasingItem $item,
+        bool $canPurchasing,
+        bool $canVendor,
+        Collection $purchasingItemSteps,
+        Collection $releaseItemSteps
+    ): Collection {
+        $trackers = $purchasingItemSteps->sortBy('step_number')->values();
+
+        if ($trackers->isNotEmpty()) {
+            return $this->resolvePurchasingStepsFromTrackers(
+                $item,
+                $canPurchasing,
+                $canVendor,
+                $trackers,
+                $releaseItemSteps
+            );
+        }
+
+        return $this->resolvePurchasingStepsFromWorkflowConfig(
+            $item,
+            $canPurchasing,
+            $canVendor,
+            $purchasingItemSteps,
+            $releaseItemSteps
+        );
+    }
 
     /**
-     * Resolve the purchasing steps that should be displayed / acted upon.
-     *
-     * @param  PurchasingItem    $item              The item being processed.
-     * @param  bool              $canPurchasing     User has manage_purchasing / process_purchasing_item.
-     * @param  bool              $canVendor         User has manage_vendor.
-     * @param  Collection        $purchasingItemSteps  ApprovalItemStep records for phase='purchasing'.
-     * @param  Collection        $releaseItemSteps     ApprovalItemStep records for phase='release'.
-     * @return Collection  Each element is a stdClass with:
-     *         step_key, label, enabled, order, allow_skip,
-     *         done, active, locked, form (blade form key),
-     *         is_skipped (step disabled in config but still tracked).
+     * One UI card per purchasing-phase ApprovalItemStep, driven by required_action only.
      */
-    public function resolvePurchasingSteps(
+    private function resolvePurchasingStepsFromTrackers(
+        PurchasingItem $item,
+        bool $canPurchasing,
+        bool $canVendor,
+        Collection $trackers,
+        Collection $releaseItemSteps
+    ): Collection {
+        $isReleaseFinished = $this->computeReleaseFinished($releaseItemSteps);
+
+        $benchmarkingDone  = !empty($item->approvalRequest?->received_at) && $item->vendors()->exists();
+        $preferredVendorDone = !empty($item->preferred_vendor_id);
+        $poDone              = !empty($item->po_number);
+        $invoiceDone         = !empty($item->invoice_number);
+
+        $trialRow = $trackers->first(
+            fn($s) => ($s->required_action ?? '') === 'purchasing_trial'
+        );
+        $trialDone = $trialRow && in_array($trialRow->status, ['approved', 'skipped'], true);
+        $hasTrialInWorkflow = $trialRow !== null;
+        $trialEffectiveDone = !$hasTrialInWorkflow || $trialDone;
+
+        return $trackers->map(function (ApprovalItemStep $row) use (
+            $item,
+            $canPurchasing,
+            $canVendor,
+            $trackers,
+            $isReleaseFinished,
+            $benchmarkingDone,
+            $preferredVendorDone,
+            $poDone,
+            $invoiceDone,
+            $trialEffectiveDone
+        ) {
+            $action = (string) ($row->required_action ?? '');
+            $canonical = self::REQUIRED_ACTION_TO_CANONICAL[$action] ?? null;
+
+            if ($canonical === null) {
+                Log::warning('[PurchasingTypeService] Purchasing step has unknown required_action', [
+                    'approval_item_step_id' => $row->id,
+                    'required_action'        => $action,
+                ]);
+            }
+
+            $label = self::REQUIRED_ACTION_LABELS[$action] ?? 'Langkah purchasing';
+
+            $priorOk = $trackers
+                ->filter(fn($s) => (int) $s->step_number < (int) $row->step_number)
+                ->every(fn($s) => in_array($s->status, ['approved', 'skipped'], true));
+
+            $wfDone = in_array($row->status, ['approved', 'skipped'], true);
+            $wfRenderable = ($row->status === 'pending') && $priorOk;
+
+            $dataOk = $this->dataPrerequisiteMetForAction(
+                $action,
+                $item,
+                $benchmarkingDone,
+                $trialEffectiveDone,
+                $preferredVendorDone,
+                $poDone,
+                $isReleaseFinished
+            );
+
+            $permOk = $this->permissionMetForAction($action, $canPurchasing, $canVendor);
+
+            $legacyActive = $this->legacyStyleActiveForAction(
+                $action,
+                $canPurchasing,
+                $canVendor,
+                $benchmarkingDone,
+                $trialEffectiveDone,
+                $preferredVendorDone,
+                $poDone,
+                $isReleaseFinished
+            );
+
+            $done = $wfDone;
+            if ($canonical === null) {
+                $active = false;
+                $locked = !$done;
+            } else {
+                $active = !$done && $wfRenderable && $permOk && $dataOk && $legacyActive;
+                $locked = !$done && !$active;
+            }
+
+            $formKey = $canonical ? $this->formKeyForCanonical($canonical) : 'benchmarking';
+
+            return (object) [
+                'step_key'             => $canonical ? "{$canonical}_{$row->id}" : "unknown_{$row->id}",
+                'canonical_step_key'   => $canonical ?? 'benchmarking',
+                'approval_item_step_id'=> $row->id,
+                'required_action'      => $action,
+                'label'                => $label,
+                'enabled'              => true,
+                'order'                => (int) $row->step_number,
+                'allow_skip'           => ($canonical === 'trial'),
+                'done'                 => $done,
+                'active'               => $active || $done,
+                'locked'               => $locked,
+                'form'                 => $formKey,
+                'is_release_finished'  => $isReleaseFinished,
+            ];
+        })->values();
+    }
+
+    /**
+     * Legacy: enabled micro-steps from workflow JSON purchasing_step_config (or default).
+     */
+    private function resolvePurchasingStepsFromWorkflowConfig(
         PurchasingItem $item,
         bool $canPurchasing,
         bool $canVendor,
@@ -54,54 +198,45 @@ class PurchasingTypeService
             ? $workflow->getEnabledPurchasingSteps()
             : $this->buildDefaultStepConfig();
 
-        // ── Compute primitives from data ──────────────────────────────────
         $benchmarkingDone  = !empty($item->approvalRequest?->received_at) && $item->vendors()->exists();
-        $trialDone         = $this->isTrialDone($purchasingItemSteps);
-        $hasTrial          = $enabledSteps->contains('step_key', 'trial');
-        $trialSkippable    = $workflow ? $workflow->isPurchasingStepSkippable('trial') : true;
+        $trialDone           = $this->isTrialDoneByRequiredActionOnly($purchasingItemSteps);
+        $hasTrial            = $enabledSteps->contains('step_key', 'trial');
+        $trialSkippable      = $workflow ? $workflow->isPurchasingStepSkippable('trial') : true;
+        $hasTrialTrackerRow  = $this->hasTrialRowByRequiredAction($purchasingItemSteps);
 
-        // Trial is "effectively done" when:
-        //  (a) it's disabled in config, OR
-        //  (b) the trial step is actually approved/skipped in item_steps, OR
-        //  (c) there's no trial item_step record at all AND it's skippable
         $trialEffectiveDone = !$hasTrial || $trialDone
-            || ($trialSkippable && !$purchasingItemSteps->contains(fn($s) => stripos($s->step_name, 'Trial') !== false));
+            || ($trialSkippable && !$hasTrialTrackerRow);
 
         $preferredVendorDone = !empty($item->preferred_vendor_id);
         $poDone              = !empty($item->po_number);
         $invoiceDone         = !empty($item->invoice_number);
 
-        // Release finished?
-        $releaseTotal    = $releaseItemSteps->count();
-        $releaseApproved = $releaseItemSteps->where('status', 'approved')->count();
-        $isReleaseFinished = $releaseTotal === 0
-            || ($releaseApproved === $releaseTotal && $releaseTotal > 0);
+        $isReleaseFinished = $this->computeReleaseFinished($releaseItemSteps);
 
-        // Build lookup: step_key → done/active
         $stepState = [
             'benchmarking' => [
-                'done'   => $benchmarkingDone,
-                'active' => $canPurchasing,
-                'prev_done' => true, // first step — always reachable
+                'done'      => $benchmarkingDone,
+                'active'    => $canPurchasing,
+                'prev_done' => true,
             ],
             'trial' => [
-                'done'   => $trialDone,
-                'active' => $canPurchasing && $benchmarkingDone,
+                'done'      => $trialDone,
+                'active'    => $canPurchasing && $benchmarkingDone,
                 'prev_done' => $benchmarkingDone,
             ],
             'preferred_vendor' => [
-                'done'   => $preferredVendorDone,
-                'active' => $canVendor && $benchmarkingDone && $trialEffectiveDone,
+                'done'      => $preferredVendorDone,
+                'active'    => $canVendor && $benchmarkingDone && $trialEffectiveDone,
                 'prev_done' => $benchmarkingDone && $trialEffectiveDone,
             ],
             'po' => [
-                'done'   => $poDone,
-                'active' => $canPurchasing && $preferredVendorDone,
+                'done'      => $poDone,
+                'active'    => $canPurchasing && $preferredVendorDone,
                 'prev_done' => $preferredVendorDone,
             ],
             'invoice_grn_done' => [
-                'done'   => $invoiceDone,
-                'active' => $canPurchasing && $poDone && $isReleaseFinished,
+                'done'      => $invoiceDone,
+                'active'    => $canPurchasing && $poDone && $isReleaseFinished,
                 'prev_done' => $poDone && $isReleaseFinished,
             ],
         ];
@@ -115,26 +250,23 @@ class PurchasingTypeService
             $locked = !$done && !$active;
 
             return (object) [
-                'step_key'           => $key,
-                'label'              => $stepDef->label,
-                'enabled'            => $stepDef->enabled,
-                'order'              => $stepDef->order,
-                'allow_skip'         => $stepDef->allow_skip,
-                'done'               => $done,
-                'active'             => $active || $done, // blade uses active as "can interact"
-                'locked'             => $locked,
-                'form'               => $this->formKeyForStep($key),
-                'is_release_finished'=> $isReleaseFinished,
+                'step_key'             => $key,
+                'canonical_step_key'   => $key,
+                'approval_item_step_id'=> null,
+                'required_action'      => null,
+                'label'                => $stepDef->label,
+                'enabled'              => $stepDef->enabled,
+                'order'                => $stepDef->order,
+                'allow_skip'           => $stepDef->allow_skip,
+                'done'                 => $done,
+                'active'               => $active || $done,
+                'locked'               => $locked,
+                'form'                 => $this->formKeyForCanonical($key),
+                'is_release_finished'  => $isReleaseFinished,
             ];
         });
     }
 
-    /**
-     * Return the "can_*" flags used by the API (backward-compatible shape).
-     *
-     * This mirrors the old getDynamicWorkflowSteps() but now reads from
-     * PurchasingTypeService so logic is not duplicated.
-     */
     public function resolveWorkflowFlags(
         PurchasingItem $item,
         bool $canPurchasing,
@@ -147,41 +279,37 @@ class PurchasingTypeService
             $item, $canPurchasing, $canVendor, $purchasingItemSteps, $releaseItemSteps
         );
 
-        // Primitives
         $step1Done = !empty($item->approvalRequest?->received_at);
         $step2Done = $item->vendors()->exists();
-        $trialStep = $purchasingItemSteps->first(fn($s) => stripos($s->step_name, 'Trial') !== false);
-        $hasTrial  = $trialStep !== null;
-        $trialDone = $trialStep && in_array($trialStep->status, ['approved', 'skipped']);
 
-        $releaseTotal    = $releaseItemSteps->count();
-        $releaseApproved = $releaseItemSteps->where('status', 'approved')->count();
-        $isReleaseFinished = $releaseTotal === 0
-            || ($releaseApproved === $releaseTotal && $releaseTotal > 0);
+        $trialRow = $purchasingItemSteps->first(
+            fn($s) => ($s->required_action ?? '') === 'purchasing_trial'
+        );
+        $hasTrial  = $trialRow !== null;
+        $trialDone = $trialRow && in_array($trialRow->status, ['approved', 'skipped'], true);
 
-        // Build step definitions array (for mobile)
-        $stepDefinitions = ($workflow ? $workflow->getEnabledPurchasingSteps() : $this->buildDefaultStepConfig())
-            ->map(fn($s) => [
-                'step_key'   => $s->step_key,
-                'label'      => $s->label,
-                'enabled'    => $s->enabled,
-                'order'      => $s->order,
-                'allow_skip' => $s->allow_skip,
-            ])
-            ->values()
-            ->all();
+        $isReleaseFinished = $this->computeReleaseFinished($releaseItemSteps);
 
-        $byKey = $steps->keyBy('step_key');
+        $stepDefinitions = $steps->map(fn($s) => [
+            'step_key'   => $s->canonical_step_key ?? $s->step_key,
+            'label'      => $s->label,
+            'enabled'    => (bool) ($s->enabled ?? true),
+            'order'      => (int) ($s->order ?? 0),
+            'allow_skip' => (bool) ($s->allow_skip ?? false),
+        ])->values()->all();
+
+        $byCanon = $steps->keyBy(fn($s) => $s->canonical_step_key ?? $s->step_key);
+
+        $actionable = fn(?string $k) => $k && ($s = $byCanon->get($k)) && !$s->done && !$s->locked;
 
         return [
-            // Backward-compatible flags
             'can_set_received_date' => $canPurchasing,
-            'can_do_benchmarking'   => $canPurchasing,
-            'can_do_trial'          => $canPurchasing && $step2Done && $hasTrial,
-            'can_select_preferred'  => $byKey->get('preferred_vendor')?->active ?? false,
-            'can_issue_po'          => $byKey->get('po')?->active ?? false,
-            'can_input_invoice'     => $byKey->get('invoice_grn_done')?->active ?? false,
-            'can_mark_done'         => $byKey->get('invoice_grn_done')?->active ?? false,
+            'can_do_benchmarking'   => $actionable('benchmarking'),
+            'can_do_trial'          => $actionable('trial'),
+            'can_select_preferred'  => $actionable('preferred_vendor'),
+            'can_issue_po'          => $actionable('po'),
+            'can_input_invoice'     => $actionable('invoice_grn_done'),
+            'can_mark_done'         => $actionable('invoice_grn_done'),
 
             'is_release_finished'   => $isReleaseFinished,
 
@@ -195,15 +323,10 @@ class PurchasingTypeService
             'has_trial_step'  => $hasTrial,
             'dynamic_steps'   => $purchasingItemSteps->merge($releaseItemSteps)->toArray(),
 
-            // NEW: structured step definitions for mobile
             'step_definitions' => $stepDefinitions,
         ];
     }
 
-    /**
-     * Resolve the ApprovalWorkflow linked to this purchasing item's request.
-     * Returns null if no workflow found (graceful degradation → default config).
-     */
     public function resolveWorkflow(PurchasingItem $item): ?ApprovalWorkflow
     {
         $request = $item->approvalRequest;
@@ -227,10 +350,6 @@ class PurchasingTypeService
         }
     }
 
-    /**
-     * Get the default purchasing step config (all 5 steps enabled, standard order).
-     * Used when workflow has no purchasing_step_config.
-     */
     public function buildDefaultStepConfig(): Collection
     {
         return collect([
@@ -242,27 +361,102 @@ class PurchasingTypeService
         ]);
     }
 
-    // ────────────────────────────────────────────────────────────────────────
-    // PRIVATE HELPERS
-    // ────────────────────────────────────────────────────────────────────────
-
-    private function isTrialDone(Collection $purchasingItemSteps): bool
+    /**
+     * Aliases of required_action that one purchasing API action may complete.
+     * Used only with column `required_action` — never step_name.
+     */
+    public static function purchasingRequiredActionAliases(string $actionType): array
     {
-        $trialStep = $purchasingItemSteps->first(
-            fn($s) => stripos($s->step_name, 'Trial') !== false
-        );
-        return $trialStep && in_array($trialStep->status, ['approved', 'skipped']);
+        return match (true) {
+            in_array($actionType, ['purchasing_receive_doc_benchmark', 'purchasing_benchmarking', 'purchasing_receive_doc'], true)
+                => ['purchasing_receive_doc_benchmark', 'purchasing_benchmarking', 'purchasing_receive_doc'],
+            in_array($actionType, ['purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done'], true)
+                => ['purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done'],
+            default => [$actionType],
+        };
     }
 
-    private function formKeyForStep(string $stepKey): string
+    private function computeReleaseFinished(Collection $releaseItemSteps): bool
     {
-        return match($stepKey) {
+        $releaseTotal    = $releaseItemSteps->count();
+        $releaseApproved = $releaseItemSteps->where('status', 'approved')->count();
+
+        return $releaseTotal === 0
+            || ($releaseApproved === $releaseTotal && $releaseTotal > 0);
+    }
+
+    private function dataPrerequisiteMetForAction(
+        string $action,
+        PurchasingItem $item,
+        bool $benchmarkingDone,
+        bool $trialEffectiveDone,
+        bool $preferredVendorDone,
+        bool $poDone,
+        bool $isReleaseFinished
+    ): bool {
+        return match ($action) {
+            'purchasing_receive_doc_benchmark', 'purchasing_benchmarking', 'purchasing_receive_doc' => true,
+            'purchasing_trial' => $benchmarkingDone,
+            'purchasing_preferred_vendor' => $benchmarkingDone && $trialEffectiveDone,
+            'purchasing_po' => $preferredVendorDone,
+            'purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done' => $poDone && $isReleaseFinished,
+            default => true,
+        };
+    }
+
+    private function permissionMetForAction(string $action, bool $canPurchasing, bool $canVendor): bool
+    {
+        return match ($action) {
+            'purchasing_preferred_vendor' => $canVendor,
+            default => $canPurchasing,
+        };
+    }
+
+    private function legacyStyleActiveForAction(
+        string $action,
+        bool $canPurchasing,
+        bool $canVendor,
+        bool $benchmarkingDone,
+        bool $trialEffectiveDone,
+        bool $preferredVendorDone,
+        bool $poDone,
+        bool $isReleaseFinished
+    ): bool {
+        return match ($action) {
+            'purchasing_receive_doc_benchmark', 'purchasing_benchmarking', 'purchasing_receive_doc' => $canPurchasing,
+            'purchasing_trial' => $canPurchasing && $benchmarkingDone,
+            'purchasing_preferred_vendor' => $canVendor && $benchmarkingDone && $trialEffectiveDone,
+            'purchasing_po' => $canPurchasing && $preferredVendorDone,
+            'purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done' => $canPurchasing && $poDone && $isReleaseFinished,
+            default => $canPurchasing,
+        };
+    }
+
+    private function formKeyForCanonical(string $canonical): string
+    {
+        return match ($canonical) {
             'benchmarking'     => 'benchmarking',
             'trial'            => 'trial',
             'preferred_vendor' => 'preferred',
             'po'               => 'po',
             'invoice_grn_done' => 'grn',
-            default            => $stepKey,
+            default            => 'benchmarking',
         };
+    }
+
+    private function isTrialDoneByRequiredActionOnly(Collection $purchasingItemSteps): bool
+    {
+        $trial = $purchasingItemSteps->first(
+            fn($s) => ($s->required_action ?? '') === 'purchasing_trial'
+        );
+
+        return $trial && in_array($trial->status, ['approved', 'skipped'], true);
+    }
+
+    private function hasTrialRowByRequiredAction(Collection $purchasingItemSteps): bool
+    {
+        return $purchasingItemSteps->contains(
+            fn($s) => ($s->required_action ?? '') === 'purchasing_trial'
+        );
     }
 }
