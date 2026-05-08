@@ -61,6 +61,9 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
 
     // Check if current step requires attachment upload (nullable — tidak wajib)
     $needsAttachmentUpload = $currentPendingStep && $currentPendingStep->needsAttachmentUpload();
+    
+    // DEBUG: Remove this later
+    \Log::info('DEBUG Lampiran', ['needs' => $needsAttachmentUpload, 'actions' => $currentPendingStep ? $currentPendingStep->getAllRequiredActions() : []]);
 
     // Load existing step attachments jika ada
     $existingStepAttachments = $currentPendingStep && $currentPendingStep->id
