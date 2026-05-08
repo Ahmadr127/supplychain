@@ -33,14 +33,14 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
 
     // Check if current step requires price input (based on required_action)
     $needsPriceInput = $currentPendingStep && 
-                       $currentPendingStep->required_action == 'input_price' && 
+                       $currentPendingStep->hasRequiredAction('input_price') && 
                        ($item->unit_price === null || $item->unit_price <= 0);
 
     // Check if current step requires CapEx selection
-    $needsCapexSelection = $currentPendingStep && $currentPendingStep->required_action == 'select_capex';
+    $needsCapexSelection = $currentPendingStep && $currentPendingStep->hasRequiredAction('select_capex');
 
     // Check if current step requires FS upload (based on required_action)
-    $requiresFsUpload = $currentPendingStep && $currentPendingStep->required_action == 'verify_budget';
+    $requiresFsUpload = $currentPendingStep && $currentPendingStep->hasRequiredAction('verify_budget');
     
     // Debug logging jangan dihapus
     \Log::info('🔍 Workflow Step Check', [

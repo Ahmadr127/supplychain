@@ -128,6 +128,7 @@ class ApprovalWorkflow extends Model
                 'can_insert_step' => $step['can_insert_step'] ?? false,
                 'insert_step_template' => $step['insert_step_template'] ?? null,
                 'required_action' => $step['required_action'] ?? null,
+                'required_actions' => $step['required_actions'] ?? null, // NEW: plural actions
                 'is_conditional' => $step['is_conditional'] ?? false,
                 'condition_type' => $step['condition_type'] ?? null,
                 'condition_value' => $step['condition_value'] ?? null,
