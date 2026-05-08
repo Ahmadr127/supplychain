@@ -30,12 +30,18 @@ class ApprovalItemStep extends Model
         'approved_at',
         'comments',
         'required_action',
+        'required_actions',  // JSON array — Option B (backward compatible with required_action string)
         'step_type',      // maker, approver, releaser
         'step_phase',     // approval, release
         'scope_process',  // Description of what this step does
         'selected_capex_id', // For Manager Unit to select CapEx ID
         // Conditional step fields removed
         // Skip tracking removed
+    ];
+
+    protected $casts = [
+        'approved_at'      => 'datetime',
+        'required_actions' => 'array',
     ];
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -66,6 +72,57 @@ class ApprovalItemStep extends Model
     public function selectedCapex()
     {
         return $this->belongsTo(CapexItem::class, 'selected_capex_id');
+    }
+
+    /**
+     * Lampiran yang diunggah pada saat step ini di-approve.
+     */
+    public function attachments()
+    {
+        return $this->hasMany(ApprovalItemStepAttachment::class, 'approval_item_step_id');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REQUIRED ACTION HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check apakah step ini memiliki aksi tertentu.
+     * Cek dari required_actions (JSON array) terlebih dahulu,
+     * fallback ke required_action (string lama) untuk backward compatibility.
+     */
+    public function hasRequiredAction(string $action): bool
+    {
+        // Check JSON array first (Option B)
+        if (!empty($this->required_actions) && is_array($this->required_actions)) {
+            return in_array($action, $this->required_actions);
+        }
+        // Fallback to legacy string field
+        return $this->required_action === $action;
+    }
+
+    /**
+     * Check apakah step ini membutuhkan upload lampiran.
+     * Upload lampiran bersifat nullable — tidak wajib jika tidak ada file.
+     */
+    public function needsAttachmentUpload(): bool
+    {
+        return $this->hasRequiredAction('upload_attachment');
+    }
+
+    /**
+     * Dapatkan semua aksi yang dimiliki step ini sebagai array.
+     * Berguna untuk tampilan UI dan response API.
+     */
+    public function getAllRequiredActions(): array
+    {
+        if (!empty($this->required_actions) && is_array($this->required_actions)) {
+            return $this->required_actions;
+        }
+        if (!empty($this->required_action)) {
+            return [$this->required_action];
+        }
+        return [];
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

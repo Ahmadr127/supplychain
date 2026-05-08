@@ -442,7 +442,7 @@
                                 <!-- Approval Steps History -->
                                 @php
                                     $itemSteps = $item->steps()
-                                        ->with('approver')
+                                        ->with(['approver', 'attachments'])
                                         ->get();
                                     
                                     // Show all steps that have been actioned (approved or rejected)
@@ -485,6 +485,25 @@
                                                 @if($step->comments)
                                                     <div class="text-xs {{ $step->status == 'rejected' ? 'text-gray-700' : 'text-gray-600' }} {{ $step->rejected_reason ? 'mt-1' : '' }}">
                                                         <strong>Komentar:</strong> {{ $step->comments }}
+                                                    </div>
+                                                @endif
+                                                @php
+                                                    $stepAttachments = $step->attachments ?? collect();
+                                                @endphp
+                                                @if($stepAttachments->count())
+                                                    <div class="mt-1 pt-1 border-t border-gray-100">
+                                                        <p class="text-[10px] font-medium text-gray-600 mb-0.5">
+                                                            <i class="fas fa-paperclip mr-1"></i>Lampiran:
+                                                        </p>
+                                                        <div class="flex flex-wrap gap-1">
+                                                            @foreach($stepAttachments as $att)
+                                                                <a href="{{ route('approval-requests.step-attachment.view', $att->id) }}"
+                                                                   target="_blank"
+                                                                   class="inline-flex items-center px-1.5 py-0.5 bg-blue-50 border border-blue-200 rounded text-[10px] text-blue-700 hover:bg-blue-100">
+                                                                    <i class="fas fa-file mr-1"></i>{{ $att->original_name }}
+                                                                </a>
+                                                            @endforeach
+                                                        </div>
                                                     </div>
                                                 @endif
                                             </div>

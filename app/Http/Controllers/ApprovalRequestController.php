@@ -1772,6 +1772,7 @@ class ApprovalRequestController extends Controller
                 'approver_department_id' => $step->approver_department_id,
                 'status' => $initialStatus,
                 'required_action' => $step->required_action ?? null,
+                'required_actions' => $step->required_actions ?? null,  // NEW: JSON array (Opsi B)
                 // NEW: Step type and phase
                 'step_type' => $step->step_type ?? 'approver',
                 'step_phase' => $stepPhase,
@@ -1809,6 +1810,8 @@ class ApprovalRequestController extends Controller
             'comments' => 'nullable|string|max:500',
             'unit_price' => 'nullable|string', // Input as string with dots
             'procurement_type_id' => 'nullable|exists:procurement_types,id',
+            'step_attachments' => 'nullable|array',
+            'step_attachments.*' => 'nullable|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png',
         ]);
 
         $step = \App\Models\ApprovalItemStep::findOrFail($validated['step_id']);
@@ -1834,6 +1837,13 @@ class ApprovalRequestController extends Controller
             'approved_at' => now(),
             'comments' => $validated['comments'],
         ]);
+
+        // Handle step attachments (nullable — hanya simpan jika ada file yang dikirim)
+        if ($action === 'approve' && $request->hasFile('step_attachments')) {
+            $attachmentService = app(\App\Services\AttachmentService::class);
+            $files = $request->file('step_attachments');
+            $attachmentService->storeStepAttachments($step, is_array($files) ? $files : [$files], $user->id);
+        }
 
         // Update the item status and data
         $approvalRequestItem = ApprovalRequestItem::where('approval_request_id', $validated['approval_request_id'])
@@ -2025,5 +2035,51 @@ class ApprovalRequestController extends Controller
         /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
         $disk = Storage::disk('public');
         return $disk->download($item->fs_document, $filename);
+    }
+
+    /**
+     * View a step attachment inline (for web).
+     */
+    public function viewStepAttachment(\App\Models\ApprovalItemStepAttachment $attachment)
+    {
+        if (!Storage::disk('public')->exists($attachment->path)) {
+            abort(404, 'Lampiran tidak ditemukan.');
+        }
+
+        $mime = Storage::disk('public')->mimeType($attachment->path);
+        $filename = $attachment->original_name;
+
+        if ($mime === 'application/pdf') {
+            $stream = Storage::disk('public')->readStream($attachment->path);
+            return response()->stream(function () use ($stream) {
+                fpassthru($stream);
+            }, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+            ]);
+        }
+
+        // For images and other types: try inline display
+        $stream = Storage::disk('public')->readStream($attachment->path);
+        return response()->stream(function () use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type' => $mime ?: 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+        ]);
+    }
+
+    /**
+     * Download a step attachment (for web).
+     */
+    public function downloadStepAttachment(\App\Models\ApprovalItemStepAttachment $attachment)
+    {
+        if (!Storage::disk('public')->exists($attachment->path)) {
+            abort(404, 'Lampiran tidak ditemukan.');
+        }
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+        return $disk->download($attachment->path, $attachment->original_name);
     }
 }

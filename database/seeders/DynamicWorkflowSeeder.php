@@ -275,15 +275,23 @@ class DynamicWorkflowSeeder extends Seeder
     /**
      * Steps for Default Initial Workflow
      * 
-     * APPROVAL: Maker → Manager Unit (Input Price)
+     * APPROVAL: Maker → Manager Unit (Input Price + Upload Lampiran)
      * After Manager Unit approves, the system will switch to the real workflow.
+     * Manager Unit has two required_actions: input_price and upload_attachment (nullable).
      */
     private function getDefaultInitialSteps(array $roles): array
     {
         return [
             // ═══ PHASE 1: APPROVAL ═══
-            // Manager Unit must input price to determine the next workflow
-            $this->requesterManagerStep(1, 'Manager Unit', 'Verifikasi & Input Harga', 'input_price'),
+            // Manager Unit must input price to determine the next workflow.
+            // Also has upload_attachment (nullable) to attach supporting documents.
+            $this->requesterManagerStep(
+                1,
+                'Manager Unit',
+                'Verifikasi & Input Harga + Lampiran Pendukung',
+                'input_price',
+                ['input_price', 'upload_attachment']
+            ),
         ];
     }
 
@@ -367,26 +375,31 @@ class DynamicWorkflowSeeder extends Seeder
     /**
      * Create Requester Department Manager step definition
      * Phase: APPROVAL
+     *
+     * @param  string|null  $requiredAction  Aksi utama (backward compatible, string)
+     * @param  array|null   $requiredActions Array aksi (Opsi B, nullable). Jika diisi, akan digunakan bersama $requiredAction.
      */
     private function requesterManagerStep(
         int $stepNumber, 
         string $name, 
         ?string $scopeProcess, 
-        string $requiredAction = 'approve'
+        string $requiredAction = 'approve',
+        ?array $requiredActions = null
     ): object {
         return (object) [
-            'step_number' => $stepNumber,
-            'step_name' => $name,
-            'step_type' => 'approver',
-            'step_phase' => 'approval', // Phase 1
-            'approver_type' => 'requester_department_manager',
-            'approver_id' => null,
+            'step_number'      => $stepNumber,
+            'step_name'        => $name,
+            'step_type'        => 'approver',
+            'step_phase'       => 'approval', // Phase 1
+            'approver_type'    => 'requester_department_manager',
+            'approver_id'      => null,
             'approver_role_id' => null,
             'approver_department_id' => null,
-            'scope_process' => $scopeProcess,
-            'required_action' => $requiredAction,
-            'can_insert_step' => false,
-            'is_conditional' => false,
+            'scope_process'    => $scopeProcess,
+            'required_action'  => $requiredAction,
+            'required_actions' => $requiredActions,
+            'can_insert_step'  => false,
+            'is_conditional'   => false,
         ];
     }
 

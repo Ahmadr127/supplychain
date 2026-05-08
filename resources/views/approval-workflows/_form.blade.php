@@ -331,16 +331,13 @@
                 <div id="action_approval_section_${stepNumber}" style="display: ${data.step_type === 'purchasing' ? 'none' : 'block'};">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-cog text-blue-600 mr-1"></i>
-                        Required Action
+                        Required Actions
+                        <span class="text-xs font-normal text-gray-400 ml-1">(pilih satu atau lebih)</span>
                     </label>
-                    <select name="workflow_steps[${stepNumber}][required_action]"
-                            id="required_action_select_${stepNumber}"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            ${data.step_type === 'purchasing' ? 'disabled' : ''}>
-                        <option value="">Tidak ada aksi khusus</option>
-                        <option value="input_price" ${data.required_action === 'input_price' ? 'selected' : ''}>Input Harga (Manager)</option>
-                        <option value="verify_budget" ${data.required_action === 'verify_budget' ? 'selected' : ''}>Verifikasi Budget + Upload FS</option>
-                    </select>
+                    <div class="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3"
+                         id="required_actions_container_${stepNumber}">
+                        ${renderRequiredActionCheckboxes(stepNumber, data)}
+                    </div>
                 </div>
 
                 <div id="action_purchasing_section_${stepNumber}" style="display: ${data.step_type === 'purchasing' ? 'block' : 'none'};">
@@ -433,26 +430,72 @@
         });
     }
 
+    // ─── Required Action Checkboxes ───────────────────────────────────────────────
+    // Semua required_action menjadi checkbox (multi-select).
+    // upload_attachment bersifat nullable — tidak mempengaruhi validasi wajib.
+    const ALL_REQUIRED_ACTIONS = [
+        { value: 'input_price',        label: '💰 Input Harga (Manager)',                nullable: false },
+        { value: 'verify_budget',      label: '📄 Verifikasi Budget (Upload FS)',         nullable: false },
+        { value: 'select_capex',       label: '📊 Pilih CapEx',                           nullable: false },
+        { value: 'upload_attachment',  label: '📎 Upload Lampiran Pendukung',             nullable: true  },
+        { value: 'approve',            label: '✅ Approve (Tanpa aksi khusus)',            nullable: false },
+        { value: 'release',            label: '🚀 Release',                               nullable: false },
+    ];
+
+    /**
+     * Render checkbox group untuk required_actions pada sebuah step.
+     * @param {number} stepNumber
+     * @param {object} data  Data step (dari form atau existing workflow)
+     * @returns {string} HTML string
+     */
+    function renderRequiredActionCheckboxes(stepNumber, data) {
+        // Kumpulkan nilai yang sudah terpilih
+        const selectedActions = [];
+        if (data.required_actions && Array.isArray(data.required_actions)) {
+            selectedActions.push(...data.required_actions);
+        } else if (data.required_action) {
+            selectedActions.push(data.required_action);
+        }
+
+        return ALL_REQUIRED_ACTIONS.map(action => {
+            const isChecked = selectedActions.includes(action.value);
+            const nullableBadge = action.nullable
+                ? `<span class="ml-1 text-[10px] bg-gray-200 text-gray-500 rounded px-1 py-0.5">opsional</span>`
+                : '';
+            return `
+                <label class="flex items-center gap-2 cursor-pointer select-none group">
+                    <input type="checkbox"
+                           name="workflow_steps[${stepNumber}][required_actions][]"
+                           value="${action.value}"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                           ${isChecked ? 'checked' : ''}>
+                    <span class="text-sm text-gray-700 group-hover:text-blue-700 transition-colors">
+                        ${action.label}${nullableBadge}
+                    </span>
+                </label>`;
+        }).join('');
+    }
+
     // Handle step type change
     function handleStepTypeChange(select, stepNumber) {
         const stepType = select.value;
         const approverSection = document.getElementById(`approver_type_section_${stepNumber}`);
         const actionApproval = document.getElementById(`action_approval_section_${stepNumber}`);
         const actionPurchasing = document.getElementById(`action_purchasing_section_${stepNumber}`);
-        const requiredActionSelect = document.getElementById(`required_action_select_${stepNumber}`);
+        const checkboxes = document.querySelectorAll(`#required_actions_container_${stepNumber} input[type=checkbox]`);
         const purchasingActionSelect = document.getElementById(`purchasing_action_select_${stepNumber}`);
 
         if (stepType === 'purchasing') {
-            // Show purchasing action select, hide regular action select
-            if (actionApproval) { actionApproval.style.display = 'none'; requiredActionSelect.disabled = true; }
+            // Hide approval checkbox group, show purchasing action select
+            if (actionApproval) { actionApproval.style.display = 'none'; }
+            checkboxes.forEach(cb => cb.disabled = true);
             if (actionPurchasing) { actionPurchasing.style.display = 'block'; purchasingActionSelect.disabled = false; }
             
-            // Note: purchasing steps now require roles (e.g. purchasing or manager_keuangan)
-            // So we leave the approverSection VISIBLE.
             if (approverSection) approverSection.style.display = 'block';
         } else {
-            // Show regular action select, hide purchasing action select
-            if (actionApproval) { actionApproval.style.display = 'block'; requiredActionSelect.disabled = false; }
+            // Show approval checkbox group, hide purchasing action select
+            if (actionApproval) { actionApproval.style.display = 'block'; }
+            checkboxes.forEach(cb => cb.disabled = false);
             if (actionPurchasing) { actionPurchasing.style.display = 'none'; purchasingActionSelect.disabled = true; }
             
             if (approverSection) approverSection.style.display = 'block';

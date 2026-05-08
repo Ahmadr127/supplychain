@@ -372,6 +372,11 @@ Route::middleware('auth')->group(function () {
     Route::get('approval-request-items/{item}/view-fs', [ApprovalRequestController::class, 'viewFsDocument'])->name('approval-requests.view-fs');
     Route::get('approval-request-items/{item}/download-fs', [ApprovalRequestController::class, 'downloadFsDocument'])->name('approval-requests.download-fs');
 
+    // Step Attachment routes (lampiran yang diunggah saat approval step)
+    Route::get('step-attachments/{attachment}/view', [ApprovalRequestController::class, 'viewStepAttachment'])->name('approval-requests.step-attachment.view');
+    Route::get('step-attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadStepAttachment'])->name('approval-requests.step-attachment.download');
+
+
     // -----------------------------------------------------------------------
     // Import Engine Routes
     // -----------------------------------------------------------------------

@@ -79,6 +79,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('approval-request-items/{item}/view-fs', [ApprovalItemApiController::class, 'viewFsDocument']);
     Route::get('approval-request-items/{item}/download-fs', [ApprovalItemApiController::class, 'downloadFsDocument']);
 
+    // Step Attachment routes via API (lampiran per approval step)
+    Route::get('step-attachments/{attachment}/view', [ApprovalItemApiController::class, 'viewStepAttachment'])
+         ->name('api.step-attachments.view');
+    Route::get('step-attachments/{attachment}/download', [ApprovalItemApiController::class, 'downloadStepAttachment'])
+         ->name('api.step-attachments.download');
+
     // ----------------------------------------------------------------
     // CapEx Headers  (CapexApiController)
     // ----------------------------------------------------------------

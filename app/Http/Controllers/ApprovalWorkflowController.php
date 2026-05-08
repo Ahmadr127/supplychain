@@ -279,7 +279,19 @@ class ApprovalWorkflowController extends Controller
             if (!empty($step['description'])) {
                 $processedStep['description'] = trim($step['description']);
             }
-            if (!empty($step['required_action'])) {
+            // Required Actions: dari checkbox group (array), Opsi B.
+            // required_action (string) tetap diisi sebagai backward compat — ambil aksi pertama non-upload.
+            if (!empty($step['required_actions']) && is_array($step['required_actions'])) {
+                $requiredActions = array_values(array_filter($step['required_actions']));
+                $processedStep['required_actions'] = $requiredActions;
+                // Backward compat: isi required_action dengan aksi pertama non-nullable
+                $primaryAction = collect($requiredActions)->first(fn($a) => $a !== 'upload_attachment');
+                if ($primaryAction) {
+                    $processedStep['required_action'] = $primaryAction;
+                } elseif (!empty($requiredActions)) {
+                    $processedStep['required_action'] = $requiredActions[0];
+                }
+            } elseif (!empty($step['required_action'])) {
                 $processedStep['required_action'] = trim($step['required_action']);
             }
 
