@@ -216,12 +216,12 @@ class PurchasingTypeService
         $stepState = [
             'benchmarking' => [
                 'done'      => $benchmarkingDone,
-                'active'    => $canPurchasing,
+                'active'    => $canPurchasing || $canVendor,  // Manager Keuangan juga bisa benchmarking
                 'prev_done' => true,
             ],
             'trial' => [
                 'done'      => $trialDone,
-                'active'    => $canPurchasing && $benchmarkingDone,
+                'active'    => ($canPurchasing || $canVendor) && $benchmarkingDone,  // Manager Keuangan juga bisa trial
                 'prev_done' => $benchmarkingDone,
             ],
             'preferred_vendor' => [
@@ -407,8 +407,14 @@ class PurchasingTypeService
     private function permissionMetForAction(string $action, bool $canPurchasing, bool $canVendor): bool
     {
         return match ($action) {
+            // Manager Keuangan (manage_vendor) juga bisa benchmarking dan trial
+            // sesuai web UI di _form.blade.php yang menampilkan form untuk manage_vendor
+            'purchasing_receive_doc_benchmark',
+            'purchasing_benchmarking',
+            'purchasing_receive_doc'    => $canPurchasing || $canVendor,
+            'purchasing_trial'          => $canPurchasing || $canVendor,
             'purchasing_preferred_vendor' => $canVendor,
-            default => $canPurchasing,
+            default                     => $canPurchasing,
         };
     }
 
@@ -423,12 +429,17 @@ class PurchasingTypeService
         bool $isReleaseFinished
     ): bool {
         return match ($action) {
-            'purchasing_receive_doc_benchmark', 'purchasing_benchmarking', 'purchasing_receive_doc' => $canPurchasing,
-            'purchasing_trial' => $canPurchasing && $benchmarkingDone,
+            // Manager Keuangan (manage_vendor) juga aktif untuk benchmarking dan trial
+            'purchasing_receive_doc_benchmark',
+            'purchasing_benchmarking',
+            'purchasing_receive_doc'    => $canPurchasing || $canVendor,
+            'purchasing_trial'          => ($canPurchasing || $canVendor) && $benchmarkingDone,
             'purchasing_preferred_vendor' => $canVendor && $benchmarkingDone && $trialEffectiveDone,
-            'purchasing_po' => $canPurchasing && $preferredVendorDone,
-            'purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done' => $canPurchasing && $poDone && $isReleaseFinished,
-            default => $canPurchasing,
+            'purchasing_po'             => $canPurchasing && $preferredVendorDone,
+            'purchasing_invoice_grn_done',
+            'purchasing_invoice',
+            'purchasing_done'           => $canPurchasing && $poDone && $isReleaseFinished,
+            default                     => $canPurchasing,
         };
     }
 
