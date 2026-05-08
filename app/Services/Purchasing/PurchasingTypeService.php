@@ -96,7 +96,10 @@ class PurchasingTypeService
         $trialRow = $trackers->first(
             fn($s) => ($s->required_action ?? '') === 'purchasing_trial'
         );
-        $trialDone = $trialRow && in_array($trialRow->status, ['approved', 'skipped'], true);
+        $trialDoneByDb   = $trialRow && in_array($trialRow->status, ['approved', 'skipped'], true);
+        // Data-driven: trial dianggap selesai jika ada vendor dengan trial notes (meski step DB masih pending)
+        $trialDoneByData = $item->vendors()->whereHas('trials')->exists();
+        $trialDone = $trialDoneByDb || $trialDoneByData;
         $hasTrialInWorkflow = $trialRow !== null;
         $trialEffectiveDone = !$hasTrialInWorkflow || $trialDone;
 
@@ -124,11 +127,51 @@ class PurchasingTypeService
 
             $label = self::REQUIRED_ACTION_LABELS[$action] ?? 'Langkah purchasing';
 
+            // Data-driven done state: jika step DB belum approved tapi data sudah ada,
+            // treat sebagai done agar gating step berikutnya tidak terblokir.
+            // Ini menangani kasus di mana syncPurchasingStep belum terpanggil (e.g. aksi dari web sebelum mobile).
+            $dataBasedDone = match ($canonical) {
+                'benchmarking'     => $benchmarkingDone,
+                'trial'            => $trialEffectiveDone,
+                'preferred_vendor' => $preferredVendorDone,
+                'po'               => $poDone,
+                'invoice_grn_done' => $invoiceDone,
+                default            => false,
+            };
+
+            $done = $wfDone || $dataBasedDone;
+
+            // Jika data sudah ada tapi step DB masih pending → auto-sync agar DB konsisten
+            if ($dataBasedDone && !$wfDone && in_array($row->status, ['pending', 'pending_purchase'], true)) {
+                try {
+                    \App\Models\ApprovalItemStep::syncPurchasingStep(
+                        $item->approval_request_id,
+                        $item->master_item_id,
+                        $action
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('[PurchasingTypeService] Auto-sync step failed', [
+                        'step_id' => $row->id, 'action' => $action, 'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // priorOk: step sebelumnya dianggap selesai jika DB approved/skipped ATAU datanya sudah ada
             $priorOk = $trackers
                 ->filter(fn($s) => (int) $s->step_number < (int) $row->step_number)
-                ->every(fn($s) => in_array($s->status, ['approved', 'skipped'], true));
+                ->every(function ($s) use ($benchmarkingDone, $trialEffectiveDone, $preferredVendorDone, $poDone, $invoiceDone) {
+                    if (in_array($s->status, ['approved', 'skipped'], true)) return true;
+                    $sCanonical = self::REQUIRED_ACTION_TO_CANONICAL[$s->required_action ?? ''] ?? null;
+                    return match ($sCanonical) {
+                        'benchmarking'     => $benchmarkingDone,
+                        'trial'            => $trialEffectiveDone,
+                        'preferred_vendor' => $preferredVendorDone,
+                        'po'               => $poDone,
+                        'invoice_grn_done' => $invoiceDone,
+                        default            => false,
+                    };
+                });
 
-            $wfDone = in_array($row->status, ['approved', 'skipped'], true);
             $wfRenderable = ($row->status === 'pending') && $priorOk;
 
             $dataOk = $this->dataPrerequisiteMetForAction(
@@ -154,7 +197,6 @@ class PurchasingTypeService
                 $isReleaseFinished
             );
 
-            $done = $wfDone;
             if ($canonical === null) {
                 $active = false;
                 $locked = !$done;
