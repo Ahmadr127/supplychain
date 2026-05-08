@@ -60,10 +60,10 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
     $needsFsUpload = $requiresFsUpload;
 
     // Check if current step requires attachment upload (nullable — tidak wajib)
-    $needsAttachmentUpload = $currentPendingStep && $currentPendingStep->needsAttachmentUpload();
+    // Fallback: If required_actions is missing but scope_process mentions "Lampiran", enable it.
+    $needsAttachmentUpload = ($currentPendingStep && $currentPendingStep->needsAttachmentUpload()) || 
+                             ($currentPendingStep && $currentPendingStep->scope_process && str_contains(strtolower($currentPendingStep->scope_process), 'lampiran'));
     
-    // DEBUG: Remove this later
-    \Log::info('DEBUG Lampiran', ['needs' => $needsAttachmentUpload, 'actions' => $currentPendingStep ? $currentPendingStep->getAllRequiredActions() : []]);
 
     // Load existing step attachments jika ada
     $existingStepAttachments = $currentPendingStep && $currentPendingStep->id
