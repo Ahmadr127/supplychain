@@ -221,6 +221,7 @@ class ApprovalRequestApiController extends Controller
             $needsPriceInput = false;
             $needsCapexInput = false;
             $needsFsUpload   = false;
+            $needsAttachmentUpload = false;
 
             if ($currentStep) {
                 $isInputPriceStep  = $currentStep->required_action === 'input_price';
@@ -236,6 +237,9 @@ class ApprovalRequestApiController extends Controller
                 if ($currentStep->required_action === 'verify_budget') {
                     $needsFsUpload = true;
                 }
+
+                $needsAttachmentUpload = $currentStep->needsAttachmentUpload() ||
+                    ($currentStep->scope_process && str_contains(strtolower($currentStep->scope_process), 'lampiran'));
             }
 
             $fundingSource = $item->capex_item_id ? 'capex' : 'non_capex';
@@ -290,6 +294,7 @@ class ApprovalRequestApiController extends Controller
                 'needs_price_input' => $needsPriceInput,
                 'needs_capex_input' => $needsCapexInput,
                 'needs_fs_upload'   => $needsFsUpload,
+                'needs_attachment_upload' => $needsAttachmentUpload,
                 'current_step'    => $currentStep ? $this->formatStep($currentStep) : null,
                 'steps'           => $item->steps->map(fn($s) => $this->formatStepFull($s)),
             ];
@@ -391,6 +396,14 @@ class ApprovalRequestApiController extends Controller
             'approved_at'     => $step->approved_at,
             'comments'        => $step->comments,
             'rejected_reason' => $step->rejected_reason,
+            'attachments'     => $step->attachments->map(fn($a) => [
+                'id'            => $a->id,
+                'original_name' => $a->original_name,
+                'mime'          => $a->mime,
+                'size'          => $a->size,
+                'view_url'      => url("/api/step-attachments/{$a->id}/view"),
+                'download_url'  => url("/api/step-attachments/{$a->id}/download"),
+            ]),
         ]);
     }
 }

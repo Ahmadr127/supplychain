@@ -72,7 +72,9 @@ class ApprovalItemApiController extends Controller
             }
 
             // Upload lampiran (nullable — tidak wajib)
-            $needsAttachmentUpload = $currentStep->needsAttachmentUpload();
+            // Fallback: If required_actions is missing but scope_process mentions "Lampiran", enable it.
+            $needsAttachmentUpload = $currentStep->needsAttachmentUpload() ||
+                ($currentStep->scope_process && str_contains(strtolower($currentStep->scope_process), 'lampiran'));
         }
 
         return response()->json([
@@ -379,7 +381,10 @@ class ApprovalItemApiController extends Controller
                 $needsFsUpload = true;
             }
 
-            $needsAttachmentUpload = $currentStep->needsAttachmentUpload();
+            // Upload lampiran (nullable — tidak wajib)
+            // Fallback: If required_actions is missing but scope_process mentions "Lampiran", enable it.
+            $needsAttachmentUpload = $currentStep->needsAttachmentUpload() ||
+                ($currentStep->scope_process && str_contains(strtolower($currentStep->scope_process), 'lampiran'));
         }
 
         // Informasi sumber anggaran saat ini:
