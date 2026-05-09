@@ -139,6 +139,7 @@ class PurchasingTypeService
                 default            => false,
             };
 
+            $wfDone = in_array($row->status, ['approved', 'skipped'], true);
             $done = $wfDone || $dataBasedDone;
 
             // Jika data sudah ada tapi step DB masih pending → auto-sync agar DB konsisten
