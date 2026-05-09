@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ApprovalRequest;
+use App\Models\ApprovalItemStep;
 use App\Models\PurchasingItem;
 use App\Services\Purchasing\PurchasingItemService;
+use App\Services\Purchasing\PurchasingTypeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +18,7 @@ use Illuminate\Validation\Rule;
 class PurchasingApiController extends Controller
 {
     private PurchasingItemService $purchasingItemService;
+    private PurchasingTypeService $typeService;
 
     private function normalizeStatus(?string $status): ?string
     {
@@ -31,63 +34,11 @@ class PurchasingApiController extends Controller
         };
     }
 
-    public function __construct(PurchasingItemService $purchasingItemService)
+    public function __construct(PurchasingItemService $purchasingItemService, PurchasingTypeService $typeService)
     {
         $this->middleware('auth:sanctum');
         $this->purchasingItemService = $purchasingItemService;
-    }
-
-    private function getDynamicWorkflowSteps(PurchasingItem $item, $canPurchasing, $canVendor) {
-        $steps = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
-            ->where('master_item_id', $item->master_item_id)
-            ->whereIn('step_phase', ['purchasing', 'release'])
-            ->orderBy('step_number')
-            ->get();
-            
-        $step1Done = !empty($item->approvalRequest?->received_at);
-        $step2Done = $item->vendors()->exists();
-        
-        $trialStep = $steps->first(function($s) {
-            return stripos($s->step_name, 'Trial') !== false;
-        });
-        $hasTrial  = $trialStep !== null;
-        $trialDone = $trialStep && in_array($trialStep->status, ['approved', 'skipped']);
-
-        $effectiveTrialDone = !$hasTrial || $trialDone;
-
-        $step3Done = !empty($item->preferred_vendor_id);
-        $step4Done = !empty($item->po_number);
-        $step5Done = !empty($item->invoice_number);
-
-        $releaseSteps = $steps->where('step_phase', 'release');
-        $releaseStepTotal = $releaseSteps->count();
-        $pendingReleaseStepsCount = $releaseSteps->whereIn('status', ['pending', 'pending_purchase'])->count();
-        // Release is finished when: either there are no release steps at all, OR all release steps are approved (none pending)
-        // Release is NOT finished if there are release steps but none have been approved yet (all still pending_purchase)
-        $approvedReleaseCount = $releaseSteps->where('status', 'approved')->count();
-        $isReleaseFinished = $releaseStepTotal === 0 || ($approvedReleaseCount === $releaseStepTotal && $releaseStepTotal > 0);
-
-        return [
-            'can_set_received_date' => $canPurchasing,
-            'can_do_benchmarking'   => $canPurchasing,
-            'can_do_trial'          => $canPurchasing && $step2Done && $hasTrial,
-            'can_select_preferred'  => $canVendor     && $step2Done && $effectiveTrialDone,
-            'can_issue_po'          => $canPurchasing && $step3Done,
-            'can_input_invoice'     => $canPurchasing && $step4Done && $isReleaseFinished,
-            'can_mark_done'         => $canPurchasing && $step4Done && $isReleaseFinished,
-            
-            'is_release_finished'   => $isReleaseFinished,
-            
-            'step1_done' => $step1Done,
-            'step2_done' => $step2Done,
-            'trial_done' => $trialDone,
-            'step3_done' => $step3Done,
-            'step4_done' => $step4Done,
-            'step5_done' => $step5Done,
-            
-            'has_trial_step' => $hasTrial,
-            'dynamic_steps'  => $steps->toArray(),
-        ];
+        $this->typeService = $typeService;
     }
 
 
@@ -159,12 +110,22 @@ class PurchasingApiController extends Controller
         // Format the items to include ISO 8601 dates + sequential gating flags
         $formattedItems = collect($items->items())->map(function ($item) use ($canPurchasing, $canVendor) {
             $itemArray = $item->toArray();
-            $itemArray['created_at']      = $item->created_at ? \Carbon\Carbon::parse($item->created_at)->toIso8601String() : null;
-            $itemArray['updated_at']      = $item->updated_at ? \Carbon\Carbon::parse($item->updated_at)->toIso8601String() : null;
+            $itemArray['created_at']        = $item->created_at ? \Carbon\Carbon::parse($item->created_at)->toIso8601String() : null;
+            $itemArray['updated_at']        = $item->updated_at ? \Carbon\Carbon::parse($item->updated_at)->toIso8601String() : null;
             $itemArray['status_changed_at'] = $item->status_changed_at ? \Carbon\Carbon::parse($item->status_changed_at)->toIso8601String() : null;
-            $itemArray['grn_date']        = $item->grn_date ? \Carbon\Carbon::parse($item->grn_date)->toIso8601String() : null;
+            $itemArray['grn_date']          = $item->grn_date ? \Carbon\Carbon::parse($item->grn_date)->toIso8601String() : null;
 
-            $itemArray['workflow_steps'] = $this->getDynamicWorkflowSteps($item, $canPurchasing, $canVendor);
+            // Load steps for service
+            $allSteps = ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+                ->where('master_item_id', $item->master_item_id)
+                ->whereIn('step_phase', ['purchasing', 'release'])
+                ->orderBy('step_number')->get();
+
+            $itemArray['workflow_steps'] = $this->typeService->resolveWorkflowFlags(
+                $item, $canPurchasing, $canVendor,
+                $allSteps->where('step_phase', 'purchasing'),
+                $allSteps->where('step_phase', 'release'),
+            );
             return $itemArray;
         })->values()->all();
 
@@ -219,7 +180,16 @@ class PurchasingApiController extends Controller
         $canPurchasing = $user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item');
         $canVendor     = $user->hasPermission('manage_vendor');
 
-        $itemArray['workflow_steps'] = $this->getDynamicWorkflowSteps($item, $canPurchasing, $canVendor);
+        $allSteps = ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->whereIn('step_phase', ['purchasing', 'release'])
+            ->orderBy('step_number')->get();
+
+        $itemArray['workflow_steps'] = $this->typeService->resolveWorkflowFlags(
+            $item, $canPurchasing, $canVendor,
+            $allSteps->where('step_phase', 'purchasing'),
+            $allSteps->where('step_phase', 'release'),
+        );
         $itemArray['user_permissions'] = [
             'can_manage_purchasing' => $canPurchasing,
             'can_select_preferred'  => $canVendor,

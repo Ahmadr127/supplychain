@@ -392,6 +392,76 @@ class NotificationService
     }
 
     /**
+     * Notify next step approver after a purchasing step completes.
+     * Fully workflow-driven — reads approver from ApprovalItemStep data (role/user/dept),
+     * never hardcodes a specific role name.
+     */
+    public function notifyPurchasingStepCompleted(
+        \App\Models\PurchasingItem $item,
+        string $completedStepNamePattern
+    ): void {
+        $item->loadMissing(['approvalRequest.requester', 'masterItem']);
+        if (!$item->approvalRequest) return;
+
+        // Find the step that just completed (most recent approved purchasing step matching pattern)
+        $currentStep = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->where('step_phase', 'purchasing')
+            ->where('status', 'approved')
+            ->where('step_name', 'like', "%{$completedStepNamePattern}%")
+            ->orderByDesc('step_number')
+            ->first();
+
+        if (!$currentStep) return;
+
+        // Get the next pending step by step_number
+        $nextStep = \App\Models\ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
+            ->where('master_item_id', $item->master_item_id)
+            ->where('step_number', '>', $currentStep->step_number)
+            ->whereIn('status', ['pending', 'pending_purchase'])
+            ->orderBy('step_number')
+            ->first();
+
+        if (!$nextStep) return;
+
+        $approvers = $this->getApproversForStep($nextStep);
+        if ($approvers->isEmpty()) {
+            Log::warning('[NotificationService] No approvers for next purchasing step', [
+                'step_id' => $nextStep->id, 'approver_type' => $nextStep->approver_type,
+            ]);
+            return;
+        }
+
+        $itemName  = $item->masterItem->name ?? 'Item';
+        $reqNumber = $item->approvalRequest->request_number ?? '-';
+        $stepName  = $nextStep->step_name ?? ('Step #' . $nextStep->step_number);
+
+        $this->notifyUsers($approvers,
+            'Tindakan Purchasing Diperlukan',
+            sprintf('Step "%s" untuk %s (%s) menunggu tindakan Anda.', $stepName, $itemName, $reqNumber),
+            [
+                'type'                => 'purchasing_step_required',
+                'source'              => 'sc',
+                'purchasing_item_id'  => (string) $item->id,
+                'approval_request_id' => (string) $item->approval_request_id,
+                'request_number'      => $reqNumber,
+                'item_name'           => $itemName,
+                'step_id'             => (string) $nextStep->id,
+                'step_name'           => $stepName,
+                'step_number'         => (string) $nextStep->step_number,
+                'completed_step'      => $completedStepNamePattern,
+            ]
+        );
+
+        Log::info('[NotificationService] Purchasing step completed notification sent', [
+            'purchasing_item_id' => $item->id,
+            'completed_step'     => $completedStepNamePattern,
+            'next_step'          => $nextStep->step_name,
+            'approver_count'     => $approvers->count(),
+        ]);
+    }
+
+    /**
      * Generic notifier for any activated workflow step.
      * This is driven by workflow data (step + approver type), not hardcoded actions.
      */

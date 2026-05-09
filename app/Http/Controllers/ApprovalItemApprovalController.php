@@ -41,6 +41,8 @@ class ApprovalItemApprovalController extends Controller
         // Dynamic validation based on step
         $rules = [
             'comments' => 'nullable|string|max:1000',
+            'step_attachments' => 'nullable|array',
+            'step_attachments.*' => 'file|max:10240', // 10MB per file
         ];
         
         // Step with required_action 'input_price': require price input if not set
@@ -189,6 +191,16 @@ class ApprovalItemApprovalController extends Controller
                     'fs_document' => $fsPath,
                     'step_name' => $currentStep->step_name,
                 ]);
+            }
+
+            // Save step attachments if any
+            if ($request->hasFile('step_attachments')) {
+                Log::info('🟦 Uploading step attachments via AttachmentService...');
+                app(\App\Services\AttachmentService::class)->storeStepAttachments(
+                    $currentStep,
+                    $request->file('step_attachments')
+                );
+                Log::info('🟩 Step attachments processed');
             }
 
             // Mark current step as approved

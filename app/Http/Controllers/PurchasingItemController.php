@@ -4,14 +4,18 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\PurchasingItem;
+use App\Models\ApprovalItemStep;
 use App\Models\ApprovalRequest;
 use App\Services\Purchasing\PurchasingItemService;
+use App\Services\Purchasing\PurchasingTypeService;
 use Carbon\Carbon;
 
 class PurchasingItemController extends Controller
 {
-    public function __construct(private PurchasingItemService $service)
-    {
+    public function __construct(
+        private PurchasingItemService $service,
+        private PurchasingTypeService $typeService,
+    ) {
     }
 
     // GET /api/purchasing/items/{purchasingItem}
@@ -93,8 +97,43 @@ class PurchasingItemController extends Controller
     public function show(PurchasingItem $purchasingItem)
     {
         $purchasingItem->load(['approvalRequest', 'masterItem.unit', 'vendors.supplier', 'vendors.latestTrial', 'preferredVendor']);
+
+        // Load purchasing & release steps for this item
+        $allSteps = ApprovalItemStep::where('approval_request_id', $purchasingItem->approval_request_id)
+            ->where('master_item_id', $purchasingItem->master_item_id)
+            ->whereIn('step_phase', ['purchasing', 'release'])
+            ->orderBy('step_number')
+            ->get();
+
+        $purchasingSteps = $allSteps->where('step_phase', 'purchasing');
+        $releaseSteps    = $allSteps->where('step_phase', 'release');
+
+        $user          = auth()->user();
+        $canPurchasing = $user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item');
+        $canVendor     = $user->hasPermission('manage_vendor');
+
+        // Resolve dynamic steps via PurchasingTypeService
+        $pSteps = $this->typeService->resolvePurchasingSteps(
+            $purchasingItem,
+            $canPurchasing,
+            $canVendor,
+            $purchasingSteps,
+            $releaseSteps,
+        );
+
+        // Status counts for header bar
+        $purchasingCounts = PurchasingItem::selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
         return view('purchasing.items.show', [
-            'item' => $purchasingItem,
+            'item'             => $purchasingItem,
+            'purchasingSteps'  => $allSteps,   // raw steps (for release section)
+            'pSteps'           => $pSteps,      // resolved dynamic steps
+            'purchasingCounts' => $purchasingCounts,
+            'canPurchasing'    => $canPurchasing,
+            'canVendor'        => $canVendor,
         ]);
     }
 

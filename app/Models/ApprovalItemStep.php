@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\Department;
 use App\Models\CapexItem;
-use App\Models\PurchasingItem;
 use App\Models\ApprovalRequestItem;
 
 class ApprovalItemStep extends Model
@@ -29,12 +30,18 @@ class ApprovalItemStep extends Model
         'approved_at',
         'comments',
         'required_action',
+        'required_actions',  // JSON array — Option B (backward compatible with required_action string)
         'step_type',      // maker, approver, releaser
         'step_phase',     // approval, release
         'scope_process',  // Description of what this step does
         'selected_capex_id', // For Manager Unit to select CapEx ID
         // Conditional step fields removed
         // Skip tracking removed
+    ];
+
+    protected $casts = [
+        'approved_at'      => 'datetime',
+        'required_actions' => 'array',
     ];
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -65,6 +72,57 @@ class ApprovalItemStep extends Model
     public function selectedCapex()
     {
         return $this->belongsTo(CapexItem::class, 'selected_capex_id');
+    }
+
+    /**
+     * Lampiran yang diunggah pada saat step ini di-approve.
+     */
+    public function attachments()
+    {
+        return $this->hasMany(ApprovalItemStepAttachment::class, 'approval_item_step_id');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REQUIRED ACTION HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check apakah step ini memiliki aksi tertentu.
+     * Cek dari required_actions (JSON array) terlebih dahulu,
+     * fallback ke required_action (string lama) untuk backward compatibility.
+     */
+    public function hasRequiredAction(string $action): bool
+    {
+        // Check JSON array first (Option B)
+        if (!empty($this->required_actions) && is_array($this->required_actions)) {
+            return in_array($action, $this->required_actions);
+        }
+        // Fallback to legacy string field
+        return $this->required_action === $action;
+    }
+
+    /**
+     * Check apakah step ini membutuhkan upload lampiran.
+     * Upload lampiran bersifat nullable — tidak wajib jika tidak ada file.
+     */
+    public function needsAttachmentUpload(): bool
+    {
+        return $this->hasRequiredAction('upload_attachment');
+    }
+
+    /**
+     * Dapatkan semua aksi yang dimiliki step ini sebagai array.
+     * Berguna untuk tampilan UI dan response API.
+     */
+    public function getAllRequiredActions(): array
+    {
+        if (!empty($this->required_actions) && is_array($this->required_actions)) {
+            return $this->required_actions;
+        }
+        if (!empty($this->required_action)) {
+            return [$this->required_action];
+        }
+        return [];
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -124,30 +182,40 @@ class ApprovalItemStep extends Model
     }
 
     /**
+     * Initial status when persisting workflow steps for an item.
+     *
+     * Approval and release steps use `pending`; visibility and order follow
+     * `step_number` and prior-step completion (see getCurrentPendingStep()).
+     * `pending_purchase` is reserved for purchasing-phase steps that must wait
+     * until after release in the same template (sequencing after release).
+     */
+    public static function initialStatusForWorkflowStep(object $step, iterable $allWorkflowSteps): string
+    {
+        $stepPhase = $step->step_phase ?? 'approval';
+        $stepNum   = (int) ($step->step_number ?? 0);
+
+        if ($stepPhase === 'release') {
+            return 'pending';
+        }
+
+        if ($stepPhase === 'purchasing') {
+            $hasReleaseBefore = collect($allWorkflowSteps)->contains(
+                fn($s) => (($s->step_phase ?? '') === 'release')
+                    && ((int) ($s->step_number ?? 0) < $stepNum)
+            );
+
+            return $hasReleaseBefore ? 'pending_purchase' : 'pending';
+        }
+
+        return 'pending';
+    }
+
+    /**
      * Check if this step is waiting for purchasing to complete
      */
     public function isPendingPurchase(): bool
     {
         return $this->status === 'pending_purchase';
-    }
-
-    /**
-     * Check if this step can be activated (release phase after purchasing)
-     */
-    public function canBeActivated(): bool
-    {
-        // Only release phase steps that are pending_purchase can be activated
-        if (!$this->isReleasePhase() || $this->status !== 'pending_purchase') {
-            return false;
-        }
-
-        // Check if purchasing is complete for this item
-        $purchasingItem = PurchasingItem::where('approval_request_id', $this->approval_request_id)
-            ->where('master_item_id', $this->master_item_id)
-            ->first();
-
-        // Purchasing must be completely "done" before release can begin
-        return $purchasingItem && $purchasingItem->status === 'done';
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -197,13 +265,6 @@ class ApprovalItemStep extends Model
 
         if ($this->isPurchasingPhase() || $this->step_type === 'purchasing') {
             return false;
-        }
-
-        // Release phase: check if step can be activated first
-        if ($this->isReleasePhase() && $this->isPendingPurchase()) {
-            if (!$this->canBeActivated()) {
-                return false;
-            }
         }
 
         switch ($this->approver_type) {
@@ -303,6 +364,51 @@ class ApprovalItemStep extends Model
         return $query->whereIn('status', ['pending']);
     }
 
+    /**
+     * Same approver-matching rules as ApprovalRequestController::pendingApprovals (main query).
+     */
+    public function scopeWhereUserMatchesStepApprover(Builder $query, User $user): Builder
+    {
+        $userRoles = $user->role ? [$user->role->id] : [];
+
+        return $query->where(function ($q) use ($user, $userRoles) {
+            $q->where('approver_id', $user->id)
+                ->orWhereIn('approver_role_id', $userRoles)
+                ->orWhere(function ($anyMgrQuery) use ($user) {
+                    $anyMgrQuery->where('approver_type', 'any_department_manager')
+                        ->whereExists(function ($exists) use ($user) {
+                            $exists->select(DB::raw(1))
+                                ->from('user_departments')
+                                ->whereColumn('user_departments.user_id', DB::raw((string) (int) $user->id))
+                                ->where('user_departments.is_manager', true);
+                        });
+                })
+                ->orWhere(function ($reqMgrQuery) use ($user) {
+                    $reqMgrQuery->where('approver_type', 'requester_department_manager')
+                        ->whereExists(function ($exists) use ($user) {
+                            $exists->select(DB::raw(1))
+                                ->from('approval_requests')
+                                ->join('user_departments', function ($join) {
+                                    $join->on('user_departments.user_id', '=', 'approval_requests.requester_id')
+                                        ->where('user_departments.is_primary', true);
+                                })
+                                ->join('departments', 'departments.id', '=', 'user_departments.department_id')
+                                ->whereColumn('approval_requests.id', 'approval_item_steps.approval_request_id')
+                                ->where('departments.manager_id', $user->id);
+                        });
+                })
+                ->orWhere(function ($deptMgrQuery) use ($user) {
+                    $deptMgrQuery->where('approver_type', 'department_manager')
+                        ->whereExists(function ($exists) use ($user) {
+                            $exists->select(DB::raw(1))
+                                ->from('departments')
+                                ->whereColumn('departments.id', 'approval_item_steps.approver_department_id')
+                                ->where('departments.manager_id', $user->id);
+                        });
+                });
+        });
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // PURCHASING SYNC HELPER
     // ═══════════════════════════════════════════════════════════════════════════
@@ -317,26 +423,10 @@ class ApprovalItemStep extends Model
         $step = static::where('approval_request_id', $approvalRequestId)
             ->where('master_item_id', $masterItemId)
             ->where('step_phase', 'purchasing')
-            ->where(function ($q) use ($actionType) {
-                if (in_array($actionType, ['purchasing_receive_doc_benchmark', 'purchasing_benchmarking'])) {
-                    $q->where('step_name', 'like', '%Benchmark%');
-                } elseif ($actionType === 'purchasing_trial') {
-                    $q->where('step_name', 'like', '%Trial%');
-                } elseif ($actionType === 'purchasing_preferred_vendor') {
-                    $q->where('step_name', 'like', '%Preferred%');
-                } elseif ($actionType === 'purchasing_po') {
-                    $q->where('step_name', 'like', '%PO%')
-                      ->orWhere('step_name', 'like', '%Purchase Order%');
-                } elseif (in_array($actionType, ['purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done'])) {
-                    $q->where(function($sub) {
-                        $sub->where('step_name', 'like', '%GRN%')
-                            ->orWhere('step_name', 'like', '%Penerimaan%')
-                            ->orWhere('step_name', 'like', '%Invoice%');
-                    });
-                } else {
-                    $q->where('step_name', 'NON_MATCHING_DUMMY_STRING'); // Fail gracefully
-                }
-            })
+            ->whereIn(
+                'required_action',
+                \App\Services\Purchasing\PurchasingTypeService::purchasingRequiredActionAliases($actionType)
+            )
             ->whereIn('status', ['pending', 'pending_purchase'])
             ->first();
 

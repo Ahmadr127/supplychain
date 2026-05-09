@@ -33,14 +33,14 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
 
     // Check if current step requires price input (based on required_action)
     $needsPriceInput = $currentPendingStep && 
-                       $currentPendingStep->required_action == 'input_price' && 
+                       $currentPendingStep->hasRequiredAction('input_price') && 
                        ($item->unit_price === null || $item->unit_price <= 0);
 
     // Check if current step requires CapEx selection
-    $needsCapexSelection = $currentPendingStep && $currentPendingStep->required_action == 'select_capex';
+    $needsCapexSelection = $currentPendingStep && $currentPendingStep->hasRequiredAction('select_capex');
 
     // Check if current step requires FS upload (based on required_action)
-    $requiresFsUpload = $currentPendingStep && $currentPendingStep->required_action == 'verify_budget';
+    $requiresFsUpload = $currentPendingStep && $currentPendingStep->hasRequiredAction('verify_budget');
     
     // Debug logging jangan dihapus
     \Log::info('🔍 Workflow Step Check', [
@@ -59,6 +59,16 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
     
     $needsFsUpload = $requiresFsUpload;
 
+    // Check if current step requires attachment upload (nullable — tidak wajib)
+    // Fallback: If required_actions is missing but scope_process mentions "Lampiran", enable it.
+    $needsAttachmentUpload = ($currentPendingStep && $currentPendingStep->needsAttachmentUpload()) || 
+                             ($currentPendingStep && $currentPendingStep->scope_process && str_contains(strtolower($currentPendingStep->scope_process), 'lampiran'));
+    
+
+    // Load existing step attachments jika ada
+    $existingStepAttachments = $currentPendingStep && $currentPendingStep->id
+        ? $currentPendingStep->attachments()->get()
+        : collect();
     // Check if current pending step is a PURCHASING phase step
     $isPurchasingStep = $currentPendingStep && ($currentPendingStep->step_phase === 'purchasing' || $currentPendingStep->step_type === 'purchasing');
 
@@ -421,7 +431,52 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                     </div>
                 @endif
 
+                {{-- Upload Lampiran Pendukung (Nullable/Opsional) --}}
+                @if ($needsAttachmentUpload)
+                    <div x-show="action === 'approve'" x-transition class="space-y-2">
+                        <div class="bg-blue-50 border border-blue-200 rounded-md p-2">
+                            <div class="flex items-start gap-1">
+                                <i class="fas fa-paperclip text-blue-600 text-xs mt-0.5"></i>
+                                <p class="text-[10px] text-blue-800">
+                                    <strong>Lampiran Pendukung:</strong> Upload dokumen pendukung jika diperlukan.
+                                    <span class="italic text-blue-600">(Opsional — boleh dikosongkan)</span>
+                                </p>
+                            </div>
+                        </div>
 
+                        {{-- Existing attachments preview --}}
+                        @if($existingStepAttachments->count())
+                            <div class="bg-gray-50 rounded-md p-2 border border-gray-200">
+                                <p class="text-xs font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-folder-open mr-1 text-gray-500"></i>Sudah Terlampir:
+                                </p>
+                                <div class="space-y-1">
+                                    @foreach($existingStepAttachments as $att)
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="text-xs text-gray-700 truncate flex-1">
+                                                <i class="fas fa-file text-blue-500 mr-1"></i>{{ $att->original_name }}
+                                            </span>
+                                            <span class="text-[10px] text-gray-400 shrink-0">{{ $att->formattedSize() }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">
+                                Tambah Lampiran
+                                <span class="text-gray-400 text-[10px] font-normal">(PDF, DOC, DOCX, JPG, PNG — maks 10MB/file)</span>
+                            </label>
+                            <input type="file" name="step_attachments[]" multiple
+                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                class="w-full text-xs border-2 border-dashed border-blue-300 rounded-md px-2.5 py-2
+                                       focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-colors bg-blue-50
+                                       file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs
+                                       file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer">
+                        </div>
+                    </div>
+                @endif
 
                 <!-- Comments: only shown for approve -->
                 <template x-if="action === 'approve'">
@@ -459,6 +514,15 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
 
                 <!-- Submit Button -->
                 <button type="submit"
+                    @if($isReleaseStep)
+                    :onclick="action === 'approve' ? 'return confirm(\'Yakin melakukan release untuk item ini?\')' : (action === 'reject' ?
+                        'return confirm(\'Yakin reject item ini?\')' :
+                        'return confirm(\'Yakin reset item ke pending?\')')"
+                    :class="action === 'approve' ?
+                        'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500' :
+                        (action === 'reject' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' :
+                            'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500')"
+                    @else
                     :onclick="action === 'approve' ? 'return confirm(\'Yakin approve item ini?\')' : (action === 'reject' ?
                         'return confirm(\'Yakin reject item ini?\')' :
                         'return confirm(\'Yakin reset item ke pending?\')')"
@@ -466,9 +530,14 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                         'bg-green-600 hover:bg-green-700 focus:ring-green-500' :
                         (action === 'reject' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' :
                             'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500')"
+                    @endif
                     class="w-full text-white font-semibold py-2 px-3 rounded-md text-sm transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-1">
                     <span x-show="action === 'approve'">
-                        <i class="fas fa-check mr-1.5"></i>Approve
+                        @if($isReleaseStep)
+                            <i class="fas fa-paper-plane mr-1.5"></i>Release
+                        @else
+                            <i class="fas fa-check mr-1.5"></i>Approve
+                        @endif
                     </span>
                     <span x-show="action === 'reject'">
                         <i class="fas fa-times mr-1.5"></i>Reject

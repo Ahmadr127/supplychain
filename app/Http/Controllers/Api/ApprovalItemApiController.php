@@ -58,39 +58,42 @@ class ApprovalItemApiController extends Controller
         $needsPriceInput = false;
         $needsCapexInput = false;
         $needsFsUpload = false;
+        $needsAttachmentUpload = false;
 
         if ($currentStep) {
-            $isInputPriceStep  = $currentStep->required_action === 'input_price';
-            $isSelectCapexStep = $currentStep->required_action === 'select_capex';
+            $isInputPriceStep  = $currentStep->hasRequiredAction('input_price');
+            $isSelectCapexStep = $currentStep->hasRequiredAction('select_capex');
 
             $needsPriceInput = $isInputPriceStep && (is_null($item->unit_price) || $item->unit_price <= 0);
-
-            // Pada fase input harga, user bisa memilih sumber anggaran:
-            // - Gunakan Capex  → pilih capex_item_id
-            // - Non‑Capex      → input manual tanpa capex_item_id
-            // Di mobile, dropdown Capex perlu muncul di langkah input_price.
             $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
             
-            if ($currentStep->required_action === 'verify_budget') {
+            if ($currentStep->hasRequiredAction('verify_budget')) {
                 $needsFsUpload = true;
             }
+
+            // Upload lampiran (nullable — tidak wajib)
+            // Fallback: If required_actions is missing but scope_process mentions "Lampiran", enable it.
+            $needsAttachmentUpload = $currentStep->needsAttachmentUpload() ||
+                ($currentStep->scope_process && str_contains(strtolower($currentStep->scope_process), 'lampiran'));
         }
 
         return response()->json([
             'status' => 'success',
             'data'   => [
-                'item_id'      => $item->id,
-                'item_status'  => $item->status,
-                'can_approve'  => $currentStep ? $currentStep->canApprove($userId) : false,
-                'needs_price_input' => $needsPriceInput,
-                'needs_capex_input' => $needsCapexInput,
-                'needs_fs_upload' => $needsFsUpload,
+                'item_id'                => $item->id,
+                'item_status'            => $item->status,
+                'can_approve'            => $currentStep ? $currentStep->canApprove($userId) : false,
+                'needs_price_input'      => $needsPriceInput,
+                'needs_capex_input'      => $needsCapexInput,
+                'needs_fs_upload'        => $needsFsUpload,
+                'needs_attachment_upload'=> $needsAttachmentUpload,
                 'current_step' => $currentStep ? [
                     'id'              => $currentStep->id,
                     'step_number'     => $currentStep->step_number,
                     'step_name'       => $currentStep->step_name,
                     'step_phase'      => $currentStep->step_phase,
                     'required_action' => $currentStep->required_action,
+                    'required_actions'=> $currentStep->getAllRequiredActions(),
                 ] : null,
             ],
         ]);
@@ -122,13 +125,17 @@ class ApprovalItemApiController extends Controller
         }
 
         // Build validation rules based on required_action
-        $rules = ['comments' => 'nullable|string|max:1000'];
+        $rules = [
+            'comments'          => 'nullable|string|max:1000',
+            'step_attachments'  => 'nullable|array',
+            'step_attachments.*'=> 'nullable|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png',
+        ];
 
-        if ($currentStep->required_action === 'input_price' && (is_null($item->unit_price) || $item->unit_price <= 0)) {
+        if ($currentStep->hasRequiredAction('input_price') && (is_null($item->unit_price) || $item->unit_price <= 0)) {
             $rules['unit_price'] = 'required|string|min:1';
         }
 
-        if ($currentStep->required_action === 'verify_budget') {
+        if ($currentStep->hasRequiredAction('verify_budget')) {
             $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
         }
 
@@ -138,13 +145,11 @@ class ApprovalItemApiController extends Controller
             DB::beginTransaction();
 
             // Handle price input
-            if ($currentStep->required_action === 'input_price' && $request->has('unit_price')) {
+            if ($currentStep->hasRequiredAction('input_price') && $request->has('unit_price')) {
                 $rawPrice = $request->unit_price;
-                // If it's already a clean numeric string (float/int from mobile), just use it
                 if (is_numeric($rawPrice)) {
                     $unitPrice = (float) $rawPrice;
                 } else {
-                    // Indonesian format: 10.000.000 -> 10000000
                     $unitPrice = (float) str_replace('.', '', $rawPrice);
                 }
 
@@ -162,9 +167,20 @@ class ApprovalItemApiController extends Controller
             }
 
             // Handle FS document
-            if ($currentStep->required_action === 'verify_budget' && $request->hasFile('fs_document')) {
+            if ($currentStep->hasRequiredAction('verify_budget') && $request->hasFile('fs_document')) {
                 $fsPath = $request->file('fs_document')->store('fs_documents', 'public');
                 $item->update(['fs_document' => $fsPath]);
+            }
+
+            // Handle step attachments (nullable — simpan jika ada file)
+            if ($request->hasFile('step_attachments')) {
+                $attachmentService = app(\App\Services\AttachmentService::class);
+                $files = $request->file('step_attachments');
+                $attachmentService->storeStepAttachments(
+                    $currentStep,
+                    is_array($files) ? $files : [$files],
+                    Auth::id()
+                );
             }
 
             // Mark step approved
@@ -176,7 +192,7 @@ class ApprovalItemApiController extends Controller
             ]);
 
             // Re-evaluate workflow when price was just inputted
-            if ($currentStep->required_action === 'input_price') {
+            if ($currentStep->hasRequiredAction('input_price')) {
                 try {
                     // Refresh item so WorkflowService reads the updated total_price
                     $item->refresh();
@@ -352,20 +368,23 @@ class ApprovalItemApiController extends Controller
         $needsPriceInput = false;
         $needsCapexInput = false;
         $needsFsUpload = false;
+        $needsAttachmentUpload = false;
 
         if ($currentStep) {
-            $isInputPriceStep  = $currentStep->required_action === 'input_price';
-            $isSelectCapexStep = $currentStep->required_action === 'select_capex';
+            $isInputPriceStep  = $currentStep->hasRequiredAction('input_price');
+            $isSelectCapexStep = $currentStep->hasRequiredAction('select_capex');
 
             $needsPriceInput = $isInputPriceStep && (is_null($item->unit_price) || $item->unit_price <= 0);
-
-            // Sama seperti di status(): pada langkah input_price, dropdown Capex
-            // perlu tersedia supaya approver bisa memilih antara Capex vs Non‑Capex.
             $needsCapexInput = $isSelectCapexStep || $isInputPriceStep;
             
-            if ($currentStep->required_action === 'verify_budget') {
+            if ($currentStep->hasRequiredAction('verify_budget')) {
                 $needsFsUpload = true;
             }
+
+            // Upload lampiran (nullable — tidak wajib)
+            // Fallback: If required_actions is missing but scope_process mentions "Lampiran", enable it.
+            $needsAttachmentUpload = $currentStep->needsAttachmentUpload() ||
+                ($currentStep->scope_process && str_contains(strtolower($currentStep->scope_process), 'lampiran'));
         }
 
         // Informasi sumber anggaran saat ini:
@@ -400,15 +419,17 @@ class ApprovalItemApiController extends Controller
             ] : null,
             'rejected_reason' => $item->rejected_reason,
             'can_approve'     => $currentStep ? $currentStep->canApprove($userId) : false,
-            'needs_price_input' => $needsPriceInput,
-            'needs_capex_input' => $needsCapexInput,
-            'needs_fs_upload' => $needsFsUpload,
+            'needs_price_input'      => $needsPriceInput,
+            'needs_capex_input'      => $needsCapexInput,
+            'needs_fs_upload'        => $needsFsUpload,
+            'needs_attachment_upload'=> $needsAttachmentUpload,
             'current_step'    => $currentStep ? [
                 'id'              => $currentStep->id,
                 'step_number'     => $currentStep->step_number,
                 'step_name'       => $currentStep->step_name,
                 'step_phase'      => $currentStep->step_phase,
                 'required_action' => $currentStep->required_action,
+                'required_actions'=> $currentStep->getAllRequiredActions(),
                 'approver_type'   => $currentStep->approver_type,
                 'status'          => $currentStep->status,
             ] : null,
@@ -418,11 +439,14 @@ class ApprovalItemApiController extends Controller
                 'step_name'       => $s->step_name,
                 'step_phase'      => $s->step_phase,
                 'required_action' => $s->required_action,
+                'required_actions'=> $s->getAllRequiredActions(),
                 'status'          => $s->status,
                 'approved_by'     => $s->approver?->name,
                 'approved_at'     => $s->approved_at,
                 'comments'        => $s->comments,
                 'rejected_reason' => $s->rejected_reason,
+                'attachments'     => app(\App\Services\AttachmentService::class)
+                                        ->formatAttachmentsForApi($s->attachments ?? collect()),
             ]),
         ];
     }
@@ -473,5 +497,40 @@ class ApprovalItemApiController extends Controller
         $requestNumber = $item->approvalRequest->request_number ?? 'REQ-' . $item->approval_request_id;
         $filename = 'FS-' . $requestNumber . '-' . $item->id . '.' . pathinfo($item->fs_document, PATHINFO_EXTENSION);
         return Storage::disk('public')->download($item->fs_document, $filename);
+    }
+
+    /**
+     * View a step attachment inline via API.
+     * GET /api/step-attachments/{attachment}/view
+     */
+    public function viewStepAttachment(\App\Models\ApprovalItemStepAttachment $attachment)
+    {
+        if (!Storage::disk('public')->exists($attachment->path)) {
+            return response()->json(['status' => 'error', 'message' => 'Lampiran tidak ditemukan.'], 404);
+        }
+
+        $mime = Storage::disk('public')->mimeType($attachment->path);
+        $filename = $attachment->original_name;
+
+        $stream = Storage::disk('public')->readStream($attachment->path);
+        return response()->stream(function () use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type'        => $mime ?: 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+        ]);
+    }
+
+    /**
+     * Download a step attachment via API.
+     * GET /api/step-attachments/{attachment}/download
+     */
+    public function downloadStepAttachment(\App\Models\ApprovalItemStepAttachment $attachment)
+    {
+        if (!Storage::disk('public')->exists($attachment->path)) {
+            return response()->json(['status' => 'error', 'message' => 'Lampiran tidak ditemukan.'], 404);
+        }
+
+        return Storage::disk('public')->download($attachment->path, $attachment->original_name);
     }
 }

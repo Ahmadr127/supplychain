@@ -96,9 +96,7 @@ class InitializeItemSteps extends Command
                 try {
                     foreach ($workflowSteps as $step) {
                         $stepPhase = $step->step_phase ?? 'approval';
-                        $hasReleaseBefore = collect($workflowSteps)
-                            ->contains(fn($s) => ($s->step_phase ?? '') === 'release' && (int)($s->step_number ?? 0) < (int)($step->step_number ?? 0));
-                        $initialStatus = ($stepPhase === 'release' || $hasReleaseBefore) ? 'pending_purchase' : 'pending';
+                        $initialStatus = ApprovalItemStep::initialStatusForWorkflowStep($step, $workflowSteps);
 
                         ApprovalItemStep::create([
                             'approval_request_id' => $request->id,

@@ -74,6 +74,26 @@ class HealWorkflowStates extends Command
         }
         $this->info("✅ Fixed {$fixedStepsCount} step records.");
 
+        // 1b. Legacy bug: approval-phase steps were given pending_purchase if any release
+        //     existed earlier in the workflow template. Those steps never become
+        //     visible to getCurrentPendingStep() (pending only). Reset to pending.
+        $resetApprovalStuck = ApprovalItemStep::query()
+            ->where('status', 'pending_purchase')
+            ->where(function ($q) {
+                $q->whereNull('step_phase')->orWhere('step_phase', 'approval');
+            })
+            ->update(['status' => 'pending']);
+        $this->info("\n1b. Approval steps reset from pending_purchase → pending: {$resetApprovalStuck} row(s).");
+
+        // 1c. Release steps were incorrectly initialized as pending_purchase; that status
+        //     is not used by getCurrentPendingStep() and activateReleaseSteps was never
+        //     wired globally — unblock releasers.
+        $resetReleaseStuck = ApprovalItemStep::query()
+            ->where('step_phase', 'release')
+            ->where('status', 'pending_purchase')
+            ->update(['status' => 'pending']);
+        $this->info("\n1c. Release steps reset from pending_purchase → pending: {$resetReleaseStuck} row(s).");
+
         // 2. Find and fix stuck items (on progress -> in_purchasing)
         $this->info("\n2. Finding stuck items that should be in purchasing phase...");
         

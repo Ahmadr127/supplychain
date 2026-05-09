@@ -1182,8 +1182,16 @@ class ApprovalRequestController extends Controller
                                   });
                             })
                             ->whereHas('approvalRequest', function($q) {
-                                // Show all active requests (not cancelled)
-                                $q->whereIn('status', ['pending', 'on progress', 'approved', 'rejected']);
+                                // Include in_purchasing / in_release: one item may be in purchasing while
+                                // sibling items on the same request are still in the approval chain.
+                                $q->whereIn('status', [
+                                    'pending',
+                                    'on progress',
+                                    'approved',
+                                    'rejected',
+                                    'in_purchasing',
+                                    'in_release',
+                                ]);
                             })
                             // Enforce sequential workflow visibility
                             // A step is visible if:
@@ -1367,7 +1375,12 @@ class ApprovalRequestController extends Controller
                     })
                     ->where('status', 'pending')
                     ->whereHas('approvalRequest', function($q) {
-                        $q->whereIn('status', ['pending', 'on progress']);
+                        $q->whereIn('status', [
+                            'pending',
+                            'on progress',
+                            'in_purchasing',
+                            'in_release',
+                        ]);
                     })
                     // Enforce sequential workflow for counts
                     ->whereNotExists(function($sub) {
@@ -1709,7 +1722,7 @@ class ApprovalRequestController extends Controller
      * 3-Phase Workflow:
      * - Phase 1 (approval): Maker + Approvers → status = 'pending'
      * - Phase 2 (purchasing): Handled by PurchasingItem (existing)
-     * - Phase 3 (release): Releasers → status = 'pending_purchase' (activated after purchasing)
+     * - Phase 3 (release): Releasers → status = 'pending' (order via step_number / prior approvals)
      */
     private function initializeItemSteps(ApprovalRequest $approvalRequest, ApprovalRequestItem $item): void
     {
@@ -1743,16 +1756,10 @@ class ApprovalRequestController extends Controller
         $releaseStepCount = 0;
         
         foreach ($workflowSteps as $step) {
-            // Determine initial status based on phase
-            // - Approval phase: 'pending' (can be approved immediately)
-            // - Release phase: 'pending_purchase' (waiting for purchasing to complete)
+            // Initial status: see ApprovalItemStep::initialStatusForWorkflowStep()
             $stepPhase = $step->step_phase ?? 'approval';
-                // Release steps start as 'pending_purchase'. Purchasing steps that come
-                // AFTER a release step (e.g. GRN after release) also start as 'pending_purchase'.
-                $hasReleaseBefore = collect($workflowSteps)
-                    ->contains(fn($s) => ($s->step_phase ?? '') === 'release' && (int)($s->step_number ?? 0) < (int)($step->step_number ?? 0));
-                $initialStatus = ($stepPhase === 'release' || $hasReleaseBefore) ? 'pending_purchase' : 'pending';
-            
+            $initialStatus = \App\Models\ApprovalItemStep::initialStatusForWorkflowStep($step, $workflowSteps);
+
             \App\Models\ApprovalItemStep::create([
                 'approval_request_id' => $approvalRequest->id,
                 'approval_request_item_id' => $item->id,
@@ -1765,6 +1772,7 @@ class ApprovalRequestController extends Controller
                 'approver_department_id' => $step->approver_department_id,
                 'status' => $initialStatus,
                 'required_action' => $step->required_action ?? null,
+                'required_actions' => $step->required_actions ?? null,  // NEW: JSON array (Opsi B)
                 // NEW: Step type and phase
                 'step_type' => $step->step_type ?? 'approver',
                 'step_phase' => $stepPhase,
@@ -1802,6 +1810,8 @@ class ApprovalRequestController extends Controller
             'comments' => 'nullable|string|max:500',
             'unit_price' => 'nullable|string', // Input as string with dots
             'procurement_type_id' => 'nullable|exists:procurement_types,id',
+            'step_attachments' => 'nullable|array',
+            'step_attachments.*' => 'nullable|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png',
         ]);
 
         $step = \App\Models\ApprovalItemStep::findOrFail($validated['step_id']);
@@ -1827,6 +1837,13 @@ class ApprovalRequestController extends Controller
             'approved_at' => now(),
             'comments' => $validated['comments'],
         ]);
+
+        // Handle step attachments (nullable — hanya simpan jika ada file yang dikirim)
+        if ($action === 'approve' && $request->hasFile('step_attachments')) {
+            $attachmentService = app(\App\Services\AttachmentService::class);
+            $files = $request->file('step_attachments');
+            $attachmentService->storeStepAttachments($step, is_array($files) ? $files : [$files], $user->id);
+        }
 
         // Update the item status and data
         $approvalRequestItem = ApprovalRequestItem::where('approval_request_id', $validated['approval_request_id'])
@@ -2018,5 +2035,51 @@ class ApprovalRequestController extends Controller
         /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
         $disk = Storage::disk('public');
         return $disk->download($item->fs_document, $filename);
+    }
+
+    /**
+     * View a step attachment inline (for web).
+     */
+    public function viewStepAttachment(\App\Models\ApprovalItemStepAttachment $attachment)
+    {
+        if (!Storage::disk('public')->exists($attachment->path)) {
+            abort(404, 'Lampiran tidak ditemukan.');
+        }
+
+        $mime = Storage::disk('public')->mimeType($attachment->path);
+        $filename = $attachment->original_name;
+
+        if ($mime === 'application/pdf') {
+            $stream = Storage::disk('public')->readStream($attachment->path);
+            return response()->stream(function () use ($stream) {
+                fpassthru($stream);
+            }, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+            ]);
+        }
+
+        // For images and other types: try inline display
+        $stream = Storage::disk('public')->readStream($attachment->path);
+        return response()->stream(function () use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type' => $mime ?: 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+        ]);
+    }
+
+    /**
+     * Download a step attachment (for web).
+     */
+    public function downloadStepAttachment(\App\Models\ApprovalItemStepAttachment $attachment)
+    {
+        if (!Storage::disk('public')->exists($attachment->path)) {
+            abort(404, 'Lampiran tidak ditemukan.');
+        }
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+        return $disk->download($attachment->path, $attachment->original_name);
     }
 }

@@ -155,6 +155,44 @@
     const rolesOptions = @json($roles->map(fn($r) => ['id' => $r->id, 'label' => $r->display_name]));
     const departmentsOptions = @json($departments->map(fn($d) => ['id' => $d->id, 'label' => $d->name . ' (' . $d->code . ')']));
 
+    // ─── Required Action Checkboxes ──────────────────────────────────────────────
+    // Semua required_action menjadi checkbox (multi-select).
+    // upload_attachment bersifat nullable — tidak mempengaruhi validasi wajib.
+    // Dideklarasikan di sini (sebelum createStepHTML) agar tersedia saat dipanggil.
+    const ALL_REQUIRED_ACTIONS = [
+        { value: 'input_price',       label: 'Input Harga (Manager)',         nullable: false },
+        { value: 'verify_budget',     label: 'Verifikasi Budget (Upload FS)', nullable: false },
+        { value: 'upload_attachment', label: 'Upload Lampiran Pendukung',     nullable: true  },
+    ];
+
+    /**
+     * Render checkbox group untuk required_actions pada sebuah step.
+     * Dipanggil di dalam createStepHTML — harus dideklarasikan sebelumnya.
+     */
+    function renderRequiredActionCheckboxes(stepNumber, data) {
+        const selectedActions = [];
+        if (data.required_actions && Array.isArray(data.required_actions)) {
+            selectedActions.push(...data.required_actions);
+        } else if (data.required_action) {
+            selectedActions.push(data.required_action);
+        }
+
+        return ALL_REQUIRED_ACTIONS.map(action => {
+            const isChecked = selectedActions.includes(action.value);
+            const nullableBadge = action.nullable
+                ? `<span class="ml-1 text-[10px] bg-gray-200 text-gray-500 rounded px-1 py-0.5">opsional</span>`
+                : '';
+            return `<label class="inline-flex items-center gap-1.5 cursor-pointer select-none group">
+                    <input type="checkbox"
+                           name="workflow_steps[${stepNumber}][required_actions][]"
+                           value="${action.value}"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                           ${isChecked ? 'checked' : ''}>
+                    <span class="text-sm text-gray-700 group-hover:text-blue-700 transition-colors whitespace-nowrap">${action.label}${nullableBadge}</span>
+                </label>`;
+        }).join('');
+    }
+
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         @if(isset($approvalWorkflow) && $approvalWorkflow->steps)
@@ -304,9 +342,6 @@
                         <option value="purchasing" ${data.step_type === 'purchasing' ? 'selected' : ''} style="color:#2563eb;font-weight:600;">🛒 Purchasing (Proses Pembelian)</option>
                         <option value="releaser" ${data.step_type === 'releaser' ? 'selected' : ''}>Releaser (Setelah Purchasing)</option>
                     </select>
-                    <p id="purchasing_note_${stepNumber}" class="mt-1 text-xs text-blue-600 ${data.step_type === 'purchasing' ? '' : 'hidden'}">
-                        ℹ️ Step ini diproses oleh tim Purchasing (6 langkah: Terima Dok → Benchmarking → Vendor → PO → Invoice → Done)
-                    </p>
                 </div>
 
                 <div id="approver_type_section_${stepNumber}">
@@ -331,16 +366,20 @@
                               placeholder="Contoh: Manager unit input harga dan approve">${data.description || ''}</textarea>
                 </div>
 
-                <div>
+                <div id="action_purchasing_section_${stepNumber}" style="display: ${data.step_type === 'purchasing' ? 'block' : 'none'};">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="fas fa-cog text-blue-600 mr-1"></i>
-                        Required Action
+                        <i class="fas fa-shopping-cart text-blue-600 mr-1"></i>
+                        Langkah Purchasing
                     </label>
                     <select name="workflow_steps[${stepNumber}][required_action]"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Tidak ada aksi khusus</option>
-                        <option value="input_price" ${data.required_action === 'input_price' ? 'selected' : ''}>Input Harga (Manager)</option>
-                        <option value="verify_budget" ${data.required_action === 'verify_budget' ? 'selected' : ''}>Verifikasi Budget + Upload FS</option>
+                            id="purchasing_action_select_${stepNumber}"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            ${data.step_type === 'purchasing' ? '' : 'disabled'}>
+                        <option value="purchasing_receive_doc_benchmark" ${data.required_action === 'purchasing_receive_doc_benchmark' ? 'selected' : ''}>Terima Dok & Benchmarking</option>
+                        <option value="purchasing_trial" ${data.required_action === 'purchasing_trial' ? 'selected' : ''}>Trial Vendor</option>
+                        <option value="purchasing_preferred_vendor" ${data.required_action === 'purchasing_preferred_vendor' ? 'selected' : ''}>Pilih Preferred Vendor</option>
+                        <option value="purchasing_po" ${data.required_action === 'purchasing_po' ? 'selected' : ''}>Input PO</option>
+                        <option value="purchasing_invoice_grn_done" ${data.required_action === 'purchasing_invoice_grn_done' ? 'selected' : ''}>Invoice & GRN (Selesai)</option>
                     </select>
                 </div>
 
@@ -357,6 +396,18 @@
                 <div id="approver_department_${stepNumber}" class="approver-field" style="display: ${approverType === 'department_manager' ? 'block' : 'none'};">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                     ${deptSelect}
+                </div>
+
+                <div id="action_approval_section_${stepNumber}" class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-cog text-blue-600 mr-1"></i>
+                        Required Actions
+                        <span class="text-xs font-normal text-gray-400 ml-1">(pilih satu atau lebih)</span>
+                    </label>
+                    <div class="flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2"
+                         id="required_actions_container_${stepNumber}">
+                        ${renderRequiredActionCheckboxes(stepNumber, data)}
+                    </div>
                 </div>
             </div>
         `;
@@ -397,6 +448,13 @@
                     const newName = name.replace(/workflow_steps\[\d+\]/, `workflow_steps[${stepNumber}]`);
                     input.setAttribute('name', newName);
                 }
+                
+                // Update onchange handlers that pass stepNumber (e.g. handleStepTypeChange(this, 1))
+                const onchange = input.getAttribute('onchange');
+                if (onchange && onchange.match(/,\s*\d+\)/)) {
+                    const newOnchange = onchange.replace(/,\s*\d+\)/, `, ${stepNumber})`);
+                    input.setAttribute('onchange', newOnchange);
+                }
             });
 
             const elementsWithId = item.querySelectorAll('[id*="_"]');
@@ -410,25 +468,24 @@
         });
     }
 
-    // Handle step type change (show/hide approver section for purchasing)
+
+    // Handle step type change
     function handleStepTypeChange(select, stepNumber) {
         const stepType = select.value;
         const approverSection = document.getElementById(`approver_type_section_${stepNumber}`);
-        const purchasingNote = document.getElementById(`purchasing_note_${stepNumber}`);
-        const approverTypeSelect = document.getElementById(`approver_type_select_${stepNumber}`);
+        const actionPurchasing = document.getElementById(`action_purchasing_section_${stepNumber}`);
+        const checkboxes = document.querySelectorAll(`#required_actions_container_${stepNumber} input[type=checkbox]`);
+        const purchasingActionSelect = document.getElementById(`purchasing_action_select_${stepNumber}`);
 
+        // Required Actions SELALU tampil untuk semua tipe step
+        // Hanya section purchasing action yang toggle
         if (stepType === 'purchasing') {
-            // Hide approver section — purchasing is handled by purchasing system
-            if (approverSection) approverSection.style.display = 'none';
-            if (purchasingNote) purchasingNote.classList.remove('hidden');
-            // Clear approver_type value so it doesn't conflict
-            if (approverTypeSelect) approverTypeSelect.value = '';
-            // Hide all approver-specific fields
-            document.querySelectorAll(`[id^="approver_"][id$="_${stepNumber}"]`).forEach(f => f.style.display = 'none');
+            if (actionPurchasing) { actionPurchasing.style.display = 'block'; purchasingActionSelect.disabled = false; }
         } else {
-            if (approverSection) approverSection.style.display = '';
-            if (purchasingNote) purchasingNote.classList.add('hidden');
+            if (actionPurchasing) { actionPurchasing.style.display = 'none'; purchasingActionSelect.disabled = true; }
         }
+
+        if (approverSection) approverSection.style.display = 'block';
     }
 
     // Toggle approver fields
@@ -524,3 +581,6 @@
         }
     });
 </script>
+
+{{-- Purchasing Step Config Section --}}
+
