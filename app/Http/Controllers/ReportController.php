@@ -107,10 +107,38 @@ class ReportController extends Controller
         }
         if ($s = trim((string)$request->get('search', ''))) {
             $q->where(function($w) use ($s){
-                $w->where('request_number', 'like', "%$s%")
+                $w->where('request_number', 'ilike', "%$s%")
+                  ->orWhereHas('requester', function($r) use($s){
+                      $r->where('name', 'ilike', "%$s%");
+                  })
+                  ->orWhereHas('requester.departments', function($d) use($s){
+                      $d->where('name', 'ilike', "%$s%");
+                  })
                   ->orWhereHas('items.masterItem', function($mi) use($s){
-                      $mi->where('name', 'like', "%$s%");
-                  });
+                      $mi->where('name', 'ilike', "%$s%");
+                  })
+                  ->orWhere('created_at', 'ilike', "%$s%");
+
+                // Mapping status Indonesian -> code
+                $statusMap = [
+                    'menunggu approval' => ['pending', 'on progress'],
+                    'belum diproses'   => ['unprocessed'],
+                    'pemilihan vendor' => ['benchmarking'],
+                    'proses pr & po'   => ['selected'],
+                    'proses di vendor' => ['po_issued'],
+                    'barang diterima'  => ['grn_received'],
+                    'selesai'          => ['done'],
+                ];
+                $sLower = strtolower($s);
+                foreach ($statusMap as $key => $codes) {
+                    if (str_contains($key, $sLower)) {
+                        $w->orWhereHas('items', function($i) use($codes) {
+                            $i->whereIn('status', $codes);
+                        })->orWhereHas('purchasingItems', function($pi) use($codes) {
+                            $pi->whereIn('status', $codes);
+                        });
+                    }
+                }
             });
         }
 
@@ -454,13 +482,14 @@ class ReportController extends Controller
 
         return view('reports.approval-requests.index', [
             'columns' => [
-                ['label' => 'No',              'field' => 'no',              'width' => 'w-12'],
-                ['label' => 'NO INPUT',         'field' => 'no_input',        'width' => 'w-36'],
-                ['label' => 'Nama Pengaju',     'field' => 'nama_pengaju',    'width' => 'w-40'],
+                ['label' => 'No',              'field' => 'no',              'width' => 'w-12', 'permanent' => true],
+                ['label' => 'NO INPUT',         'field' => 'no_input',        'width' => 'w-36', 'permanent' => true],
+                ['label' => 'Nama Pengaju',     'field' => 'nama_pengaju',    'width' => 'w-40', 'permanent' => true],
                 [
                     'label' => 'PROCESS',
                     'field' => 'process',
                     'width' => 'w-32',
+                    'permanent' => true,
                     'render' => function($row){
                         $code = $row['process_code'] ?? 'unprocessed';
                         $text = $row['process'] ?? '-';
@@ -480,14 +509,22 @@ class ReportController extends Controller
                         return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium '.$cls.'">'.e($text).'</span>';
                     }
                 ],
-                ['label' => 'Jenis Barang/Jasa/Program Kerja', 'field' => 'jenis',                  'width' => 'w-56'],
-                ['label' => 'Unit Pengaju',                    'field' => 'unit_pengaju',            'width' => 'w-48'],
-                ['label' => 'Tanggal Pengajuan',               'field' => 'tanggal_pengajuan',       'width' => 'w-40'],
+                ['label' => 'Jenis Barang/Jasa/Program Kerja', 'field' => 'jenis',                  'width' => 'w-56', 'permanent' => true],
+                ['label' => 'Unit Pengaju',                    'field' => 'unit_pengaju',            'width' => 'w-48', 'permanent' => true],
+                ['label' => 'Tanggal Pengajuan',               'field' => 'tanggal_pengajuan',       'width' => 'w-40', 'permanent' => true],
                 ['label' => 'Tanggal Terima Dokumen',          'field' => 'tanggal_terima_dokumen',  'width' => 'w-48'],
                 ['label' => 'Umur Pengajuan',                  'field' => 'umur_pengajuan',          'width' => 'w-32'],
                 ['label' => 'No Surat',                        'field' => 'no_surat',                'width' => 'w-40'],
                 ['label' => 'Tahun Pengadaan',                 'field' => 'tahun_pengadaan',         'width' => 'w-32'],
-                ['label' => 'Detail Barang/Jasa/Program Kerja','field' => 'detail',                  'width' => 'w-[28rem]'],
+                [
+                    'label' => 'Detail Barang/Jasa/Program Kerja',
+                    'field' => 'detail',
+                    'width' => 'w-96',
+                    'render' => function($row) {
+                        $detail = $row['detail'] ?? '-';
+                        return '<div class="truncate max-w-[22rem]" title="'.e($detail).'">'.e($detail).'</div>';
+                    }
+                ],
                 ['label' => 'Unit Peruntukan',                 'field' => 'unit_peruntukan',         'width' => 'w-40'],
                 ['label' => 'Kategori',                        'field' => 'kategori',                'width' => 'w-56'],
                 ['label' => 'Keterangan',                      'field' => 'keterangan',              'width' => 'w-56'],

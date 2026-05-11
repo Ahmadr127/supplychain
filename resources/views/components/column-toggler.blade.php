@@ -5,7 +5,11 @@
 
 @php
 $defaultVisible = ['no','no_input','nama_pengaju','process','jenis','tanggal_pengajuan','detail','unit_pengaju'];
-$columnsData    = collect($columns)->map(fn($c) => ['field' => $c['field'] ?? '', 'label' => $c['label'] ?? ''])->values()->all();
+$columnsData    = collect($columns)->map(fn($c) => [
+    'field' => $c['field'] ?? '', 
+    'label' => $c['label'] ?? '',
+    'permanent' => $c['permanent'] ?? false
+])->values()->all();
 @endphp
 
 <div x-data="columnToggler({{ Js::from($columnsData) }}, {{ Js::from($defaultVisible) }}, {{ Js::from($storageKey) }})"
@@ -51,7 +55,7 @@ $columnsData    = collect($columns)->map(fn($c) => ['field' => $c['field'] ?? ''
         {{-- Column list (single column for readability) --}}
         <ul class="py-1 max-h-80 overflow-y-auto">
             <template x-for="col in columns" :key="col.field">
-                <li class="px-3 py-1">
+                <li x-show="!col.permanent" class="px-3 py-1">
                     <label class="flex items-center gap-2 cursor-pointer select-none hover:bg-gray-50 rounded px-1 py-0.5">
                         <input type="checkbox"
                                :checked="state[col.field] !== false"
@@ -89,7 +93,9 @@ document.addEventListener('alpine:init', () => {
                 try { this.state = JSON.parse(saved); } catch(e) { this.state = {}; }
             }
             this.columns.forEach(col => {
-                if (!(col.field in this.state)) {
+                if (col.permanent) {
+                    this.state[col.field] = true;
+                } else if (!(col.field in this.state)) {
                     this.state[col.field] = this.defaultVisible.includes(col.field);
                 }
             });
@@ -97,6 +103,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         toggle(field) {
+            const col = this.columns.find(c => c.field === field);
+            if (col && col.permanent) return;
+            
             this.state[field] = !this.state[field];
             this.save();
             this.applyVisibility();
@@ -111,7 +120,11 @@ document.addEventListener('alpine:init', () => {
         reset() {
             this.state = {};
             this.columns.forEach(col => {
-                this.state[col.field] = this.defaultVisible.includes(col.field);
+                if (col.permanent) {
+                    this.state[col.field] = true;
+                } else {
+                    this.state[col.field] = this.defaultVisible.includes(col.field);
+                }
             });
             this.save();
             this.applyVisibility();
