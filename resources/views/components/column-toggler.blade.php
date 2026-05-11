@@ -55,13 +55,19 @@ $columnsData    = collect($columns)->map(fn($c) => [
         {{-- Column list (single column for readability) --}}
         <ul class="py-1 max-h-80 overflow-y-auto">
             <template x-for="col in columns" :key="col.field">
-                <li x-show="!col.permanent" class="px-3 py-1">
-                    <label class="flex items-center gap-2 cursor-pointer select-none hover:bg-gray-50 rounded px-1 py-0.5">
+                <li class="px-3 py-1">
+                    <label class="flex items-center gap-2 select-none hover:bg-gray-50 rounded px-1 py-0.5"
+                           :class="col.permanent ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
                         <input type="checkbox"
                                :checked="state[col.field] !== false"
+                               :disabled="col.permanent"
                                @change="toggle(col.field)"
-                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 shrink-0">
+                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 shrink-0"
+                               :class="col.permanent ? 'bg-gray-100' : ''">
                         <span class="text-sm text-gray-700" x-text="col.label"></span>
+                        <template x-if="col.permanent">
+                            <i class="fas fa-lock text-[10px] text-gray-400 ml-auto" title="Kolom Tetap"></i>
+                        </template>
                     </label>
                 </li>
             </template>
