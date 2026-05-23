@@ -279,9 +279,6 @@ class ApprovalRequest extends Model
             ->where('status', 'pending')
             ->update([
                 'status' => 'skipped',
-                'skip_reason' => 'Request cancelled',
-                'skipped_by' => $userId,
-                'skipped_at' => now(),
             ]);
 
         // Update request status (legacy/aggregate)
