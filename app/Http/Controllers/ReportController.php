@@ -52,15 +52,6 @@ class ReportController extends Controller
                 $w->where('departments.id', $deptId)->where('user_departments.is_primary', true);
             });
         }
-        // Default filter: manage_vendor user defaults to 'benchmarking' when no filters set
-        if (!$request->filled('purchasing_status')
-            && !$request->filled('reset')
-            && auth()->user()?->hasPermission('manage_vendor')
-            && !$request->hasAny(['search','date_from','year','department_id','category_id','submission_type_id','requester_id'])
-        ) {
-            $request->merge(['purchasing_status' => 'benchmarking']);
-        }
-
         if ($request->filled('status')) {
             $q->where('status', $request->status);
         } else {
