@@ -53,11 +53,13 @@
                     <select name="purchasing_status"
                             class="h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0">
                         <option value="">Semua Proses</option>
-                        <option value="unprocessed"  {{ request('purchasing_status') === 'unprocessed'  ? 'selected' : '' }}>Belum diproses</option>
-                        <option value="benchmarking" {{ request('purchasing_status') === 'benchmarking' ? 'selected' : '' }}>Pemilihan vendor</option>
-                        <option value="po_issued"    {{ request('purchasing_status') === 'po_issued'    ? 'selected' : '' }}>Proses di vendor</option>
-                        <option value="grn_received" {{ request('purchasing_status') === 'grn_received' ? 'selected' : '' }}>Barang diterima</option>
-                        <option value="done"         {{ request('purchasing_status') === 'done'         ? 'selected' : '' }}>Selesai</option>
+                        <option value="pending_approval" {{ request('purchasing_status') === 'pending_approval' ? 'selected' : '' }}>Menunggu Approval</option>
+                        <option value="unprocessed"      {{ request('purchasing_status') === 'unprocessed'      ? 'selected' : '' }}>Belum diproses</option>
+                        <option value="benchmarking"     {{ request('purchasing_status') === 'benchmarking'     ? 'selected' : '' }}>Pemilihan vendor</option>
+                        <option value="selected"         {{ request('purchasing_status') === 'selected'         ? 'selected' : '' }}>Proses PR & PO</option>
+                        <option value="po_issued"        {{ request('purchasing_status') === 'po_issued'        ? 'selected' : '' }}>Proses di vendor</option>
+                        <option value="grn_received"     {{ request('purchasing_status') === 'grn_received'     ? 'selected' : '' }}>Barang diterima</option>
+                        <option value="done"             {{ request('purchasing_status') === 'done'             ? 'selected' : '' }}>Selesai</option>
                     </select>
 
                     {{-- Filter Lanjutan toggle --}}
@@ -174,9 +176,14 @@
                         $activeFilters = array_filter([
                             request('search')             ? '"' . request('search') . '"'                                                                  : null,
                             request('purchasing_status')  ? match(request('purchasing_status')) {
-                                'unprocessed' => 'Belum diproses', 'benchmarking' => 'Pemilihan vendor',
-                                'po_issued'   => 'Proses di vendor','grn_received' => 'Barang diterima',
-                                'done'        => 'Selesai', default => request('purchasing_status'),
+                                'pending_approval' => 'Menunggu Approval',
+                                'unprocessed' => 'Belum diproses',
+                                'benchmarking' => 'Pemilihan vendor',
+                                'selected' => 'Proses PR & PO',
+                                'po_issued'   => 'Proses di vendor',
+                                'grn_received' => 'Barang diterima',
+                                'done'        => 'Selesai',
+                                default => request('purchasing_status'),
                             } : null,
                             request('date_from')          ? request('date_from')                                                                           : null,
                             request('year')               ? request('year')                                                                                : null,

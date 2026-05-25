@@ -19,6 +19,11 @@ class ReportController extends Controller
 {
     public function approvalRequests(Request $request)
     {
+        // Default purchasing_status filter to unprocessed if not present in request
+        if (!$request->has('purchasing_status')) {
+            $request->merge(['purchasing_status' => 'unprocessed']);
+        }
+
         $q = ApprovalRequest::query()
             ->with([
                 'submissionType:id,name',
@@ -65,7 +70,11 @@ class ReportController extends Controller
         // Filter by purchasing item status if provided
         if ($request->filled('purchasing_status')) {
             $ps = $request->purchasing_status;
-            if ($ps === 'unprocessed') {
+            if ($ps === 'pending_approval') {
+                $q->whereHas('items', function($i) {
+                    $i->whereIn('status', ['pending', 'on progress']);
+                });
+            } elseif ($ps === 'unprocessed') {
                 // Items that are ready for purchasing but have no purchasing item yet,
                 // OR have a purchasing item with status 'unprocessed'
                 $q->where(function($w) {
@@ -76,11 +85,6 @@ class ReportController extends Controller
                             $pi->where('status', 'unprocessed');
                         })->orWhereDoesntHave('purchasingItems');
                     });
-                });
-            } elseif ($ps === 'benchmarking') {
-                // "Pemilihan vendor" mencakup benchmarking (vendor diinput) DAN selected (preferred dipilih, PO belum)
-                $q->whereHas('purchasingItems', function($pi) {
-                    $pi->whereIn('status', ['benchmarking', 'selected']);
                 });
             } else {
                 $q->whereHas('purchasingItems', function($pi) use ($ps) {
@@ -222,6 +226,24 @@ class ReportController extends Controller
                     'done'             => 'Selesai',
                     default            => strtoupper($itemPurchasingStatusCode),
                 };
+
+                // Filter items by purchasing status if filter is active
+                if ($request->filled('purchasing_status')) {
+                    $psFilter = $request->purchasing_status;
+                    if ($psFilter === 'pending_approval') {
+                        if ($itemPurchasingStatusCode !== 'pending_approval') {
+                            continue;
+                        }
+                    } elseif ($psFilter === 'unprocessed') {
+                        if (!in_array($itemPurchasingStatusCode, ['unprocessed', 'in_purchasing', 'approved', 'in_release'])) {
+                            continue;
+                        }
+                    } else {
+                        if ($itemPurchasingStatusCode !== $psFilter) {
+                            continue;
+                        }
+                    }
+                }
 
                 // Process text: show purchasing status only
                 $processText = $itemPurchasingStatusText;
@@ -1016,6 +1038,11 @@ class ReportController extends Controller
                 },
             ]);
 
+        // Default purchasing_status filter to unprocessed if not present in request
+        if (!$request->has('purchasing_status')) {
+            $request->merge(['purchasing_status' => 'unprocessed']);
+        }
+
         // Apply filters (same as index method)
         if ($request->filled('date_from')) {
             $q->whereDate('created_at', '>=', $request->date_from);
@@ -1035,8 +1062,34 @@ class ReportController extends Controller
         if ($request->filled('status')) {
             $q->where('status', $request->status);
         } else {
-            // Default: exclude rejected and cancelled (consistent with index view)
+            // Default: exclude rejected and cancelled requests
             $q->whereNotIn('status', ['rejected', 'cancelled']);
+        }
+        if ($request->filled('requester_id')) {
+            $q->where('requester_id', (int) $request->requester_id);
+        }
+        // Filter by purchasing item status if provided
+        if ($request->filled('purchasing_status')) {
+            $ps = $request->purchasing_status;
+            if ($ps === 'pending_approval') {
+                $q->whereHas('items', function($i) {
+                    $i->whereIn('status', ['pending', 'on progress']);
+                });
+            } elseif ($ps === 'unprocessed') {
+                $q->where(function($w) {
+                    $w->whereHas('items', function($i) {
+                        $i->whereIn('status', ['in_purchasing', 'approved', 'in_release']);
+                    })->where(function($w2) {
+                        $w2->whereHas('purchasingItems', function($pi) {
+                            $pi->where('status', 'unprocessed');
+                        })->orWhereDoesntHave('purchasingItems');
+                    });
+                });
+            } else {
+                $q->whereHas('purchasingItems', function($pi) use ($ps) {
+                    $pi->where('status', $ps);
+                });
+            }
         }
         if ($request->filled('year')) {
             $q->whereYear('created_at', (int)$request->year);
@@ -1048,12 +1101,38 @@ class ReportController extends Controller
         }
         if ($s = trim((string)$request->get('search', ''))) {
             $q->where(function($w) use ($s){
-                $w->where('request_number', 'like', "%$s%")
-                  ->orWhere('description', 'like', "%$s%")
-                  ->orWhere('status', 'like', "%$s%")
+                $w->where('request_number', 'ilike', "%$s%")
+                  ->orWhereHas('requester', function($r) use($s){
+                      $r->where('name', 'ilike', "%$s%");
+                  })
+                  ->orWhereHas('requester.departments', function($d) use($s){
+                      $d->where('name', 'ilike', "%$s%");
+                  })
                   ->orWhereHas('items.masterItem', function($mi) use($s){
-                      $mi->where('name', 'like', "%$s%");
-                  });
+                      $mi->where('name', 'ilike', "%$s%");
+                  })
+                  ->orWhere('created_at', 'ilike', "%$s%");
+
+                // Mapping status Indonesian -> code
+                $statusMap = [
+                    'menunggu approval' => ['pending', 'on progress'],
+                    'belum diproses'   => ['unprocessed'],
+                    'pemilihan vendor' => ['benchmarking'],
+                    'proses pr & po'   => ['selected'],
+                    'proses di vendor' => ['po_issued'],
+                    'barang diterima'  => ['grn_received'],
+                    'selesai'          => ['done'],
+                ];
+                $sLower = strtolower($s);
+                foreach ($statusMap as $key => $codes) {
+                    if (str_contains($key, $sLower)) {
+                        $w->orWhereHas('items', function($i) use($codes) {
+                            $i->whereIn('status', $codes);
+                        })->orWhereHas('purchasingItems', function($pi) use($codes) {
+                            $pi->whereIn('status', $codes);
+                        });
+                    }
+                }
             });
         }
 
@@ -1085,23 +1164,63 @@ class ReportController extends Controller
             } else {
                 $ageDays = null;
             }
-            $purchasingStatusCode = $req->purchasing_status ?? 'unprocessed';
-            $purchasingStatus = match($purchasingStatusCode) {
-                'unprocessed' => 'Belum diproses',
-                'benchmarking' => 'Pemilihan vendor',
-                'selected' => 'Proses PR & PO',
-                'po_issued' => 'Proses di vendor',
-                'grn_received' => 'Barang diterima',
-                'done' => 'Selesai',
-                default => strtoupper($purchasingStatusCode),
-            };
-
             foreach ($req->items as $item) {
+                // Skip rejected or cancelled items — they don't belong in the purchasing report
+                if (in_array($item->status, ['rejected', 'cancelled'])) {
+                    continue;
+                }
+
                 $m = $item->masterItem;
                 $qty = (int) ($item->quantity ?? 0);
                 $spec = $item->specification ?? null;
                 $notes = $item->notes ?? null;
                 $pi = $req->purchasingItems?->firstWhere('master_item_id', $m->id);
+
+                // Determine purchasing status code for THIS item
+                if ($pi) {
+                    $itemPurchasingStatusCode = $pi->status;
+                } else {
+                    // If no purchasing item, check approval_request_item status
+                    if (in_array($item->status, ['in_purchasing', 'approved', 'in_release'])) {
+                        // Approval selesai, tapi purchasing item belum dibuat
+                        // Tampilkan berdasarkan item status secara spesifik
+                        $itemPurchasingStatusCode = $item->status; // 'in_purchasing', 'approved', atau 'in_release'
+                    } else {
+                        $itemPurchasingStatusCode = 'pending_approval'; // Masih dalam proses approval
+                    }
+                }
+
+                // Filter items by purchasing status if filter is active
+                if ($request->filled('purchasing_status')) {
+                    $psFilter = $request->purchasing_status;
+                    if ($psFilter === 'pending_approval') {
+                        if ($itemPurchasingStatusCode !== 'pending_approval') {
+                            continue;
+                        }
+                    } elseif ($psFilter === 'unprocessed') {
+                        if (!in_array($itemPurchasingStatusCode, ['unprocessed', 'in_purchasing', 'approved', 'in_release'])) {
+                            continue;
+                        }
+                    } else {
+                        if ($itemPurchasingStatusCode !== $psFilter) {
+                            continue;
+                        }
+                    }
+                }
+
+                $itemPurchasingStatusText = match($itemPurchasingStatusCode) {
+                    'pending_approval' => 'Menunggu Approval',
+                    'unprocessed'      => 'Belum diproses',
+                    'in_purchasing'    => 'Menunggu Proses',   // Approval selesai, belum ada PI
+                    'approved'         => 'Menunggu Proses',   // Legacy: approved tapi belum ada PI
+                    'in_release'       => 'Menunggu Proses',   // Dalam release phase
+                    'benchmarking'     => 'Pemilihan vendor',
+                    'selected'         => 'Proses PR & PO',
+                    'po_issued'        => 'Proses di vendor',
+                    'grn_received'     => 'Barang diterima',
+                    'done'             => 'Selesai',
+                    default            => strtoupper($itemPurchasingStatusCode),
+                };
                 
                 // Benchmarking vendors
                 $bench = [null, null, null];
@@ -1138,7 +1257,7 @@ class ReportController extends Controller
 
                 $csvData[] = [
                     $req->request_number ?? '-',
-                    $purchasingStatus,
+                    $itemPurchasingStatusText,
                     $m->name ?? '-',
                     $primaryDept ?? '-',
                     $createdAt?->format('Y-m-d') ?? '-',
