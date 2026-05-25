@@ -135,6 +135,8 @@ class PurchasingTypeService
                 'trial'            => $trialEffectiveDone,
                 'preferred_vendor' => $preferredVendorDone,
                 'po'               => $poDone,
+                // GRN comes BEFORE the release step in the corrected workflow,
+                // so we do not gate it on isReleaseFinished.
                 'invoice_grn_done' => $invoiceDone,
                 default            => false,
             };
@@ -279,8 +281,10 @@ class PurchasingTypeService
             ],
             'invoice_grn_done' => [
                 'done'      => $invoiceDone,
-                'active'    => $canPurchasing && $poDone && $isReleaseFinished,
-                'prev_done' => $poDone && $isReleaseFinished,
+                // GRN comes BEFORE the release step in the corrected workflow.
+                // It only requires PO to be done.
+                'active'    => $canPurchasing && $poDone,
+                'prev_done' => $poDone,
             ],
         ];
 
@@ -442,7 +446,9 @@ class PurchasingTypeService
             'purchasing_trial' => $benchmarkingDone,
             'purchasing_preferred_vendor' => $benchmarkingDone && $trialEffectiveDone,
             'purchasing_po' => $preferredVendorDone,
-            'purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done' => $poDone && $isReleaseFinished,
+            // GRN comes BEFORE the release step in the corrected workflow.
+            // It only requires PO to be done.
+            'purchasing_invoice_grn_done', 'purchasing_invoice', 'purchasing_done' => $poDone,
             default => true,
         };
     }
@@ -479,9 +485,11 @@ class PurchasingTypeService
             'purchasing_trial'          => ($canPurchasing || $canVendor) && $benchmarkingDone,
             'purchasing_preferred_vendor' => $canVendor && $benchmarkingDone && $trialEffectiveDone,
             'purchasing_po'             => $canPurchasing && $preferredVendorDone,
+            // GRN comes BEFORE the release step in the corrected workflow.
+            // It only requires PO to be done.
             'purchasing_invoice_grn_done',
             'purchasing_invoice',
-            'purchasing_done'           => $canPurchasing && $poDone && $isReleaseFinished,
+            'purchasing_done'           => $canPurchasing && $poDone,
             default                     => $canPurchasing,
         };
     }

@@ -119,50 +119,7 @@
         </div>
     @endforeach
 
-    {{-- Release Steps --}}
-    @if($releaseSteps->isNotEmpty())
-        <div class="border-t pt-3 mt-1">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Proses Release</p>
-            @foreach($releaseSteps->sortBy('step_number') as $rs)
-                @php
-                    $rsState = $rs->status === 'approved' ? 'done'
-                             : ($rs->status === 'pending' ? 'active' : 'locked');
-                @endphp
-                <div class="bg-white border rounded-lg overflow-hidden mb-2 {{ $rsState === 'done' ? 'border-green-200' : ($rsState === 'active' ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200') }}">
-                    <div class="flex items-center justify-between px-3 py-1.5 {{ $rsState === 'done' ? 'bg-green-50' : ($rsState === 'active' ? 'bg-blue-50' : 'bg-gray-50') }}">
-                        <span class="font-semibold text-sm {{ $rsState === 'locked' ? 'text-gray-400' : 'text-gray-800' }}">{{ $rs->step_name }}</span>
-                        @if($rsState === 'done')
-                            <span class="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Approved</span>
-                        @elseif($rsState === 'active')
-                            <span class="text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">Menunggu Approval</span>
-                        @else
-                            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Terkunci</span>
-                        @endif
-                    </div>
-                    @if($rs->approved_at)
-                        <div class="px-3 py-1.5 text-xs text-gray-500">
-                            Disetujui: {{ \Carbon\Carbon::parse($rs->approved_at)->format('d/m/Y H:i') }}
-                        </div>
-                    @endif
-                </div>
-            @endforeach
-        </div>
-    @endif
 
-    {{-- Delete button --}}
-    @if($canPurchasing && $ps !== 'done')
-        <div class="flex justify-start">
-            <form method="POST" action="{{ route('purchasing.items.delete', $item) }}"
-                  onsubmit="return confirm('Hapus purchasing item ini? Semua data benchmarking akan terhapus.')">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-sm transition-colors flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    Hapus Item Ini
-                </button>
-            </form>
-        </div>
-    @endif
 </div>
 @endsection
 
