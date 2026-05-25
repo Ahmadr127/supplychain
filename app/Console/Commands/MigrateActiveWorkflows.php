@@ -403,14 +403,18 @@ class MigrateActiveWorkflows extends Command
 
                 $migrateResult['inserted'] = $insertedCount;
 
-                Log::info('[MigrateActiveWorkflows] Item migrated', [
-                    'request_id'         => $request->id,
-                    'item_id'            => $item->id,
-                    'target_workflow'    => $targetWorkflow->id,
-                    'deleted'            => $deleted,
-                    'inserted'           => $insertedCount,
-                    'kept_approved_step' => $lastApprovedStep ? $lastApprovedStep->step_number : null,
-                ]);
+                try {
+                    Log::info('[MigrateActiveWorkflows] Item migrated', [
+                        'request_id'         => $request->id,
+                        'item_id'            => $item->id,
+                        'target_workflow'    => $targetWorkflow->id,
+                        'deleted'            => $deleted,
+                        'inserted'           => $insertedCount,
+                        'kept_approved_step' => $lastApprovedStep ? $lastApprovedStep->step_number : null,
+                    ]);
+                } catch (\Throwable $logEx) {
+                    // Ignore logging failure to prevent breaking the transaction
+                }
             });
 
             $stats['steps_deleted']  += $migrateResult['deleted'];
@@ -422,12 +426,16 @@ class MigrateActiveWorkflows extends Command
         } catch (\Throwable $e) {
             $stats['errors']++;
             $this->error("     [FAIL] Item #{$item->id}: " . $e->getMessage());
-            Log::error('[MigrateActiveWorkflows] Item migration failed', [
-                'request_id' => $request->id,
-                'item_id'    => $item->id,
-                'error'      => $e->getMessage(),
-                'trace'      => $e->getTraceAsString(),
-            ]);
+            try {
+                Log::error('[MigrateActiveWorkflows] Item migration failed', [
+                    'request_id' => $request->id,
+                    'item_id'    => $item->id,
+                    'error'      => $e->getMessage(),
+                    'trace'      => $e->getTraceAsString(),
+                ]);
+            } catch (\Throwable $logEx) {
+                // Ignore logging failure
+            }
         }
     }
 
