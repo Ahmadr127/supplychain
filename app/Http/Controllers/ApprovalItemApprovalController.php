@@ -394,7 +394,7 @@ class ApprovalItemApprovalController extends Controller
             Log::info('🟩 ========== APPROVAL PROCESS COMPLETED ==========');
 
             // Redirect to same page with item_id to keep viewing single item
-            return redirect()->route('approval-requests.show', ['approvalRequest' => $approvalRequest->id, 'item_id' => $item->id])
+            return redirect()->route('approval-items.show', $item->id)
                 ->with('success', 'Item berhasil di-approve!');
 
         } catch (\Exception $e) {
@@ -490,7 +490,7 @@ class ApprovalItemApprovalController extends Controller
             DB::commit();
 
             // Redirect to same page with item_id to keep viewing single item
-            return redirect()->route('approval-requests.show', ['approvalRequest' => $approvalRequest->id, 'item_id' => $item->id])
+            return redirect()->route('approval-items.show', $item->id)
                 ->with('success', 'Item berhasil di-reject.');
 
         } catch (\Exception $e) {
@@ -580,7 +580,7 @@ class ApprovalItemApprovalController extends Controller
             DB::commit();
 
             // Redirect to same page with item_id to keep viewing single item
-            return redirect()->route('approval-requests.show', ['approvalRequest' => $approvalRequest->id, 'item_id' => $item->id])
+            return redirect()->route('approval-items.show', $item->id)
                 ->with('success', 'Item berhasil di-reset ke status pending.');
 
         } catch (\Exception $e) {

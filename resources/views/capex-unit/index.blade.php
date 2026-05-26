@@ -232,8 +232,8 @@
                                 @foreach($item->activeAllocations as $alloc)
                                     <tr class="border-b border-orange-100">
                                         <td class="py-1.5 pr-4">
-                                            @if($alloc->approvalRequest)
-                                            <a href="{{ route('approval-requests.show', $alloc->approvalRequest) }}"
+                                            @if($alloc->approvalRequestItem)
+                                            <a href="{{ route('approval-items.show', $alloc->approvalRequestItem) }}"
                                                class="text-blue-600 hover:underline font-mono font-medium">
                                                 {{ $alloc->approvalRequest->request_number ?? '#'.$alloc->approval_request_id }}
                                             </a>

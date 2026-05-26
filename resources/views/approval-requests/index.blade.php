@@ -155,7 +155,7 @@
                     </td>
                     <td class="w-20">
                         <div class="flex space-x-1">
-                            <a href="{{ route('approval-requests.show', ['approvalRequest' => $row->request->id, 'item_id' => $row->itemData->id]) }}" 
+                            <a href="{{ route('approval-items.show', $row->itemData->id) }}" 
                                class="text-blue-600 hover:text-blue-900 transition-colors duration-150" title="Lihat">👁</a>
                             @if($row->itemData->status == 'pending' && $row->request->requester_id == auth()->id())
                                 <a href="{{ route('approval-requests.edit', $row->request) }}" 

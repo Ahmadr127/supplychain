@@ -424,47 +424,7 @@ class ApprovalRequestController extends Controller
                         ->with('success', 'Approval request berhasil dibuat!');
     }
 
-    public function show(ApprovalRequest $approvalRequest, Request $request)
-    {
-        // Allow all authenticated users to view approval requests
 
-        $approvalRequest->load([
-            'workflow', 
-            'requester', 
-            'items.masterItem.itemType',
-            'items.masterItem.itemCategory',
-            'items.masterItem.commodity',
-            'items.masterItem.unit',
-            'items.steps.approver',
-            'items.approver',
-            'items.allocationDepartment',
-            'submissionType',
-            'purchasingItems.vendors',
-            'purchasingItems.preferredVendor',
-            'purchasingItems.statusChanger', // Load user who changed status
-            'itemExtras', // Load form extra data
-            'items.capexItem' // Load Capex data
-        ]);
-
-        // Load item files grouped by master_item_id to show per item
-        $files = \DB::table('approval_request_item_files')
-            ->where('approval_request_id', $approvalRequest->id)
-            ->get()
-            ->groupBy('master_item_id');
-        
-        // Group item extras by master_item_id for easy access
-        $itemExtras = $approvalRequest->itemExtras->keyBy('master_item_id');
-        
-        // Check if filtering by specific item
-        $filterItemId = $request->get('item_id');
-        
-        return view('approval-requests.show', [
-            'approvalRequest' => $approvalRequest,
-            'itemFiles' => $files,
-            'itemExtras' => $itemExtras,
-            'filterItemId' => $filterItemId,
-        ]);
-    }
 
     /**
      * DEPRECATED: Write detailed diagnostics about generated approval steps and potential approvers.
@@ -874,7 +834,13 @@ class ApprovalRequestController extends Controller
             'auth_id' => auth()->id(),
         ]);
 
-        return redirect()->route('approval-requests.show', $approvalRequest)
+        $firstItem = $approvalRequest->items()->first();
+        if ($firstItem) {
+            return redirect()->route('approval-items.show', $firstItem->id)
+                            ->with('success', 'Approval request berhasil diperbarui!');
+        }
+
+        return redirect()->route('approval-requests.my-requests')
                         ->with('success', 'Approval request berhasil diperbarui!');
     }
 
@@ -897,104 +863,7 @@ class ApprovalRequestController extends Controller
         }
     }
 
-    public function approve(Request $request, ApprovalRequest $approvalRequest)
-    {
-        // Enforce per-item approval
-        if (!$request->filled('master_item_id')) {
-            return redirect()->back()->with('error', 'Approval per request tidak lagi didukung. Silakan approve per item.');
-        }
 
-        $data = $request->validate([
-            'master_item_id' => 'required|integer|exists:master_items,id',
-            'comments' => 'nullable|string|max:1000',
-        ]);
-
-        // Check item status instead of request status
-        // if (!in_array($approvalRequest->status, ['pending', 'on progress'])) { ... } // REMOVED
-        
-        $item = ApprovalRequestItem::where('approval_request_id', $approvalRequest->id)
-            ->where('master_item_id', (int)$data['master_item_id'])
-            ->first();
-            
-        if (!$item) {
-            return redirect()->back()->with('error', 'Item tidak ditemukan pada request ini.');
-        }
-        
-        // Use item-based step logic
-        $currentStep = $item->getCurrentPendingStep();
-        
-        if (!$currentStep || !$currentStep->canApprove(auth()->id())) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk approve item pada request ini.');
-        }
-
-        // Update item status
-        $item->update([
-            'status' => 'approved',
-            'approved_by' => auth()->id(),
-            'approved_at' => now(),
-        ]);
-        
-        // Update step status
-        $currentStep->update([
-            'status' => 'approved',
-            'approved_by' => auth()->id(),
-            'approved_at' => now(),
-            'comments' => $request->comments
-        ]);
-        
-        // $approvalRequest->refreshStatus(); // REMOVED: Status is per-item
-
-        return redirect()->back()->with('success', 'Item berhasil di-approve.');
-    }
-
-    public function reject(Request $request, ApprovalRequest $approvalRequest)
-    {
-        // Enforce per-item rejection
-        if (!$request->filled('master_item_id')) {
-            return redirect()->back()->with('error', 'Reject per request tidak lagi didukung. Silakan reject per item.');
-        }
-
-        $data = $request->validate([
-            'master_item_id' => 'required|integer|exists:master_items,id',
-            'reason' => 'required|string|max:1000',
-            'comments' => 'nullable|string|max:1000',
-        ]);
-
-        // Check item status instead of request status
-        // if (!in_array($approvalRequest->status, ['pending', 'on progress'])) { ... } // REMOVED
-        
-        $item = ApprovalRequestItem::where('approval_request_id', $approvalRequest->id)
-            ->where('master_item_id', (int)$data['master_item_id'])
-            ->first();
-            
-        if (!$item) {
-            return redirect()->back()->with('error', 'Item tidak ditemukan pada request ini.');
-        }
-        
-        $currentStep = $item->getCurrentPendingStep();
-        if (!$currentStep || !$currentStep->canApprove(auth()->id())) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk reject item pada request ini.');
-        }
-
-        // Update item status
-        $item->update([
-            'status'      => 'rejected',
-            'approved_by' => null,
-            'approved_at' => null,
-        ]);
-        
-        // Update step status
-        $currentStep->update([
-            'status'      => 'rejected',
-            'approved_by' => auth()->id(),
-            'approved_at' => now(),
-            'comments'    => $data['reason'],
-        ]);
-        
-        // $approvalRequest->refreshStatus(); // REMOVED: Status is per-item
-
-        return redirect()->back()->with('success', 'Item berhasil di-reject.');
-    }
 
     public function cancel(ApprovalRequest $approvalRequest)
     {
@@ -1983,11 +1852,14 @@ class ApprovalRequestController extends Controller
             ? 'Item has been approved successfully!' 
             : 'Item has been rejected.';
 
+        if ($approvalRequestItem) {
+            return redirect()
+                ->route('approval-items.show', $approvalRequestItem->id)
+                ->with('success', $message);
+        }
+
         return redirect()
-            ->route('approval-requests.show', [
-                'approvalRequest' => $validated['approval_request_id'],
-                'item_id' => $validated['master_item_id']
-            ])
+            ->route('approval-requests.index')
             ->with('success', $message);
     }
 

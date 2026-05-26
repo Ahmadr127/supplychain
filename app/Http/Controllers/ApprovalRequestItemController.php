@@ -43,9 +43,41 @@ class ApprovalRequestItemController extends Controller
     // GET /approval-items/{item}
     public function show(ApprovalRequestItem $approvalItem)
     {
-        $approvalItem->load(['approvalRequest', 'masterItem.unit', 'supplier', 'allocationDepartment']);
+        $approvalItem->load([
+            'approvalRequest.workflow', 
+            'approvalRequest.requester.departments', 
+            'approvalRequest.submissionType',
+            'approvalRequest.items.masterItem.itemType',
+            'masterItem.itemType',
+            'masterItem.itemCategory',
+            'masterItem.commodity',
+            'masterItem.unit',
+            'steps.approver',
+            'steps.attachments',
+            'approver',
+            'allocationDepartment',
+            'capexItem',
+            'supplier',
+        ]);
+
+        // Load item files grouped by master_item_id to show per item (consistent with old show)
+        $files = \DB::table('approval_request_item_files')
+            ->where('approval_request_id', $approvalItem->approval_request_id)
+            ->where('master_item_id', $approvalItem->master_item_id)
+            ->get()
+            ->groupBy('master_item_id');
+
+        // Group item extras by master_item_id for easy access
+        $itemExtras = \App\Models\ApprovalRequestItemExtra::where('approval_request_id', $approvalItem->approval_request_id)
+            ->where('master_item_id', $approvalItem->master_item_id)
+            ->get()
+            ->keyBy('master_item_id');
+
         return view('approval-items.show', [
             'item' => $approvalItem,
+            'approvalRequest' => $approvalItem->approvalRequest,
+            'itemFiles' => $files,
+            'itemExtras' => $itemExtras,
         ]);
     }
 

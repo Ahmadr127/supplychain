@@ -182,7 +182,7 @@
                         {{-- Aksi --}}
                         <td class="px-4 py-3 text-center">
                             @php
-                                $url = route('approval-requests.show', ['approvalRequest' => $req->id, 'item_id' => $item->id]);
+                                $url = route('approval-items.show', $item->id);
                             @endphp
                             @if($canRelease)
                                 <a href="{{ $url }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-purple-600 hover:bg-purple-700 transition-colors">

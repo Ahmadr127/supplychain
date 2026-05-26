@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const pName = prefForm.querySelector('.preferred-supplier-name');
         const pId   = prefForm.querySelector('.preferred-supplier-id');
         const pBox  = prefForm.querySelector('.preferred-supplier-suggest');
-        const serverVendors = @json($item->vendors->map(fn($v) => ['id' => $v->supplier_id, 'name' => optional($v->supplier)->name])->values());
+        const serverVendors = {!! json_encode($item->vendors->map(fn($v) => ['id' => $v->supplier_id, 'name' => optional($v->supplier)->name, 'unit_price' => $v->unit_price, 'total_price' => $v->total_price])->values()) !!};
 
         if (pName && pId && pBox) {
             pName.addEventListener('input', function () {
@@ -229,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 pId.value = '';
                 const list = serverVendors.filter(v => (v.name || '').toLowerCase().includes(q)).slice(0, 10);
                 pBox.innerHTML = list.length
-                    ? list.map(v => `<div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" data-id="${v.id}" data-name="${v.name}">${v.name}</div>`).join('')
+                    ? list.map(v => `<div class="px-3 py-2 hover:bg-gray-50 cursor-pointer" data-id="${v.id}" data-name="${v.name}" data-unit-price="${v.unit_price}" data-total-price="${v.total_price}">${v.name}</div>`).join('')
                     : '<div class="px-3 py-2 text-sm text-gray-400">Tidak ada hasil</div>';
                 pBox.classList.remove('hidden');
             });
@@ -237,6 +237,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 const t = e.target.closest('[data-id]'); if (!t) return;
                 pId.value   = t.dataset.id;
                 pName.value = t.dataset.name;
+                
+                const pUnit  = prefForm.querySelector('.currency-pref-unit');
+                const pTotal = prefForm.querySelector('.currency-pref-total');
+                if (pUnit && t.dataset.unitPrice !== undefined) {
+                    pUnit.value = formatRupiah(parseInt(t.dataset.unitPrice));
+                }
+                if (pTotal && t.dataset.totalPrice !== undefined) {
+                    pTotal.value = formatRupiah(parseInt(t.dataset.totalPrice));
+                }
+                
                 pBox.classList.add('hidden');
             });
             pName.addEventListener('blur', () => setTimeout(() => pBox.classList.add('hidden'), 200));

@@ -92,10 +92,7 @@ class ApprovalItemStepController extends Controller
             DB::commit();
             
             return redirect()
-                ->route('approval-requests.show', [
-                    'approvalRequest' => $item->approval_request_id,
-                    'item_id' => $item->id
-                ])
+                ->route('approval-items.show', $item->id)
                 ->with('success', 'Step "' . $newStep->step_name . '" berhasil ditambahkan!');
             
         } catch (\Exception $e) {
@@ -180,10 +177,7 @@ class ApprovalItemStepController extends Controller
             DB::commit();
             
             return redirect()
-                ->route('approval-requests.show', [
-                    'approvalRequest' => $item->approval_request_id,
-                    'item_id' => $item->id
-                ])
+                ->route('approval-items.show', $item->id)
                 ->with('success', 'Step baru "' . $newStep->step_name . '" berhasil ditambahkan!');
             
         } catch (\Exception $e) {

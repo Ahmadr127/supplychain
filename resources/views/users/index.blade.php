@@ -254,13 +254,11 @@ document.addEventListener('alpine:init', () => {
         selectRole(roleId) {
             this.filters.roleId = roleId;
             this.roleOpen = false;
-            this.applyFilters();
         },
 
         clearRole() {
             this.filters.roleId = '';
             this.roleSearch = '';
-            this.applyFilters();
         }
     }));
 });

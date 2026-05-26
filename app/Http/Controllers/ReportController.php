@@ -5,137 +5,24 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\ApprovalRequest;
-use App\Models\SubmissionType;
 use App\Models\Department;
+use App\Models\SubmissionType;
 use App\Models\ItemCategory;
-use App\Models\PurchasingItem;
 use App\Models\User;
-use App\Services\Purchasing\PurchasingItemService;
-use App\Services\Purchasing\PurchasingTypeService;
-use App\Models\ApprovalItemStep;
-use Carbon\Carbon;
+use App\Services\Reports\ApprovalRequestReportService;
 
 class ReportController extends Controller
 {
+    protected $reportService;
+
+    public function __construct(ApprovalRequestReportService $reportService)
+    {
+        $this->reportService = $reportService;
+    }
+
     public function approvalRequests(Request $request)
     {
-        // Default purchasing_status filter to unprocessed if not present in request
-        if (!$request->has('purchasing_status')) {
-            $request->merge(['purchasing_status' => 'unprocessed']);
-        }
-
-        $q = ApprovalRequest::query()
-            ->with([
-                'submissionType:id,name',
-                'requester' => fn($q) => $q->select('id','name'),
-                'requester.departments' => function($q){ $q->wherePivot('is_primary', true)->select('departments.id','departments.name'); },
-                'items.masterItem' => function($q){
-                    $q->select('id','name','item_category_id')
-                      ->with(['itemCategory:id,name']);
-                },
-                // load purchasing items with vendors and preferred info
-                'purchasingItems' => function($pi){
-                    $pi->select('id','approval_request_id','master_item_id','quantity','status','po_number','grn_date','proc_cycle_days','invoice_number','preferred_vendor_id','preferred_unit_price','preferred_total_price')
-                       ->with(['vendors' => function($v){ $v->with('supplier:id,name'); }]);
-                },
-            ]);
-
-        // Filters
-        if ($request->filled('date_from')) {
-            $q->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $q->whereDate('created_at', '<=', $request->date_to);
-        }
-        if ($request->filled('submission_type_id')) {
-            $q->where('submission_type_id', $request->submission_type_id);
-        }
-        if ($request->filled('department_id')) {
-            // Filter by requester's primary department
-            $deptId = (int) $request->department_id;
-            $q->whereHas('requester.departments', function($w) use($deptId){
-                $w->where('departments.id', $deptId)->where('user_departments.is_primary', true);
-            });
-        }
-        if ($request->filled('status')) {
-            $q->where('status', $request->status);
-        } else {
-            // Default: exclude rejected and cancelled requests
-            // 'in_purchasing' adalah status valid (approval selesai, masuk fase purchasing)
-            $q->whereNotIn('status', ['rejected', 'cancelled']);
-        }
-        if ($request->filled('requester_id')) {
-            $q->where('requester_id', (int) $request->requester_id);
-        }
-        // Filter by purchasing item status if provided
-        if ($request->filled('purchasing_status')) {
-            $ps = $request->purchasing_status;
-            if ($ps === 'pending_approval') {
-                $q->whereHas('items', function($i) {
-                    $i->whereIn('status', ['pending', 'on progress']);
-                });
-            } elseif ($ps === 'unprocessed') {
-                // Items that are ready for purchasing but have no purchasing item yet,
-                // OR have a purchasing item with status 'unprocessed'
-                $q->where(function($w) {
-                    $w->whereHas('items', function($i) {
-                        $i->whereIn('status', ['in_purchasing', 'approved', 'in_release']);
-                    })->where(function($w2) {
-                        $w2->whereHas('purchasingItems', function($pi) {
-                            $pi->where('status', 'unprocessed');
-                        })->orWhereDoesntHave('purchasingItems');
-                    });
-                });
-            } else {
-                $q->whereHas('purchasingItems', function($pi) use ($ps) {
-                    $pi->where('status', $ps);
-                });
-            }
-        }
-        if ($request->filled('year')) {
-            $q->whereYear('created_at', (int)$request->year);
-        }
-        if ($request->filled('category_id')) {
-            $q->whereHas('items.masterItem.itemCategory', function($w) use ($request){
-                $w->where('item_categories.id', $request->category_id);
-            });
-        }
-        if ($s = trim((string)$request->get('search', ''))) {
-            $q->where(function($w) use ($s){
-                $w->where('request_number', 'ilike', "%$s%")
-                  ->orWhereHas('requester', function($r) use($s){
-                      $r->where('name', 'ilike', "%$s%");
-                  })
-                  ->orWhereHas('requester.departments', function($d) use($s){
-                      $d->where('name', 'ilike', "%$s%");
-                  })
-                  ->orWhereHas('items.masterItem', function($mi) use($s){
-                      $mi->where('name', 'ilike', "%$s%");
-                  })
-                  ->orWhere('created_at', 'ilike', "%$s%");
-
-                // Mapping status Indonesian -> code
-                $statusMap = [
-                    'menunggu approval' => ['pending', 'on progress'],
-                    'belum diproses'   => ['unprocessed'],
-                    'pemilihan vendor' => ['benchmarking'],
-                    'proses pr & po'   => ['selected'],
-                    'proses di vendor' => ['po_issued'],
-                    'barang diterima'  => ['grn_received'],
-                    'selesai'          => ['done'],
-                ];
-                $sLower = strtolower($s);
-                foreach ($statusMap as $key => $codes) {
-                    if (str_contains($key, $sLower)) {
-                        $w->orWhereHas('items', function($i) use($codes) {
-                            $i->whereIn('status', $codes);
-                        })->orWhereHas('purchasingItems', function($pi) use($codes) {
-                            $pi->whereIn('status', $codes);
-                        });
-                    }
-                }
-            });
-        }
+        $q = $this->reportService->buildBaseQuery($request);
 
         // Sorting
         $sortable = ['created_at','request_number'];
@@ -154,273 +41,78 @@ class ReportController extends Controller
         // Preload department name map for allocation lookup
         $deptMap = Department::pluck('name', 'id');
 
-        // Build table rows (one row per item)
-        $rows = [];
-        foreach ($requests as $req) {
-            $primaryDept = optional($req->requester?->departments?->first())->name;
-            // letter number is now per item (pivot)
-            $procurementYear = $req->procurement_year ?? ($req->created_at?->format('Y'));
-            $createdAt = $req->created_at; // Tanggal Pengajuan (Carbon|null)
-            $receivedAt = $req->received_at ? \Carbon\Carbon::parse($req->received_at) : null; // Tanggal Terima Dokumen
-            // Umur Pengajuan = selisih Tanggal Terima Dokumen dengan Tanggal Pengajuan (real days, float, non-negative)
-            if ($createdAt && $receivedAt) {
-                $ageSeconds = $createdAt->diffInRealSeconds($receivedAt, false); // signed seconds
-                $ageDays = $ageSeconds <= 0 ? 0.0 : ($ageSeconds / 86400);
-            } else {
-                $ageDays = null;
-            }
+        // Build table rows
+        $rows = $this->reportService->mapToReportRows($requests->items(), $deptMap, $request);
 
-            // Purchasing status mapping to human-friendly Indonesian
-            $purchasingStatusCode = $req->purchasing_status ?? 'unprocessed';
-            $purchasingStatus = match($purchasingStatusCode) {
-                'unprocessed' => 'Belum diproses',
-                'benchmarking' => 'Pemilihan vendor',
-                'selected' => 'Proses PR & PO',
-                'po_issued' => 'Proses di vendor',
-                'grn_received' => 'Barang diterima',
-                'done' => 'Selesai',
-                default => strtoupper($purchasingStatusCode),
-            };
+        // Add action buttons based on status
+        foreach ($rows as &$row) {
+            $actions = [];
+            $user = auth()->user();
+            $canManagePurchasing = $user && ($user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item'));
+            $canManageVendor = $user && $user->hasPermission('manage_vendor');
+            
+            // Check if item is ready for purchasing
+            $piId = $row['pi_id'];
+            $isReadyForPurchasing = $piId || in_array($row['item_status'], ['in_purchasing', 'approved', 'in_release']);
 
-            foreach ($req->items as $item) {
-                // Skip rejected or cancelled items — they don't belong in the purchasing report
-                if (in_array($item->status, ['rejected', 'cancelled'])) {
-                    continue;
-                }
-
-                $m = $item->masterItem;
-                $qty = (int) ($item->quantity ?? 0);
-                $spec = $item->specification ?? null;
-                $notes = $item->notes ?? null;
-
-                // Try map to purchasing item
-                $pi = $req->purchasingItems?->firstWhere('master_item_id', $m->id);
-                $piId = $pi?->id;
-                $piStatus = $pi?->status ?? 'unprocessed';
-                $piLabel = trim(($req->request_number ?: '-') . ' • ' . ($m->name ?: '-') . ' • QTY ' . $qty . ' • ' . strtoupper($piStatus));
-
-                // Determine purchasing status code for THIS item
-                if ($pi) {
-                    $itemPurchasingStatusCode = $pi->status;
-                } else {
-                    // If no purchasing item, check approval_request_item status
-                    if (in_array($item->status, ['in_purchasing', 'approved', 'in_release'])) {
-                        // Approval selesai, tapi purchasing item belum dibuat
-                        // Tampilkan berdasarkan item status secara spesifik
-                        $itemPurchasingStatusCode = $item->status; // 'in_purchasing', 'approved', atau 'in_release'
-                    } else {
-                        $itemPurchasingStatusCode = 'pending_approval'; // Masih dalam proses approval
-                    }
-                }
-
-                $itemPurchasingStatusText = match($itemPurchasingStatusCode) {
-                    'pending_approval' => 'Menunggu Approval',
-                    'unprocessed'      => 'Belum diproses',
-                    'in_purchasing'    => 'Menunggu Proses',   // Approval selesai, belum ada PI
-                    'approved'         => 'Menunggu Proses',   // Legacy: approved tapi belum ada PI
-                    'in_release'       => 'Menunggu Proses',   // Dalam release phase
-                    'benchmarking'     => 'Pemilihan vendor',
-                    'selected'         => 'Proses PR & PO',
-                    'po_issued'        => 'Proses di vendor',
-                    'grn_received'     => 'Barang diterima',
-                    'done'             => 'Selesai',
-                    default            => strtoupper($itemPurchasingStatusCode),
-                };
-
-                // Filter items by purchasing status if filter is active
-                if ($request->filled('purchasing_status')) {
-                    $psFilter = $request->purchasing_status;
-                    if ($psFilter === 'pending_approval') {
-                        if ($itemPurchasingStatusCode !== 'pending_approval') {
-                            continue;
-                        }
-                    } elseif ($psFilter === 'unprocessed') {
-                        if (!in_array($itemPurchasingStatusCode, ['unprocessed', 'in_purchasing', 'approved', 'in_release'])) {
-                            continue;
-                        }
-                    } else {
-                        if ($itemPurchasingStatusCode !== $psFilter) {
-                            continue;
-                        }
-                    }
-                }
-
-                // Process text: show purchasing status only
-                $processText = $itemPurchasingStatusText;
-
-                // Benchmarking vendors (up to 3) for display
-                $bench = [null, null, null];
-                if ($pi && $pi->relationLoaded('vendors')) {
-                    $vendors = $pi->vendors->take(3)->values();
-                    foreach ($vendors as $idx => $v) {
-                        $bench[$idx] = [
-                            'supplier' => $v->supplier->name ?? '-',
-                            'unit_price' => is_null($v->unit_price) ? '-' : ('Rp '.number_format((float)$v->unit_price, 0, ',', '.')),
-                            'total_price' => is_null($v->total_price) ? '-' : ('Rp '.number_format((float)$v->total_price, 0, ',', '.')),
-                        ];
-                    }
-                }
-
-                // Preferred vendor display
-                $preferred = [
-                    'supplier' => '-',
-                    'unit_price' => '-',
-                    'total_price' => '-',
-                ];
-                if ($pi) {
-                    $prefVendor = $pi->vendors?->firstWhere('supplier_id', $pi->preferred_vendor_id);
-                    if ($prefVendor) {
-                        $preferred['supplier'] = $prefVendor->supplier->name ?? ('Supplier #'.$prefVendor->supplier_id);
-                    }
-                    if (!is_null($pi->preferred_unit_price)) {
-                        $preferred['unit_price'] = 'Rp '.number_format((float)$pi->preferred_unit_price, 0, ',', '.');
-                    }
-                    if (!is_null($pi->preferred_total_price)) {
-                        $preferred['total_price'] = 'Rp '.number_format((float)$pi->preferred_total_price, 0, ',', '.');
-                    }
-                }
-
-                // Proc Cycle = selisih Tanggal GRN dengan Tanggal Pengajuan
-                $grnAt = $pi && $pi->grn_date ? \Carbon\Carbon::parse($pi->grn_date) : null;
-                if ($createdAt && $grnAt) {
-                    $procSeconds = $createdAt->diffInRealSeconds($grnAt, false);
-                    $procDays = $procSeconds <= 0 ? 0.0 : ($procSeconds / 86400);
-                } else {
-                    $procDays = null;
-                }
-
-                // Format: 1 decimal with comma separator
-                $ageText = $ageDays !== null ? (number_format((float)$ageDays, 1, ',', '.') . ' hari') : '-';
-                $procText = $procDays !== null ? (number_format((float)$procDays, 1, ',', '.') . ' hari') : '-';
-
-                $row = [
-                    'approval_request_id' => $req->id,
-                    'master_item_id' => $m->id,
-                    'no'   => '',  // nomor urut diisi di bawah
-                    'no_input' => $req->request_number ?? '-',
-                    'nama_pengaju' => $req->requester?->name ?? '-',
-                    'process' => $processText,
-                    // also include raw code for color mapping in view
-                    'process_code' => $itemPurchasingStatusCode,
-                    // Jenis diisi nama item (bukan submission type)
-                    'jenis' => $m->name ?? '-',
-                    'unit_pengaju' => $primaryDept ?? '-',
-                    'tanggal_pengajuan' => $createdAt?->format('Y-m-d') ?? '-',
-                    'tanggal_terima_dokumen' => $req->received_at ? Carbon::parse($req->received_at)->format('Y-m-d') : '-',
-                    'umur_pengajuan' => $ageText,
-                    // Per-item No Surat from item
-                    'no_surat' => ($item->letter_number ?? '-') ?: '-',
-                    'tahun_pengadaan' => $procurementYear ?? '-',
-                    // Detail diisi spesifikasi item
-                    'detail' => $spec ?: '-',
-                    // Per-item Unit Peruntukan from item allocation_department_id
-                    'unit_peruntukan' => ($item->allocation_department_id && isset($deptMap[$item->allocation_department_id]))
-                        ? $deptMap[$item->allocation_department_id]
-                        : '-',
-                    // Kategori per item
-                    'kategori' => $m->itemCategory?->name ?? '-',
-                    // Keterangan dari notes item (pivot)
-                    'keterangan' => $notes ?: '-',
-                    // Qty per item
-                    'qty' => $qty,
-                    // Benchmarking vendors columns
-                    'bm_supplier_1' => $bench[0]['supplier'] ?? '-',
-                    'bm_unit_price_1' => $bench[0]['unit_price'] ?? '-',
-                    'bm_total_price_1' => $bench[0]['total_price'] ?? '-',
-                    'bm_supplier_2' => $bench[1]['supplier'] ?? '-',
-                    'bm_unit_price_2' => $bench[1]['unit_price'] ?? '-',
-                    'bm_total_price_2' => $bench[1]['total_price'] ?? '-',
-                    'bm_supplier_3' => $bench[2]['supplier'] ?? '-',
-                    'bm_unit_price_3' => $bench[2]['unit_price'] ?? '-',
-                    'bm_total_price_3' => $bench[2]['total_price'] ?? '-',
-                    // Preferred vendor columns
-                    'pref_supplier' => $preferred['supplier'],
-                    'pref_unit_price' => $preferred['unit_price'],
-                    'pref_total_price' => $preferred['total_price'],
-                    // PO/INV/GRN/Cycle
-                    'invoice' => $pi?->invoice_number ?? '-',
-                    'po_number' => $pi?->po_number ?? '-',
-                    'grn_date' => $pi?->grn_date ? Carbon::parse($pi->grn_date)->format('Y-m-d') : '-',
-                    'proc_cycle' => $procText,
-                ];
-
-                // Add action buttons based on status
-                $actions = [];
-                $user = auth()->user();
-                $canManagePurchasing = $user && ($user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item'));
-                $canManageVendor = $user && $user->hasPermission('manage_vendor');
-
-                // Check if item is ready for purchasing (per-item workflow)
-                // It is ready if:
-                // 1. Purchasing Item exists ($piId)
-                // 2. OR Item status is 'in_purchasing'
-                // 3. OR Item status is 'approved' (legacy/simple workflow)
-                // 4. OR Item status is 'in_release' (purchasing done/skipped)
-                $isReadyForPurchasing = $piId || in_array($item->status, ['in_purchasing', 'approved', 'in_release']);
-
-                // Show process action only if user has manage_purchasing AND item is ready
-                if ($canManagePurchasing && $isReadyForPurchasing) {
-                    if ($piId) {
-                        // If purchasing item exists, direct link to process page
-                        $actions[] = [
-                            'type' => 'link',
-                            'label' => 'Proses',
-                            'color' => 'green',
-                            'url' => route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId])
-                        ];
-                    } else {
-                        // If no purchasing item, create it first then redirect to process page
-                        $actions[] = [
-                            'type' => 'button',
-                            'label' => 'Proses',
-                            'color' => 'green',
-                            'onclick' => "(async function(){try{const res=await fetch('" . route('api.purchasing.items.resolve') . "',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]')?.getAttribute('content')||''},body:JSON.stringify({approval_request_id:'{$req->id}',master_item_id:'{$m->id}'})});if(!res.ok){const err=await res.json();alert(err.error||'Gagal memproses item.');return;}const data=await res.json();if(data&&data.id){window.location.href='" . route('reports.approval-requests.process-purchasing') . "?purchasing_item_id='+data.id;}}catch(e){alert('Gagal membuka halaman purchasing.');}})()"
-                        ];
-                    }
-                }
-
-                // Vendor page button (only if user can manage vendor AND purchasing item exists)
-                if ($piId && $canManageVendor) {
+            // Show process action only if user has manage_purchasing AND item is ready
+            if ($canManagePurchasing && $isReadyForPurchasing) {
+                if ($piId) {
                     $actions[] = [
                         'type' => 'link',
-                        'label' => 'Vendor',
-                        'color' => 'blue',
-                        'url' => route('purchasing.items.vendor', $piId)
+                        'label' => 'Proses',
+                        'color' => 'green',
+                        'url' => route('reports.approval-requests.process-purchasing', ['purchasing_item_id' => $piId])
+                    ];
+                } else {
+                    $actions[] = [
+                        'type' => 'button',
+                        'label' => 'Proses',
+                        'color' => 'green',
+                        'onclick' => "(async function(){try{const res=await fetch('" . route('api.purchasing.items.resolve') . "',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]')?.getAttribute('content')||''},body:JSON.stringify({approval_request_id:'{$row['approval_request_id']}',master_item_id:'{$row['master_item_id']}'})});if(!res.ok){const err=await res.json();alert(err.error||'Gagal memproses item.');return;}const data=await res.json();if(data&&data.id){window.location.href='" . route('reports.approval-requests.process-purchasing') . "?purchasing_item_id='+data.id;}}catch(e){alert('Gagal membuka halaman purchasing.');}})()"
                     ];
                 }
+            }
 
-                // View approval request button (ALWAYS SHOW)
+            // Vendor page button (only if user can manage vendor AND purchasing item exists)
+            if ($piId && $canManageVendor) {
                 $actions[] = [
                     'type' => 'link',
-                    'label' => 'Lihat Request',
+                    'label' => 'Vendor',
                     'color' => 'blue',
-                    'url' => route('approval-requests.show', $req->id)
+                    'url' => route('purchasing.items.vendor', $piId)
                 ];
-
-                // Show status badge if NOT ready for purchasing (or just as info)
-                if (!$isReadyForPurchasing) {
-                    $statusColor = match($item->status) {
-                        'pending' => 'yellow',
-                        'on progress' => 'blue',
-                        'rejected' => 'red',
-                        'cancelled' => 'gray',
-                        default => 'gray'
-                    };
-                    // Fallback to request status if item status is ambiguous or request is rejected
-                    if ($req->status === 'rejected') $statusColor = 'red';
-                    
-                    $actions[] = [
-                        'type' => 'text',
-                        'label' => ucfirst($item->status ?? $req->status),
-                        'color' => $statusColor
-                    ];
-                }
-                
-                $row['actions'] = $actions;
-
-                $rows[] = $row;
             }
+
+            // View approval request button (ALWAYS SHOW)
+            $actions[] = [
+                'type' => 'link',
+                'label' => 'Lihat Request',
+                'color' => 'blue',
+                'url' => route('approval-items.show', $row['approval_request_item_id'])
+            ];
+
+            // Show status badge if NOT ready for purchasing (or just as info)
+            if (!$isReadyForPurchasing) {
+                $statusColor = match($row['item_status']) {
+                    'pending' => 'yellow',
+                    'on progress' => 'blue',
+                    'rejected' => 'red',
+                    'cancelled' => 'gray',
+                    default => 'gray'
+                };
+                
+                $actions[] = [
+                    'type' => 'text',
+                    'label' => ucfirst($row['item_status']),
+                    'color' => $statusColor
+                ];
+            }
+            
+            $row['actions'] = $actions;
         }
+        unset($row);
+
         $submissionTypes = SubmissionType::orderBy('name')->get(['id','name']);
         $departments = Department::orderBy('name')->get(['id','name']);
         $categories = ItemCategory::orderBy('name')->get(['id','name']);
@@ -432,66 +124,7 @@ class ReportController extends Controller
         }
         unset($row);
 
-        // Calculate status counts based on current filters (except status filter itself)
-        // We clone the query $q but we need to remove the status filter if it was applied
-        // Since $q is already built with filters, we can't easily remove one.
-        // So we'll just count based on the *current* result set + grouping?
-        // Or better, we build a fresh query for counts with same filters except status.
-        // For simplicity and performance, let's just count the *global* statuses for reports page
-        // or maybe just the statuses of the items visible?
-        // The user asked for "jumlah status yg ada di user login".
-        // For reports, it's usually all items.
-        
-        $statusCounts = \App\Models\ApprovalRequestItem::select('status', \DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-            
-        $statusCounts = [
-            'pending' => $statusCounts['pending'] ?? 0,
-            'on_progress' => $statusCounts['on progress'] ?? 0,
-            'approved' => $statusCounts['approved'] ?? 0,
-            'rejected' => $statusCounts['rejected'] ?? 0,
-            'cancelled' => $statusCounts['cancelled'] ?? 0,
-            'in_purchasing' => $statusCounts['in_purchasing'] ?? 0,
-            'in_release' => $statusCounts['in_release'] ?? 0,
-            'done' => $statusCounts['done'] ?? 0,
-        ];
-
-        // Calculate Purchasing Status Counts
-        // 1. Count from PurchasingItem table
-        $piCounts = \App\Models\PurchasingItem::select('status', \DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-
-        // 2. Count items that are ready for purchasing but have no PurchasingItem yet
-        // These will be counted as "unprocessed"
-        $readyButNoPI = \App\Models\ApprovalRequestItem::whereIn('status', ['in_purchasing', 'approved', 'in_release'])
-            ->whereNotExists(function($query) {
-                $query->select(\DB::raw(1))
-                      ->from('purchasing_items')
-                      ->whereColumn('purchasing_items.approval_request_id', 'approval_request_items.approval_request_id')
-                      ->whereColumn('purchasing_items.master_item_id', 'approval_request_items.master_item_id');
-            })
-            ->count();
-
-        // 3. Count items that are WAITING for approval (pending_approval)
-        $pendingApproval = \App\Models\ApprovalRequestItem::whereIn('status', ['pending', 'on progress'])
-            ->count();
-
-        // Combine unprocessed PI with ready items
-        $totalUnprocessed = ($piCounts['unprocessed'] ?? 0) + $readyButNoPI;
-
-        $purchasingCounts = [
-            'pending_approval' => $pendingApproval,
-            'unprocessed' => $totalUnprocessed,
-            'benchmarking' => $piCounts['benchmarking'] ?? 0,
-            'selected' => $piCounts['selected'] ?? 0,
-            'po_issued' => $piCounts['po_issued'] ?? 0,
-            'grn_received' => $piCounts['grn_received'] ?? 0,
-            'done' => $piCounts['done'] ?? 0,
-        ];
+        $counts = $this->reportService->getReportCounts();
 
         return view('reports.approval-requests.index', [
             'columns' => [
@@ -508,9 +141,9 @@ class ReportController extends Controller
                         $text = $row['process'] ?? '-';
                         $cls = match($code){
                             'pending_approval' => 'bg-yellow-100 text-yellow-800',
-                            'in_purchasing'    => 'bg-blue-500 text-white',   // Approval selesai, menunggu proses
-                            'approved'         => 'bg-blue-500 text-white',   // Legacy tanpa PI
-                            'in_release'       => 'bg-blue-500 text-white',   // Dalam release phase
+                            'in_purchasing'    => 'bg-blue-500 text-white',
+                            'approved'         => 'bg-blue-500 text-white',
+                            'in_release'       => 'bg-blue-500 text-white',
                             'benchmarking'     => 'bg-red-600 text-white',
                             'selected'         => 'bg-yellow-400 text-black',
                             'po_issued'        => 'bg-orange-500 text-white',
@@ -542,7 +175,6 @@ class ReportController extends Controller
                 ['label' => 'Kategori',                        'field' => 'kategori',                'width' => 'w-56'],
                 ['label' => 'Keterangan',                      'field' => 'keterangan',              'width' => 'w-56'],
                 ['label' => 'Qty',                             'field' => 'qty',                     'width' => 'w-20'],
-                // Benchmarking vendors (up to 3)
                 ['label' => 'BM Supplier 1',    'field' => 'bm_supplier_1',   'width' => 'w-56'],
                 ['label' => 'BM Unit Price 1',  'field' => 'bm_unit_price_1', 'width' => 'w-40'],
                 ['label' => 'BM Total Price 1', 'field' => 'bm_total_price_1','width' => 'w-40'],
@@ -552,11 +184,9 @@ class ReportController extends Controller
                 ['label' => 'BM Supplier 3',    'field' => 'bm_supplier_3',   'width' => 'w-56'],
                 ['label' => 'BM Unit Price 3',  'field' => 'bm_unit_price_3', 'width' => 'w-40'],
                 ['label' => 'BM Total Price 3', 'field' => 'bm_total_price_3','width' => 'w-40'],
-                // Preferred vendor
                 ['label' => 'Preferred Supplier',    'field' => 'pref_supplier',   'width' => 'w-56'],
                 ['label' => 'Preferred Unit Price',  'field' => 'pref_unit_price', 'width' => 'w-40'],
                 ['label' => 'Preferred Total Price', 'field' => 'pref_total_price','width' => 'w-40'],
-                // PO/INV/GRN/CYCLE
                 ['label' => 'INV',         'field' => 'invoice',   'width' => 'w-40'],
                 ['label' => 'PO',          'field' => 'po_number', 'width' => 'w-40'],
                 ['label' => 'Tanggal GRN', 'field' => 'grn_date',  'width' => 'w-40'],
@@ -568,8 +198,8 @@ class ReportController extends Controller
             'submissionTypes' => $submissionTypes,
             'departments' => $departments,
             'categories' => $categories,
-            'statusCounts' => $statusCounts,
-            'purchasingCounts'  => $purchasingCounts,
+            'statusCounts' => $counts['statusCounts'],
+            'purchasingCounts'  => $counts['purchasingCounts'],
             'requesterName'     => request('requester_id')
                 ? User::find((int) request('requester_id'))?->name
                 : null,
@@ -578,7 +208,6 @@ class ReportController extends Controller
 
     /**
      * AJAX endpoint: lazy-load filter dropdown options.
-     * Endpoint: GET /ajax/reports/filter-options/{type}?q=search
      */
     public function filterOptions(Request $request, string $type): JsonResponse
     {
@@ -600,542 +229,9 @@ class ReportController extends Controller
         return response()->json($results);
     }
 
-    public function processPurchasing(Request $request, PurchasingTypeService $typeService)
-    {
-        // Authorization: users with manage_purchasing, process_purchasing_item, or manage_vendor may access
-        if (!(auth()->user()?->hasPermission('manage_purchasing') || auth()->user()?->hasPermission('process_purchasing_item') || auth()->user()?->hasPermission('manage_vendor'))) {
-            abort(403, 'Unauthorized action.');
-        }
-        $id = (int) $request->query('purchasing_item_id');
-        if (!$id) {
-            return redirect()->route('reports.approval-requests')->with('error', 'Purchasing Item tidak ditemukan.');
-        }
-
-        $item = \App\Models\PurchasingItem::with([
-            'approvalRequest',
-            'masterItem',
-            'vendors.supplier',
-            'vendors.latestTrial',
-            'preferredVendor',
-        ])->find($id);
-
-        if (!$item) {
-            return redirect()->route('reports.approval-requests')->with('error', 'Purchasing Item tidak ditemukan.');
-        }
-        
-        // Dynamic workflow steps: purchasing + release phases, ordered by step_number.
-        // Including release steps is critical so that the state resolution respects
-        // the full workflow order (e.g. GRN step locked until release steps are done).
-        $purchasingSteps = ApprovalItemStep::where('approval_request_id', $item->approval_request_id)
-            ->where('master_item_id', $item->master_item_id)
-            ->whereIn('step_phase', ['purchasing', 'release'])
-            ->orderBy('step_number')
-            ->get();
-
-        $user = auth()->user();
-        $canPurchasing = $user->hasPermission('manage_purchasing') || $user->hasPermission('process_purchasing_item');
-        $canVendor     = $user->hasPermission('manage_vendor');
-
-        $pSteps = $typeService->resolvePurchasingSteps(
-            $item,
-            $canPurchasing,
-            $canVendor,
-            $purchasingSteps->where('step_phase', 'purchasing'),
-            $purchasingSteps->where('step_phase', 'release'),
-        );
-        
-        // Add status counts for consistency
-        $statusCounts = \App\Models\ApprovalRequestItem::select('status', \DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-            
-        $statusCounts = [
-            'pending' => $statusCounts['pending'] ?? 0,
-            'on_progress' => $statusCounts['on progress'] ?? 0,
-            'approved' => $statusCounts['approved'] ?? 0,
-            'rejected' => $statusCounts['rejected'] ?? 0,
-            'cancelled' => $statusCounts['cancelled'] ?? 0,
-            'in_purchasing' => $statusCounts['in_purchasing'] ?? 0,
-            'in_release' => $statusCounts['in_release'] ?? 0,
-            'done' => $statusCounts['done'] ?? 0,
-        ];
-
-        // Calculate Purchasing Status Counts
-        $piCounts = \App\Models\PurchasingItem::select('status', \DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-
-        $readyButNoPI = \App\Models\ApprovalRequestItem::whereIn('status', ['in_purchasing', 'approved', 'in_release'])
-            ->whereNotExists(function($query) {
-                $query->select(\DB::raw(1))
-                      ->from('purchasing_items')
-                      ->whereColumn('purchasing_items.approval_request_id', 'approval_request_items.approval_request_id')
-                      ->whereColumn('purchasing_items.master_item_id', 'approval_request_items.master_item_id');
-            })
-            ->count();
-
-        $pendingApproval = \App\Models\ApprovalRequestItem::whereIn('status', ['pending', 'on progress'])
-            ->count();
-
-        $totalUnprocessed = ($piCounts['unprocessed'] ?? 0) + $readyButNoPI;
-
-        $purchasingCounts = [
-            'pending_approval' => $pendingApproval,
-            'unprocessed' => $totalUnprocessed,
-            'benchmarking' => $piCounts['benchmarking'] ?? 0,
-            'selected' => $piCounts['selected'] ?? 0,
-            'po_issued' => $piCounts['po_issued'] ?? 0,
-            'grn_received' => $piCounts['grn_received'] ?? 0,
-            'done' => $piCounts['done'] ?? 0,
-        ];
-
-        return view('reports.approval-requests.process-purchasing', compact(
-            'item',
-            'statusCounts',
-            'purchasingCounts',
-            'purchasingSteps',
-            'pSteps',
-            'canPurchasing',
-            'canVendor',
-        ));
-    }
-
-    public function vendorForm(PurchasingItem $purchasingItem)
-    {
-        // Authorization: only users with manage_vendor may access vendor form
-        if (!auth()->user()?->hasPermission('manage_vendor')) {
-            abort(403, 'Unauthorized action.');
-        }
-        $purchasingItem->loadMissing([
-            'approvalRequest',
-            'masterItem',
-            'vendors.supplier',
-            'vendors.latestTrial',
-            'preferredVendor',
-        ]);
-
-        return view('purchasing.items.form-vendor', [
-            'item' => $purchasingItem,
-        ]);
-    }
-
-    // Purchasing Item API methods (moved from PurchasingItemController)
-    public function showPurchasingItemJson(PurchasingItem $purchasingItem)
-    {
-        $purchasingItem->loadMissing([
-            'approvalRequest:id,request_number,received_at',
-            'masterItem:id,name',
-            'vendors.supplier:id,name',
-            'preferredVendor:id,name',
-        ]);
-        return response()->json([
-            'success' => true,
-            'item' => [
-                'id' => $purchasingItem->id,
-                'approval_request_id' => (int) $purchasingItem->approval_request_id,
-                'quantity' => (int) $purchasingItem->quantity,
-                'request_number' => optional($purchasingItem->approvalRequest)->request_number,
-                'item_name' => optional($purchasingItem->masterItem)->name,
-                'received_at' => optional($purchasingItem->approvalRequest?->received_at)?->toDateString(),
-                // preferred info
-                'preferred_vendor_id' => $purchasingItem->preferred_vendor_id,
-                'preferred_vendor_name' => optional($purchasingItem->preferredVendor)->name,
-                'preferred_unit_price' => $purchasingItem->preferred_unit_price,
-                'preferred_total_price' => $purchasingItem->preferred_total_price,
-                // PO/INV/GRN
-                'po_number' => $purchasingItem->po_number,
-                'grn_date' => optional($purchasingItem->grn_date)?->toDateString(),
-                'invoice_number' => $purchasingItem->invoice_number,
-                'proc_cycle_days' => $purchasingItem->proc_cycle_days,
-                'vendors' => $purchasingItem->vendors->map(function($v){
-                    return [
-                        'supplier_id' => (int) $v->supplier_id,
-                        'supplier_name' => optional($v->supplier)->name,
-                        'unit_price' => $v->unit_price,
-                        'total_price' => $v->total_price,
-                    ];
-                })->values(),
-            ],
-        ]);
-    }
-
-    public function resolvePurchasingItemByRequestAndItem(Request $request)
-    {
-        $data = $request->validate([
-            'approval_request_id' => 'required|integer|exists:approval_requests,id',
-            'master_item_id' => 'required|integer|exists:master_items,id',
-        ]);
-        
-        $approvalRequest = ApprovalRequest::find($data['approval_request_id']);
-        
-        // Find the specific item to check its status
-        $requestItem = \App\Models\ApprovalRequestItem::where('approval_request_id', $data['approval_request_id'])
-            ->where('master_item_id', $data['master_item_id'])
-            ->first();
-
-        // Allow if item is in purchasing phase OR request is approved (legacy)
-        $isReady = false;
-        if ($approvalRequest->status === 'approved') {
-            $isReady = true;
-        } elseif ($requestItem && in_array($requestItem->status, ['in_purchasing', 'approved', 'in_release'])) {
-            $isReady = true;
-        }
-
-        if (!$isReady) {
-            return response()->json(['error' => 'Item belum siap untuk purchasing (Status: '.($requestItem->status ?? 'unknown').')'], 400);
-        }
-        
-        $item = PurchasingItem::firstOrCreate(
-            [
-                'approval_request_id' => $data['approval_request_id'],
-                'master_item_id' => $data['master_item_id'],
-            ],
-            [
-                'quantity' => 1,
-                'status' => 'unprocessed',
-            ]
-        );
-        
-        return response()->json(['id' => $item->id]);
-    }
-
-    public function saveBenchmarking(Request $request, PurchasingItem $purchasingItem)
-    {
-        if (!(auth()->user()?->hasPermission('manage_vendor') || auth()->user()?->hasPermission('manage_purchasing'))) {
-            abort(403, 'Unauthorized action.');
-        }
-        // Pre-filter rows: only keep rows that have a supplier selected before validation.
-        if ($request->has('vendors') && is_array($request->vendors)) {
-            $filteredVendors = array_filter($request->vendors, function($v) {
-                return isset($v['supplier_id']) && !empty($v['supplier_id']);
-            });
-            $request->merge(['vendors' => $filteredVendors]);
-        }
-
-        // Validate vendors and benchmark_notes
-        $data = $request->validate([
-            'vendors' => 'required|array|min:1',
-            'vendors.*.supplier_id' => 'required|integer|exists:suppliers,id',
-            'vendors.*.unit_price' => 'nullable|numeric|min:0|max:999999999999.99',
-            'vendors.*.total_price' => 'nullable|numeric|min:0|max:999999999999.99',
-            'vendors.*.notes' => 'nullable|string|max:255',
-            'benchmark_notes' => 'nullable|string|max:2000',
-        ], [
-            'vendors.min' => 'Silakan pilih minimal 1 vendor benchmarking.',
-            'vendors.*.supplier_id.required' => 'Supplier harus dipilih.',
-        ]);
-
-        $rows = $data['vendors'];
-
-        // Save benchmarking vendors
-        $service = app(PurchasingItemService::class);
-        $service->saveBenchmarking($purchasingItem, $rows);
-        
-        // Save benchmark notes
-        $purchasingItem->update([
-            'benchmark_notes' => $request->input('benchmark_notes'),
-        ]);
-        
-        return back()->with('success', 'Benchmarking dan catatan berhasil disimpan.');
-    }
-
-    public function receiveDocAndBenchmarking(Request $request, PurchasingItem $purchasingItem)
-    {
-        // Pre-filter rows: only keep rows that have a supplier selected before validation.
-        if ($request->has('vendors') && is_array($request->vendors)) {
-            $filteredVendors = array_filter($request->vendors, function($v) {
-                return isset($v['supplier_id']) && !empty($v['supplier_id']);
-            });
-            $request->merge(['vendors' => $filteredVendors]);
-        }
-
-        // Purchasing role (process_purchasing_item) is the actor for this merged step.
-        $data = $request->validate([
-            'received_at' => 'required|date',
-            'vendors' => 'required|array|min:1',
-            'vendors.*.supplier_id' => 'required|integer|exists:suppliers,id',
-            'vendors.*.unit_price' => 'nullable|numeric|min:0|max:999999999999.99',
-            'vendors.*.total_price' => 'nullable|numeric|min:0|max:999999999999.99',
-            'vendors.*.notes' => 'nullable|string|max:255',
-            'benchmark_notes' => 'nullable|string|max:2000',
-        ], [
-            'vendors.min' => 'Silakan pilih minimal 1 vendor benchmarking.',
-            'vendors.*.supplier_id.required' => 'Supplier harus dipilih.',
-        ]);
-
-        $rows = $data['vendors'];
-
-        $service = app(PurchasingItemService::class);
-        $service->receiveDocAndBenchmarking(
-            $purchasingItem,
-            \Carbon\Carbon::parse($data['received_at']),
-            $rows,
-            $data['benchmark_notes'] ?? null
-        );
-
-        return back()->with('success', 'Tanggal diterima dan benchmarking berhasil disimpan.');
-    }
-
-    public function saveTrial(Request $request, PurchasingItem $purchasingItem)
-    {
-        $data = $request->validate([
-            'trials' => 'required|array|min:1',
-            'trials.*.purchasing_item_vendor_id' => 'required|integer',
-            'trials.*.trial_notes' => 'nullable|string|max:2000',
-        ]);
-
-        $service = app(PurchasingItemService::class);
-        $service->saveTrial($purchasingItem, $data['trials']);
-
-        return back()->with('success', 'Trial notes berhasil disimpan.');
-    }
-
-    public function invoiceGrnDone(Request $request, PurchasingItem $purchasingItem)
-    {
-        $data = $request->validate([
-            'invoice_number' => 'required|string|max:100',
-            'grn_date' => 'required|date',
-            'done_notes' => 'nullable|string|max:1000',
-        ]);
-
-        $service = app(PurchasingItemService::class);
-        $service->invoiceGrnDone(
-            $purchasingItem,
-            (string) $data['invoice_number'],
-            \Carbon\Carbon::parse($data['grn_date']),
-            $data['done_notes'] ?? null
-        );
-
-        return back()->with('success', 'Invoice, GRN, dan DONE berhasil disimpan.');
-    }
-
-    public function selectPreferred(Request $request, PurchasingItem $purchasingItem)
-    {
-        if (!auth()->user()?->hasPermission('manage_vendor')) {
-            abort(403, 'Hanya Manager Keuangan (manage_vendor) yang dapat memilih preferred vendor.');
-        }
-        $data = $request->validate([
-            'supplier_id' => 'required|integer|exists:suppliers,id',
-            'unit_price' => 'nullable|numeric|min:0|max:999999999999.99',
-            'total_price' => 'nullable|numeric|min:0|max:999999999999.99',
-        ]);
-
-        $service = app(PurchasingItemService::class);
-        $service->selectPreferred(
-            $purchasingItem,
-            (int) $data['supplier_id'],
-            isset($data['unit_price']) ? (float) $data['unit_price'] : null,
-            isset($data['total_price']) ? (float) $data['total_price'] : null,
-        );
-        
-        return back()->with('success', 'Preferred vendor berhasil disimpan.');
-    }
-
-    public function issuePO(Request $request, PurchasingItem $purchasingItem)
-    {
-        $data = $request->validate([
-            'po_number' => 'required|string|max:255',
-        ]);
-
-        $service = app(PurchasingItemService::class);
-        $service->issuePO($purchasingItem, (string) $data['po_number']);
-        
-        return back()->with('success', 'PO Number berhasil disimpan.');
-    }
-
-    public function receiveGRN(Request $request, PurchasingItem $purchasingItem)
-    {
-        $data = $request->validate([
-            'invoice_number' => 'required|string|max:100',
-            'grn_date' => 'required|date',
-        ]);
-
-        $service = app(PurchasingItemService::class);
-        $service->receiveGRN($purchasingItem, \Carbon\Carbon::parse($data['grn_date']));
-        
-        // Also save invoice number
-        $purchasingItem->update(['invoice_number' => $data['invoice_number']]);
-        
-        return back()->with('success', 'Nomor Invoice & Tanggal GRN berhasil disimpan.');
-    }
-
-    public function markDone(Request $request, PurchasingItem $purchasingItem)
-    {
-        $data = $request->validate([
-            'done_notes' => 'nullable|string|max:1000',
-        ]);
-        $service = app(PurchasingItemService::class);
-        $service->markDone($purchasingItem, $data['done_notes'] ?? null);
-        
-        return back()->with('success', 'Item berhasil ditandai sebagai DONE.');
-    }
-
-    public function saveInvoice(Request $request, PurchasingItem $purchasingItem)
-    {
-        $data = $request->validate([
-            'invoice_number' => 'required|string|max:255',
-        ]);
-
-        $service = app(PurchasingItemService::class);
-        // Some codebases store invoice on PurchasingItem directly; if your service has saveInvoice(PurchasingItem, string), pass the string value
-        if (method_exists($service, 'saveInvoice')) {
-            try {
-                // Try signature with string
-                $service->saveInvoice($purchasingItem, (string) $data['invoice_number']);
-            } catch (\TypeError $e) {
-                // Fallback in case service expects array (older version)
-                $service->saveInvoice($purchasingItem, $data);
-            }
-        } else {
-            // Fallback: update directly if no service method
-            $purchasingItem->update(['invoice_number' => (string) $data['invoice_number']]);
-        }
-        
-        \App\Models\ApprovalItemStep::syncPurchasingStep($purchasingItem->approval_request_id, $purchasingItem->master_item_id, 'purchasing_invoice');
-        \App\Models\ApprovalItemStep::syncPurchasingStep($purchasingItem->approval_request_id, $purchasingItem->master_item_id, 'purchasing_invoice_grn_done');
-
-        return back()->with('success', 'Invoice Number berhasil disimpan.');
-    }
-
-    public function deletePurchasingItem(PurchasingItem $purchasingItem)
-    {
-        try {
-            // Check if user has permission
-            if (!auth()->user()->hasPermission('manage_purchasing')) {
-                return redirect()->back()->with('error', 'Unauthorized');
-            }
-            
-            // Delete related vendor benchmarking data
-            $purchasingItem->vendors()->detach();
-            
-            // Delete the purchasing item
-            $purchasingItem->delete();
-            
-            return redirect()->route('reports.approval-requests')
-                ->with('success', 'Purchasing item berhasil dihapus');
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Gagal menghapus purchasing item: ' . $e->getMessage());
-        }
-    }
-
     public function exportApprovalRequests(Request $request)
     {
-        // Apply same filters as index
-        $q = ApprovalRequest::query()
-            ->with([
-                'submissionType:id,name',
-                'requester.departments' => function($q){ $q->wherePivot('is_primary', true); },
-                'items.masterItem' => function($q){
-                    $q->select('id','name','item_category_id')
-                      ->with(['itemCategory:id,name']);
-                },
-                'purchasingItems' => function($pi){
-                    $pi->select('id','approval_request_id','master_item_id','quantity','status','po_number','grn_date','proc_cycle_days','invoice_number','preferred_vendor_id','preferred_unit_price','preferred_total_price')
-                       ->with(['vendors' => function($v){ $v->with('supplier:id,name'); }]);
-                },
-            ]);
-
-        // Default purchasing_status filter to unprocessed if not present in request
-        if (!$request->has('purchasing_status')) {
-            $request->merge(['purchasing_status' => 'unprocessed']);
-        }
-
-        // Apply filters (same as index method)
-        if ($request->filled('date_from')) {
-            $q->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $q->whereDate('created_at', '<=', $request->date_to);
-        }
-        if ($request->filled('submission_type_id')) {
-            $q->where('submission_type_id', $request->submission_type_id);
-        }
-        if ($request->filled('department_id')) {
-            $deptId = (int) $request->department_id;
-            $q->whereHas('requester.departments', function($w) use($deptId){
-                $w->where('departments.id', $deptId)->where('user_departments.is_primary', true);
-            });
-        }
-        if ($request->filled('status')) {
-            $q->where('status', $request->status);
-        } else {
-            // Default: exclude rejected and cancelled requests
-            $q->whereNotIn('status', ['rejected', 'cancelled']);
-        }
-        if ($request->filled('requester_id')) {
-            $q->where('requester_id', (int) $request->requester_id);
-        }
-        // Filter by purchasing item status if provided
-        if ($request->filled('purchasing_status')) {
-            $ps = $request->purchasing_status;
-            if ($ps === 'pending_approval') {
-                $q->whereHas('items', function($i) {
-                    $i->whereIn('status', ['pending', 'on progress']);
-                });
-            } elseif ($ps === 'unprocessed') {
-                $q->where(function($w) {
-                    $w->whereHas('items', function($i) {
-                        $i->whereIn('status', ['in_purchasing', 'approved', 'in_release']);
-                    })->where(function($w2) {
-                        $w2->whereHas('purchasingItems', function($pi) {
-                            $pi->where('status', 'unprocessed');
-                        })->orWhereDoesntHave('purchasingItems');
-                    });
-                });
-            } else {
-                $q->whereHas('purchasingItems', function($pi) use ($ps) {
-                    $pi->where('status', $ps);
-                });
-            }
-        }
-        if ($request->filled('year')) {
-            $q->whereYear('created_at', (int)$request->year);
-        }
-        if ($request->filled('category_id')) {
-            $q->whereHas('items.masterItem.itemCategory', function($w) use ($request){
-                $w->where('item_categories.id', $request->category_id);
-            });
-        }
-        if ($s = trim((string)$request->get('search', ''))) {
-            $q->where(function($w) use ($s){
-                $w->where('request_number', 'ilike', "%$s%")
-                  ->orWhereHas('requester', function($r) use($s){
-                      $r->where('name', 'ilike', "%$s%");
-                  })
-                  ->orWhereHas('requester.departments', function($d) use($s){
-                      $d->where('name', 'ilike', "%$s%");
-                  })
-                  ->orWhereHas('items.masterItem', function($mi) use($s){
-                      $mi->where('name', 'ilike', "%$s%");
-                  })
-                  ->orWhere('created_at', 'ilike', "%$s%");
-
-                // Mapping status Indonesian -> code
-                $statusMap = [
-                    'menunggu approval' => ['pending', 'on progress'],
-                    'belum diproses'   => ['unprocessed'],
-                    'pemilihan vendor' => ['benchmarking'],
-                    'proses pr & po'   => ['selected'],
-                    'proses di vendor' => ['po_issued'],
-                    'barang diterima'  => ['grn_received'],
-                    'selesai'          => ['done'],
-                ];
-                $sLower = strtolower($s);
-                foreach ($statusMap as $key => $codes) {
-                    if (str_contains($key, $sLower)) {
-                        $w->orWhereHas('items', function($i) use($codes) {
-                            $i->whereIn('status', $codes);
-                        })->orWhereHas('purchasingItems', function($pi) use($codes) {
-                            $pi->whereIn('status', $codes);
-                        });
-                    }
-                }
-            });
-        }
-
+        $q = $this->reportService->buildBaseQuery($request);
         $requests = $q->get();
         $deptMap = Department::pluck('name', 'id');
 
@@ -1153,142 +249,41 @@ class ReportController extends Controller
         ];
         $csvData[] = $headers;
 
-        foreach ($requests as $req) {
-            $primaryDept = optional($req->requester?->departments?->first())->name;
-            $procurementYear = $req->procurement_year ?? ($req->created_at?->format('Y'));
-            $createdAt = $req->created_at;
-            $receivedAt = $req->received_at ? \Carbon\Carbon::parse($req->received_at) : null;
-            if ($createdAt && $receivedAt) {
-                $ageSeconds = $createdAt->diffInRealSeconds($receivedAt, false);
-                $ageDays = $ageSeconds <= 0 ? 0.0 : ($ageSeconds / 86400);
-            } else {
-                $ageDays = null;
-            }
-            foreach ($req->items as $item) {
-                // Skip rejected or cancelled items — they don't belong in the purchasing report
-                if (in_array($item->status, ['rejected', 'cancelled'])) {
-                    continue;
-                }
+        $rows = $this->reportService->mapToReportRows($requests, $deptMap, $request);
 
-                $m = $item->masterItem;
-                $qty = (int) ($item->quantity ?? 0);
-                $spec = $item->specification ?? null;
-                $notes = $item->notes ?? null;
-                $pi = $req->purchasingItems?->firstWhere('master_item_id', $m->id);
-
-                // Determine purchasing status code for THIS item
-                if ($pi) {
-                    $itemPurchasingStatusCode = $pi->status;
-                } else {
-                    // If no purchasing item, check approval_request_item status
-                    if (in_array($item->status, ['in_purchasing', 'approved', 'in_release'])) {
-                        // Approval selesai, tapi purchasing item belum dibuat
-                        // Tampilkan berdasarkan item status secara spesifik
-                        $itemPurchasingStatusCode = $item->status; // 'in_purchasing', 'approved', atau 'in_release'
-                    } else {
-                        $itemPurchasingStatusCode = 'pending_approval'; // Masih dalam proses approval
-                    }
-                }
-
-                // Filter items by purchasing status if filter is active
-                if ($request->filled('purchasing_status')) {
-                    $psFilter = $request->purchasing_status;
-                    if ($psFilter === 'pending_approval') {
-                        if ($itemPurchasingStatusCode !== 'pending_approval') {
-                            continue;
-                        }
-                    } elseif ($psFilter === 'unprocessed') {
-                        if (!in_array($itemPurchasingStatusCode, ['unprocessed', 'in_purchasing', 'approved', 'in_release'])) {
-                            continue;
-                        }
-                    } else {
-                        if ($itemPurchasingStatusCode !== $psFilter) {
-                            continue;
-                        }
-                    }
-                }
-
-                $itemPurchasingStatusText = match($itemPurchasingStatusCode) {
-                    'pending_approval' => 'Menunggu Approval',
-                    'unprocessed'      => 'Belum diproses',
-                    'in_purchasing'    => 'Menunggu Proses',   // Approval selesai, belum ada PI
-                    'approved'         => 'Menunggu Proses',   // Legacy: approved tapi belum ada PI
-                    'in_release'       => 'Menunggu Proses',   // Dalam release phase
-                    'benchmarking'     => 'Pemilihan vendor',
-                    'selected'         => 'Proses PR & PO',
-                    'po_issued'        => 'Proses di vendor',
-                    'grn_received'     => 'Barang diterima',
-                    'done'             => 'Selesai',
-                    default            => strtoupper($itemPurchasingStatusCode),
-                };
-                
-                // Benchmarking vendors
-                $bench = [null, null, null];
-                if ($pi && $pi->relationLoaded('vendors')) {
-                    $vendors = $pi->vendors->take(3)->values();
-                    foreach ($vendors as $idx => $v) {
-                        $bench[$idx] = [
-                            'supplier' => $v->supplier->name ?? '-',
-                            'unit_price' => is_null($v->unit_price) ? '-' : $v->unit_price,
-                            'total_price' => is_null($v->total_price) ? '-' : $v->total_price,
-                        ];
-                    }
-                }
-
-                // Preferred vendor
-                $preferred = ['supplier' => '-', 'unit_price' => '-', 'total_price' => '-'];
-                if ($pi) {
-                    $prefVendor = $pi->vendors?->firstWhere('supplier_id', $pi->preferred_vendor_id);
-                    if ($prefVendor) {
-                        $preferred['supplier'] = $prefVendor->supplier->name ?? ('Supplier #'.$prefVendor->supplier_id);
-                    }
-                    if (!is_null($pi->preferred_unit_price)) {
-                        $preferred['unit_price'] = $pi->preferred_unit_price;
-                    }
-                    if (!is_null($pi->preferred_total_price)) {
-                        $preferred['total_price'] = $pi->preferred_total_price;
-                    }
-                }
-
-                $grnAt = $pi && $pi->grn_date ? \Carbon\Carbon::parse($pi->grn_date) : null;
-                $procDays = ($createdAt && $grnAt) ? $createdAt->diffInRealDays($grnAt) : null;
-                $ageText = $ageDays !== null ? number_format((float)$ageDays, 1, ',', '.') : '-';
-                $procText = $procDays !== null ? number_format((float)$procDays, 1, ',', '.') : '-';
-
-                $csvData[] = [
-                    $req->request_number ?? '-',
-                    $itemPurchasingStatusText,
-                    $m->name ?? '-',
-                    $primaryDept ?? '-',
-                    $createdAt?->format('Y-m-d') ?? '-',
-                    $req->received_at ? \Carbon\Carbon::parse($req->received_at)->format('Y-m-d') : '-',
-                    $ageText,
-                    $item->letter_number ?? '-',
-                    $procurementYear ?? '-',
-                    $spec ?: '-',
-                    ($item->allocation_department_id && isset($deptMap[$item->allocation_department_id]))
-                        ? $deptMap[$item->allocation_department_id] : '-',
-                    $m->itemCategory?->name ?? '-',
-                    $notes ?: '-',
-                    $qty,
-                    $bench[0]['supplier'] ?? '-',
-                    $bench[0]['unit_price'] ?? '-',
-                    $bench[0]['total_price'] ?? '-',
-                    $bench[1]['supplier'] ?? '-',
-                    $bench[1]['unit_price'] ?? '-',
-                    $bench[1]['total_price'] ?? '-',
-                    $bench[2]['supplier'] ?? '-',
-                    $bench[2]['unit_price'] ?? '-',
-                    $bench[2]['total_price'] ?? '-',
-                    $preferred['supplier'],
-                    $preferred['unit_price'],
-                    $preferred['total_price'],
-                    $pi?->invoice_number ?? '-',
-                    $pi?->po_number ?? '-',
-                    $pi?->grn_date ? \Carbon\Carbon::parse($pi->grn_date)->format('Y-m-d') : '-',
-                    $procText
-                ];
-            }
+        foreach ($rows as $row) {
+            $csvData[] = [
+                $row['no_input'],
+                $row['process'],
+                $row['jenis'],
+                $row['unit_pengaju'],
+                $row['tanggal_pengajuan'],
+                $row['tanggal_terima_dokumen'],
+                $row['raw_umur_pengajuan'],
+                $row['no_surat'],
+                $row['tahun_pengadaan'],
+                $row['detail'],
+                $row['unit_peruntukan'],
+                $row['kategori'],
+                $row['keterangan'],
+                $row['qty'],
+                $row['benchmarking'][0]['supplier'] ?? '-',
+                $row['benchmarking'][0]['raw_unit_price'] ?? '-',
+                $row['benchmarking'][0]['raw_total_price'] ?? '-',
+                $row['benchmarking'][1]['supplier'] ?? '-',
+                $row['benchmarking'][1]['raw_unit_price'] ?? '-',
+                $row['benchmarking'][1]['raw_total_price'] ?? '-',
+                $row['benchmarking'][2]['supplier'] ?? '-',
+                $row['benchmarking'][2]['raw_unit_price'] ?? '-',
+                $row['benchmarking'][2]['raw_total_price'] ?? '-',
+                $row['preferred']['supplier'],
+                $row['preferred']['raw_unit_price'],
+                $row['preferred']['raw_total_price'],
+                $row['invoice'],
+                $row['po_number'],
+                $row['grn_date'],
+                $row['raw_proc_cycle']
+            ];
         }
 
         // Generate CSV
@@ -1307,7 +302,7 @@ class ReportController extends Controller
         fclose($handle);
 
         return response($csv, 200, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
     }

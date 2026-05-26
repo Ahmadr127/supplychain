@@ -82,10 +82,7 @@ class ReleaseRequestController extends Controller
     public function approve(Request $request, ApprovalRequestItem $item)
     {
         // Redirect to the standard approval route
-        return redirect()->route('approval-requests.show', [
-            'approvalRequest' => $item->approval_request_id,
-            'item_id' => $item->id
-        ]);
+        return redirect()->route('approval-items.show', $item->id);
     }
 
     /**
@@ -94,10 +91,7 @@ class ReleaseRequestController extends Controller
      */
     public function reject(Request $request, ApprovalRequestItem $item)
     {
-        return redirect()->route('approval-requests.show', [
-            'approvalRequest' => $item->approval_request_id,
-            'item_id' => $item->id
-        ]);
+        return redirect()->route('approval-items.show', $item->id);
     }
 
     /**

@@ -17,6 +17,7 @@ use App\Http\Controllers\UnitController;
 use App\Http\Controllers\ItemLookupController;
 use App\Http\Controllers\SubmissionTypeController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\PurchasingProcessController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierLookupController;
 use App\Http\Controllers\SettingController;
@@ -233,8 +234,8 @@ Route::middleware('auth')->group(function () {
         Route::post('approval-requests/{approvalRequest}/cancel', [ApprovalRequestController::class, 'cancel'])->name('approval-requests.cancel');
     });
     
-    // Show approval request
-    Route::get('approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'show'])->name('approval-requests.show');
+    // Show approval request item (NEW per-item details)
+    Route::get('approval-items/{approvalItem}', [ApprovalRequestItemController::class, 'show'])->name('approval-items.show');
 
     // User-specific approval routes
     Route::middleware('permission:view_my_approvals')->group(function () {
@@ -293,37 +294,37 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('permission:process_purchasing_item|manage_vendor')->group(function () {
         // Report Purchasing process page (server-rendered)
-        Route::get('reports/approval-requests/process-purchasing', [\App\Http\Controllers\ReportController::class, 'processPurchasing'])
+        Route::get('reports/approval-requests/process-purchasing', [PurchasingProcessController::class, 'processPurchasing'])
             ->name('reports.approval-requests.process-purchasing');
         // Set received date for approval request (tanggal diterima)
         Route::post('approval-requests/{approvalRequest}/received-date', [\App\Http\Controllers\ApprovalRequestController::class, 'setReceivedDate'])
             ->name('approval-requests.set-received-date');
         
-        // Purchasing API endpoints (now handled by ReportController)
-        Route::post('purchasing/items/{purchasingItem}/receive-doc-benchmark', [\App\Http\Controllers\ReportController::class, 'receiveDocAndBenchmarking'])
+        // Purchasing API endpoints
+        Route::post('purchasing/items/{purchasingItem}/receive-doc-benchmark', [PurchasingProcessController::class, 'receiveDocAndBenchmarking'])
             ->name('purchasing.items.receive-doc-benchmark');
-        Route::post('purchasing/items/{purchasingItem}/trial', [\App\Http\Controllers\ReportController::class, 'saveTrial'])
+        Route::post('purchasing/items/{purchasingItem}/trial', [PurchasingProcessController::class, 'saveTrial'])
             ->name('purchasing.items.trial');
-        Route::post('purchasing/items/{purchasingItem}/invoice-grn-done', [\App\Http\Controllers\ReportController::class, 'invoiceGrnDone'])
+        Route::post('purchasing/items/{purchasingItem}/invoice-grn-done', [PurchasingProcessController::class, 'invoiceGrnDone'])
             ->name('purchasing.items.invoice-grn-done');
-        Route::post('purchasing/items/{purchasingItem}/po', [\App\Http\Controllers\ReportController::class, 'issuePO'])
+        Route::post('purchasing/items/{purchasingItem}/po', [PurchasingProcessController::class, 'issuePO'])
             ->name('purchasing.items.po');
-        Route::post('purchasing/items/{purchasingItem}/grn', [\App\Http\Controllers\ReportController::class, 'receiveGRN'])
+        Route::post('purchasing/items/{purchasingItem}/grn', [PurchasingProcessController::class, 'receiveGRN'])
             ->name('purchasing.items.grn');
-        Route::post('purchasing/items/{purchasingItem}/done', [\App\Http\Controllers\ReportController::class, 'markDone'])
+        Route::post('purchasing/items/{purchasingItem}/done', [PurchasingProcessController::class, 'markDone'])
             ->name('purchasing.items.done');
-        Route::post('purchasing/items/{purchasingItem}/invoice', [\App\Http\Controllers\ReportController::class, 'saveInvoice'])
+        Route::post('purchasing/items/{purchasingItem}/invoice', [PurchasingProcessController::class, 'saveInvoice'])
             ->name('purchasing.items.invoice');
-        Route::delete('purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'deletePurchasingItem'])
+        Route::delete('purchasing/items/{purchasingItem}', [PurchasingProcessController::class, 'deletePurchasingItem'])
             ->name('purchasing.items.delete');
     });
     
     // Standalone vendor form page + vendor actions (permission checked in controller to allow OR logic)
-    Route::post('purchasing/items/{purchasingItem}/benchmarking', [ReportController::class, 'saveBenchmarking'])
+    Route::post('purchasing/items/{purchasingItem}/benchmarking', [PurchasingProcessController::class, 'saveBenchmarking'])
         ->name('purchasing.items.benchmarking');
-    Route::post('purchasing/items/{purchasingItem}/preferred', [ReportController::class, 'selectPreferred'])
+    Route::post('purchasing/items/{purchasingItem}/preferred', [PurchasingProcessController::class, 'selectPreferred'])
         ->name('purchasing.items.preferred');
-    Route::get('purchasing/items/{purchasingItem}/vendor', [ReportController::class, 'vendorForm'])
+    Route::get('purchasing/items/{purchasingItem}/vendor', [PurchasingProcessController::class, 'vendorForm'])
         ->name('purchasing.items.vendor');
     
     // Export route for reports
@@ -348,10 +349,10 @@ Route::middleware('auth')->group(function () {
     Route::get('ajax/suppliers/suggest', [SupplierLookupController::class, 'suggest'])->name('api.suppliers.suggest');
     Route::post('ajax/suppliers/resolve', [SupplierLookupController::class, 'resolve'])->name('api.suppliers.resolve');
 
-    // Purchasing item lookup endpoints (now handled by ReportController)
-    Route::get('ajax/purchasing/items/{purchasingItem}', [\App\Http\Controllers\ReportController::class, 'showPurchasingItemJson'])
+    // Purchasing item lookup endpoints
+    Route::get('ajax/purchasing/items/{purchasingItem}', [PurchasingProcessController::class, 'showPurchasingItemJson'])
         ->name('api.purchasing.items.show');
-    Route::post('ajax/purchasing/items/resolve', [\App\Http\Controllers\ReportController::class, 'resolvePurchasingItemByRequestAndItem'])
+    Route::post('ajax/purchasing/items/resolve', [PurchasingProcessController::class, 'resolvePurchasingItemByRequestAndItem'])
         ->name('api.purchasing.items.resolve');
     // Filter options AJAX for reports page (lazy-load dropdowns)
     Route::get('ajax/reports/filter-options/{type}', [\App\Http\Controllers\ReportController::class, 'filterOptions'])

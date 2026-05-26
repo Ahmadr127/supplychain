@@ -23,7 +23,7 @@
                     placeholder="{{ $searchPlaceholder }}"
                     class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     x-model="filters.search"
-                    @input.debounce.300ms="applyFilters()"
+                    @keydown.enter="applyFilters()"
                 >
             </div>
         </div>
@@ -38,7 +38,7 @@
                 name="date_from"
                 value="{{ request('date_from') }}"
                 x-model="filters.dateFrom"
-                @change="applyFilters()"
+                @keydown.enter="applyFilters()"
                 class="block w-full px-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
         </div>
@@ -51,7 +51,7 @@
                 name="date_to"
                 value="{{ request('date_to') }}"
                 x-model="filters.dateTo"
-                @change="applyFilters()"
+                @keydown.enter="applyFilters()"
                 class="block w-full px-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
         </div>
@@ -63,13 +63,7 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">Filter Role</label>
             <button @click="roleOpen = !roleOpen" 
                     class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 flex justify-between items-center">
-                <span>
-                    @if(request('role_id'))
-                        <span x-text="roles.find(r => r.id == filters.roleId)?.display_name || 'Pilih Role'"></span>
-                    @else
-                        <span>Semua Role</span>
-                    @endif
-                </span>
+                <span x-text="filters.roleId ? (roles.find(r => r.id == filters.roleId)?.display_name || 'Pilih Role') : 'Semua Role'"></span>
                 <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
                 </svg>
@@ -272,13 +266,11 @@ document.addEventListener('alpine:init', () => {
         selectRole(roleId) {
             this.filters.roleId = roleId;
             this.roleOpen = false;
-            this.applyFilters();
         },
 
         clearRole() {
             this.filters.roleId = '';
             this.roleSearch = '';
-            this.applyFilters();
         }
     }));
 });

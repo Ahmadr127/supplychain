@@ -159,7 +159,7 @@
                         {{-- Aksi --}}
                         <td class="px-4 py-3 text-center">
                             @if($canApprove && $request && $item)
-                                <a href="{{ route('approval-requests.show', ['approvalRequest' => $request->id, 'item_id' => $item->id]) }}"
+                                <a href="{{ route('approval-items.show', $item->id) }}"
                                    class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-purple-600 hover:bg-purple-700 transition-colors">
                                     <i class="fas fa-paper-plane mr-1"></i>Proses
                                 </a>

@@ -93,10 +93,7 @@ class RecentUpdatesService
                         'icon' => 'fas fa-exclamation-circle',
                         'color' => 'yellow',
                         'timestamp' => $step->created_at,
-                        'url' => route('approval-requests.show', [
-                            'approvalRequest' => $step->approval_request_id,
-                            'item_id' => $step->approval_request_item_id
-                        ]),
+                        'url' => route('approval-items.show', $step->approval_request_item_id),
                         'sort_priority' => 10,
                     ];
                 });
@@ -130,10 +127,7 @@ class RecentUpdatesService
                         'icon' => 'fas fa-box-open', 
                         'color' => 'red', 
                         'timestamp' => $step->created_at,
-                        'url' => route('approval-requests.show', [
-                            'approvalRequest' => $step->approval_request_id,
-                            'item_id' => $step->approval_request_item_id
-                        ]),
+                        'url' => route('approval-items.show', $step->approval_request_item_id),
                         'sort_priority' => 9, 
                     ];
                 });
@@ -158,10 +152,7 @@ class RecentUpdatesService
                         'icon' => $isApproved ? 'fas fa-check-circle' : 'fas fa-times-circle',
                         'color' => $isApproved ? 'green' : 'red',
                         'timestamp' => $step->approved_at,
-                        'url' => route('approval-requests.show', [
-                            'approvalRequest' => $step->approval_request_id,
-                            'item_id' => $step->approval_request_item_id
-                        ]),
+                        'url' => route('approval-items.show', $step->approval_request_item_id),
                         'sort_priority' => 5, 
                     ];
                 });
@@ -219,7 +210,9 @@ class RecentUpdatesService
                         'icon' => 'fas fa-file-alt',
                         'color' => 'blue',
                         'timestamp' => $request->created_at,
-                        'url' => route('approval-requests.show', $request->id),
+                        'url' => ($firstItem = $request->items->first()) 
+                            ? route('approval-items.show', $firstItem->id) 
+                            : route('approval-requests.index'),
                         'sort_priority' => 1, 
                     ];
                 });

@@ -108,7 +108,7 @@
 </div>
 
 <div class="flex justify-end space-x-3 mt-2">
-    <a href="{{ $isEdit ? route('approval-requests.show', $approvalRequest) : route('approval-requests.index') }}"
+    <a href="{{ $isEdit && $approvalRequest->items->first() ? route('approval-items.show', $approvalRequest->items->first()) : route('approval-requests.index') }}"
         class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-1 px-6 rounded-lg transition-colors duration-200">
         Batal
     </a>
