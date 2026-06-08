@@ -6,6 +6,8 @@ use App\Models\ApprovalWorkflow;
 use App\Models\Role;
 use App\Models\Department;
 use App\Models\User;
+use App\Models\ItemCategory;
+use App\Models\TsCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -45,7 +47,9 @@ class ApprovalWorkflowController extends Controller
         $roles = Role::all();
         $departments = Department::where('is_active', true)->get();
         $users = User::with('role')->get();
-        return view('approval-workflows.create', compact('roles', 'departments', 'users'));
+        $itemCategories = ItemCategory::where('is_active', true)->get();
+        $tsCategories = TsCategory::where('is_active', true)->get();
+        return view('approval-workflows.create', compact('roles', 'departments', 'users', 'itemCategories', 'tsCategories'));
     }
 
     public function store(Request $request)
@@ -63,7 +67,12 @@ class ApprovalWorkflowController extends Controller
             'workflow_steps.*.approver_id' => 'required_if:workflow_steps.*.approver_type,user|nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'required_if:workflow_steps.*.approver_type,role|nullable|exists:roles,id',
             'workflow_steps.*.approver_department_id' => 'required_if:workflow_steps.*.approver_type,department_manager|nullable|exists:departments,id',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'ts_approver_type' => 'nullable|in:user,role,department_manager',
+            'ts_approver_id' => 'required_if:ts_approver_type,user|nullable|exists:users,id',
+            'ts_approver_role_id' => 'required_if:ts_approver_type,role|nullable|exists:roles,id',
+            'ts_categories' => 'nullable|array',
+            'ts_categories.*' => 'exists:ts_categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -92,7 +101,16 @@ class ApprovalWorkflowController extends Controller
             'steps'                  => $workflowSteps,
             'is_active'              => $request->has('is_active'),
             'purchasing_step_config' => $this->processPurchasingStepConfig($request->purchasing_step_config),
+            'ts_approver_type'       => $request->ts_approver_type,
+            'ts_approver_id'         => $request->ts_approver_type === 'user' ? $request->ts_approver_id : null,
+            'ts_approver_role_id'    => $request->ts_approver_type === 'role' ? $request->ts_approver_role_id : null,
         ]);
+
+        if ($request->has('ts_categories')) {
+            $workflow->tsCategories()->sync($request->ts_categories);
+        } else {
+            $workflow->tsCategories()->detach();
+        }
 
         return redirect()->route('approval-workflows.index')->with('success', 'Approval workflow berhasil dibuat!');
     }
@@ -109,7 +127,11 @@ class ApprovalWorkflowController extends Controller
         $roles = Role::all();
         $departments = Department::where('is_active', true)->get();
         $users = User::with('role')->get();
-        return view('approval-workflows.edit', compact('approvalWorkflow', 'roles', 'departments', 'users'));
+        $itemCategories = ItemCategory::where('is_active', true)->get();
+        $tsCategories = TsCategory::where('is_active', true)->get();
+        // eager load tsCategories
+        $approvalWorkflow->load('tsCategories');
+        return view('approval-workflows.edit', compact('approvalWorkflow', 'roles', 'departments', 'users', 'itemCategories', 'tsCategories'));
     }
 
     public function update(Request $request, ApprovalWorkflow $approvalWorkflow)
@@ -127,7 +149,12 @@ class ApprovalWorkflowController extends Controller
             'workflow_steps.*.approver_id' => 'required_if:workflow_steps.*.approver_type,user|nullable|exists:users,id',
             'workflow_steps.*.approver_role_id' => 'required_if:workflow_steps.*.approver_type,role|nullable|exists:roles,id',
             'workflow_steps.*.approver_department_id' => 'required_if:workflow_steps.*.approver_type,department_manager|nullable|exists:departments,id',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'ts_approver_type' => 'nullable|in:user,role,department_manager',
+            'ts_approver_id' => 'required_if:ts_approver_type,user|nullable|exists:users,id',
+            'ts_approver_role_id' => 'required_if:ts_approver_type,role|nullable|exists:roles,id',
+            'ts_categories' => 'nullable|array',
+            'ts_categories.*' => 'exists:ts_categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -156,7 +183,16 @@ class ApprovalWorkflowController extends Controller
             'steps'                  => $workflowSteps,
             'is_active'              => $request->has('is_active'),
             'purchasing_step_config' => $this->processPurchasingStepConfig($request->purchasing_step_config),
+            'ts_approver_type'       => $request->ts_approver_type,
+            'ts_approver_id'         => $request->ts_approver_type === 'user' ? $request->ts_approver_id : null,
+            'ts_approver_role_id'    => $request->ts_approver_type === 'role' ? $request->ts_approver_role_id : null,
         ]);
+
+        if ($request->has('ts_categories')) {
+            $approvalWorkflow->tsCategories()->sync($request->ts_categories);
+        } else {
+            $approvalWorkflow->tsCategories()->detach();
+        }
 
         return redirect()->route('approval-workflows.index')->with('success', 'Approval workflow berhasil diperbarui!');
     }

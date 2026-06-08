@@ -25,8 +25,8 @@ use App\Http\Controllers\PurchasingItemController;
 use App\Http\Controllers\ApprovalRequestItemController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\UserImportController;
-
 use App\Http\Controllers\ReleaseRequestController;
+use App\Http\Controllers\TechnicalSupportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -276,6 +276,13 @@ Route::middleware('auth')->group(function () {
         Route::get('release-requests/my-pending', [ReleaseRequestController::class, 'myPendingReleases'])->name('release-requests.my-pending');
         Route::post('release-requests/{item}/approve', [ReleaseRequestController::class, 'approve'])->name('release-requests.approve');
         Route::post('release-requests/{item}/reject', [ReleaseRequestController::class, 'reject'])->name('release-requests.reject');
+    });
+
+    // Technical Support routes
+    Route::middleware('permission:access_technical_support')->prefix('technical-support')->name('technical-support.')->group(function () {
+        Route::get('/', [TechnicalSupportController::class, 'index'])->name('index');
+        Route::get('/{item}', [TechnicalSupportController::class, 'show'])->name('show');
+        Route::put('/{item}', [TechnicalSupportController::class, 'update'])->name('update');
     });
 
     // Settings management

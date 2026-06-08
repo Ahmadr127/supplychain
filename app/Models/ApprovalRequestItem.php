@@ -23,6 +23,11 @@ class ApprovalRequestItem extends Model
         'allocation_department_id',
         'letter_number',
         'fs_document',
+        // TS support
+        'needs_ts',
+        'ts_category_id',
+        'ts_status',
+        'ts_specification',
         // per-item approval (align with request-level statuses: pending|on progress|approved|rejected|cancelled)
         'status',
         'assignee_id',
@@ -51,6 +56,11 @@ class ApprovalRequestItem extends Model
     public function capexItem()
     {
         return $this->belongsTo(CapexItem::class);
+    }
+
+    public function tsCategory()
+    {
+        return $this->belongsTo(TsCategory::class, 'ts_category_id');
     }
 
     public function supplier()

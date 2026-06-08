@@ -105,6 +105,8 @@
         </div>
     </div>
 
+
+
     {{-- Workflow Steps Section --}}
     <div class="bg-white rounded-none shadow-none p-6 mb-0 border-b border-gray-200">
         <div class="flex justify-between items-center mb-6">
@@ -132,6 +134,60 @@
         @error('workflow_steps')
             <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
         @enderror
+    </div>
+
+    {{-- Technical Support Config Section --}}
+    <div class="bg-white rounded-none shadow-none p-6 mb-0 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Konfigurasi Technical Support (Opsional)</h3>
+        <p class="text-sm text-gray-600 mb-4">
+            Pilih kategori TS yang memicu antrean Technical Support (TS) dan tentukan siapa TS-nya. 
+            Item dengan kategori ini tidak akan memblokir persetujuan, melainkan diproses secara paralel oleh TS.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {{-- Kategori yang memicu TS --}}
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Kategori TS yang Ditangani Workflow Ini</label>
+                <div class="flex flex-wrap gap-2 p-3 border border-gray-300 rounded-md bg-gray-50 max-h-48 overflow-y-auto">
+                    @php
+                        $selectedTsCategories = isset($approvalWorkflow) && $approvalWorkflow->tsCategories ? $approvalWorkflow->tsCategories->pluck('id')->toArray() : [];
+                        // fallback for old validation
+                        $selectedTsCategories = old('ts_categories', $selectedTsCategories);
+                    @endphp
+                    @foreach($tsCategories as $category)
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer bg-white px-3 py-1.5 border border-gray-200 rounded-md hover:bg-blue-50 transition-colors">
+                            <input type="checkbox" name="ts_categories[]" value="{{ $category->id }}"
+                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                   {{ in_array($category->id, $selectedTsCategories) ? 'checked' : '' }}>
+                            <span class="text-sm text-gray-700">{{ $category->name }}</span>
+                        </label>
+                    @endforeach
+                    @if($tsCategories->isEmpty())
+                        <span class="text-sm text-gray-500 italic">Belum ada master kategori TS.</span>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Tipe TS Approver --}}
+            @php
+                $tsApproverType = old('ts_approver_type', $approvalWorkflow->ts_approver_type ?? '');
+            @endphp
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Tipe Approver TS</label>
+                <select name="ts_approver_type" id="ts_approver_type_select"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onchange="toggleTsApproverFields(this)">
+                    <option value="">-- Tidak Ada / Kosongkan --</option>
+                    <option value="user" {{ $tsApproverType === 'user' ? 'selected' : '' }}>User Spesifik</option>
+                    <option value="role" {{ $tsApproverType === 'role' ? 'selected' : '' }}>Role</option>
+                    <option value="department_manager" {{ $tsApproverType === 'department_manager' ? 'selected' : '' }}>Manager Department</option>
+                </select>
+            </div>
+
+            <div id="ts_approver_id_container">
+                {{-- JS will render the searchable select here based on type --}}
+            </div>
+        </div>
     </div>
 
     {{-- Form Actions --}}
@@ -200,7 +256,37 @@
         @else
             addStep();
         @endif
+        
+        // Init TS approver field
+        const tsSelect = document.getElementById('ts_approver_type_select');
+        if (tsSelect) {
+            toggleTsApproverFields(tsSelect, true);
+        }
     });
+
+    // Toggle TS approver fields
+    function toggleTsApproverFields(select, isInit = false) {
+        const type = select.value;
+        const container = document.getElementById('ts_approver_id_container');
+        
+        let selectedId = '';
+        if (isInit) {
+            if (type === 'user') selectedId = "{{ old('ts_approver_id', $approvalWorkflow->ts_approver_id ?? '') }}";
+            else if (type === 'role') selectedId = "{{ old('ts_approver_role_id', $approvalWorkflow->ts_approver_role_id ?? '') }}";
+            // department not supported for id yet in ts config but let's just make it empty
+        }
+
+        container.innerHTML = '';
+        if (type === 'user') {
+            container.innerHTML = '<label class="block text-sm font-medium text-gray-700 mb-2">Pilih User TS</label>' + 
+                                  renderSearchableSelect('ts_approver_id', usersOptions, selectedId, '-- Pilih User --');
+        } else if (type === 'role') {
+            container.innerHTML = '<label class="block text-sm font-medium text-gray-700 mb-2">Pilih Role TS</label>' + 
+                                  renderSearchableSelect('ts_approver_role_id', rolesOptions, selectedId, '-- Pilih Role --');
+        } else if (type === 'department_manager') {
+            container.innerHTML = '<p class="text-sm text-gray-500 mt-6">Manager dari departemen user yang request akan dipilih otomatis (tidak perlu pilih id tertentu).</p>';
+        }
+    }
 
     // Format currency input
     function formatCurrency(input) {

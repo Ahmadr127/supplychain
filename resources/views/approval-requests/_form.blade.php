@@ -7,8 +7,8 @@
 <div class="space-y-2 max-w-full">
     <!-- Main Form -->
     <div class="space-y-2 max-w-full">
-        <!-- Top grid: Jenis Pengajuan, Sifat Pengadaan & Tipe Barang -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <!-- Top grid: Jenis Pengajuan, Sifat Pengadaan, Tipe Barang & Bantuan TS -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
             <!-- Jenis Pengajuan -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -81,7 +81,48 @@
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
             </div>
+
+        <!-- Bantuan Technical Support -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+                Bantuan TS <span class="text-gray-500 text-xs font-normal">(Opsional)</span>
+            </label>
+            {{-- Hidden default: tidak perlu TS jika tidak ada yang dipilih --}}
+            <input type="hidden" name="ts_category_id" value="">
+            <div class="space-y-2">
+                @foreach($tsCategories as $tsCat)
+                <div class="flex items-center">
+                    <input type="radio" id="ts_category_{{ $tsCat->id }}" name="ts_category_id" value="{{ $tsCat->id }}" 
+                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 ts-category-radio"
+                        {{ old('ts_category_id', $isEdit ? ($approvalRequest->items->first()?->ts_category_id ?? '') : '') == $tsCat->id ? 'checked' : '' }}>
+                    <label for="ts_category_{{ $tsCat->id }}" class="ml-2 text-sm text-gray-700 cursor-pointer select-none">
+                        <span class="font-medium">{{ $tsCat->name }}</span>
+                    </label>
+                </div>
+                @endforeach
+            </div>
+            <script>
+                (function() {
+                    // Track last clicked radio to allow deselect on re-click
+                    document.querySelectorAll('.ts-category-radio').forEach(function(radio) {
+                        radio.addEventListener('mousedown', function() {
+                            this._wasChecked = this.checked;
+                        });
+                        radio.addEventListener('click', function() {
+                            if (this._wasChecked) {
+                                this.checked = false;
+                                // Restore hidden input empty value
+                                document.querySelector('input[type="hidden"][name="ts_category_id"]').value = '';
+                            }
+                        });
+                    });
+                })();
+            </script>
+            @error('ts_category_id')
+                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+            @enderror
         </div>
+    </div>
 
         
 
@@ -100,8 +141,6 @@
             </div>
         </div>
         
-    </div>
-
     <!-- Hidden fields -->
     <input type="hidden" name="workflow_id" id="workflow_id" value="{{ $defaultWorkflow->id }}">
     <input type="hidden" name="request_type" value="normal">

@@ -258,6 +258,30 @@
                             </div>
                             @endif
                             
+                            <!-- Spesifikasi Technical Support (TS) -->
+                            @if($item->needs_ts)
+                            <div class="mt-3 pt-3 border-t border-gray-200">
+                                <div class="text-xs font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-tools mr-1 text-blue-600"></i>Spesifikasi Technical Support (TS)
+                                </div>
+                                <div class="bg-blue-50 rounded-md p-3 border border-blue-100">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="text-[10px] font-medium text-gray-600">Status TS:</span>
+                                        @if($item->ts_status === 'pending')
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800">Pending</span>
+                                        @else
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800">Selesai</span>
+                                        @endif
+                                    </div>
+                                    @if($item->ts_status === 'done' && $item->ts_specification)
+                                        <div class="text-xs text-gray-800 whitespace-pre-wrap bg-white p-2 rounded border border-gray-200">{{ $item->ts_specification }}</div>
+                                    @elseif($item->ts_status === 'pending')
+                                        <div class="text-xs text-gray-500 italic">Menunggu input spesifikasi dari Technical Support...</div>
+                                    @endif
+                                </div>
+                            </div>
+                            @endif
+                            
                             <!-- Dokumen Pendukung -->
                             @php
                                 $filesForItem = isset($itemFiles) ? ($itemFiles->get($masterItem->id) ?? collect()) : collect();

@@ -261,6 +261,22 @@
                     </x-sidebar-dropdown-menu>
                 @endif
 
+                {{-- Technical Support Menu --}}
+                @if(auth()->user()->hasPermission('access_technical_support'))
+                    <x-sidebar-dropdown-menu 
+                        title="Technical Support" 
+                        icon="fa-tools" 
+                        routePrefix="technical-support.*"
+                        defaultOpen="false">
+                        <x-sidebar-menu-item 
+                            route="technical-support.index" 
+                            icon="fa-clipboard-list" 
+                            label="Antrean TS" 
+                            routeMatch="technical-support.*"
+                        />
+                    </x-sidebar-dropdown-menu>
+                @endif
+
                     {{-- Release Dropdown --}}
                     @if(auth()->user()->hasPermission('manage_purchasing') || auth()->user()->hasPermission('view_release_requests') || auth()->user()->hasPermission('view_pending_release'))
                         <x-sidebar-dropdown-menu 
