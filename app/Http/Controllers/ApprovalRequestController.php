@@ -367,6 +367,7 @@ class ApprovalRequestController extends Controller
                 // Create item in approval_request_items table (NEW)
                 $item = $approvalRequest->items()->create([
                     'master_item_id' => $masterItemId,
+                    'workflow_id' => $request->workflow_id,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'total_price' => $totalPrice,
@@ -771,6 +772,7 @@ class ApprovalRequestController extends Controller
                     // Create new item
                     $item = $approvalRequest->items()->create([
                         'master_item_id' => $masterItemId,
+                        'workflow_id' => $approvalRequest->workflow_id,
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,

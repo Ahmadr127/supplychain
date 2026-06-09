@@ -1,6 +1,6 @@
-namespace Database\Seeders;
 <?php
 
+namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\TsCategory;

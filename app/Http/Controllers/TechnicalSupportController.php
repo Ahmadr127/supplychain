@@ -17,11 +17,10 @@ class TechnicalSupportController extends Controller
         // Departemen di mana user ini adalah manager
         $managerOfDeptIds = Department::where('manager_id', $user->id)->pluck('id');
 
-        // Kita gunakan leftJoin ke approval_requests dan workflows agar bisa memfilter berdasarkan config TS
+        // Kita gunakan subquery whereExists agar tidak bergantung pada workflow request secara global
         $query = ApprovalRequestItem::with(['approvalRequest.requester', 'masterItem.itemCategory', 'approvalRequest.workflow', 'tsCategory'])
             ->select('approval_request_items.*')
             ->join('approval_requests', 'approval_requests.id', '=', 'approval_request_items.approval_request_id')
-            ->join('approval_workflows', 'approval_workflows.id', '=', 'approval_requests.workflow_id')
             ->where('approval_request_items.needs_ts', true);
 
         // Filter status
@@ -31,30 +30,37 @@ class TechnicalSupportController extends Controller
             $query->where('approval_request_items.ts_status', 'pending');
         }
 
-        // Logic Akses: User hanya bisa melihat antrean jika dia di-assign sebagai TS
-        $query->where(function($q) use ($user, $managerOfDeptIds) {
-            // 1. Tipe User
-            $q->where(function($sub) use ($user) {
-                $sub->where('approval_workflows.ts_approver_type', 'user')
-                    ->where('approval_workflows.ts_approver_id', $user->id);
-            });
-            // 2. Tipe Role
-            $q->orWhere(function($sub) use ($user) {
-                $sub->where('approval_workflows.ts_approver_type', 'role')
-                    ->where('approval_workflows.ts_approver_role_id', $user->role_id);
-            });
-            // 3. Tipe Department Manager (Manager dari departemen si requester)
-            if ($managerOfDeptIds->isNotEmpty()) {
-                $q->orWhere(function($sub) use ($managerOfDeptIds) {
-                    $sub->where('approval_workflows.ts_approver_type', 'department_manager')
-                        ->whereIn('approval_requests.requester_id', function($q2) use ($managerOfDeptIds) {
-                            $q2->select('user_id')
-                               ->from('user_departments')
-                               ->where('is_primary', true)
-                               ->whereIn('department_id', $managerOfDeptIds);
-                        });
-                });
-            }
+        // Logic Akses: User hanya bisa melihat antrean jika dia di-assign sebagai TS di workflow aktif item ini
+        $query->whereExists(function($q) use ($user, $managerOfDeptIds) {
+            $q->select(\Illuminate\Support\Facades\DB::raw(1))
+              ->from('approval_workflow_ts_categories')
+              ->join('approval_workflows', 'approval_workflows.id', '=', 'approval_workflow_ts_categories.approval_workflow_id')
+              ->whereColumn('approval_workflow_ts_categories.ts_category_id', 'approval_request_items.ts_category_id')
+              ->whereColumn('approval_workflow_ts_categories.approval_workflow_id', 'approval_request_items.workflow_id')
+              ->where(function($sub) use ($user, $managerOfDeptIds) {
+                  // 1. Tipe User
+                  $sub->where(function($s) use ($user) {
+                      $s->where('approval_workflows.ts_approver_type', 'user')
+                        ->where('approval_workflows.ts_approver_id', $user->id);
+                  });
+                  // 2. Tipe Role
+                  $sub->orWhere(function($s) use ($user) {
+                      $s->where('approval_workflows.ts_approver_type', 'role')
+                        ->where('approval_workflows.ts_approver_role_id', $user->role_id);
+                  });
+                  // 3. Tipe Department Manager (Manager dari departemen si requester)
+                  if ($managerOfDeptIds->isNotEmpty()) {
+                      $sub->orWhere(function($s) use ($managerOfDeptIds) {
+                          $s->where('approval_workflows.ts_approver_type', 'department_manager')
+                            ->whereIn('approval_requests.requester_id', function($q2) use ($managerOfDeptIds) {
+                                $q2->select('user_id')
+                                   ->from('user_departments')
+                                   ->where('is_primary', true)
+                                   ->whereIn('department_id', $managerOfDeptIds);
+                            });
+                      });
+                  }
+              });
         });
 
         // Search
@@ -83,7 +89,40 @@ class TechnicalSupportController extends Controller
 
         $item->load(['approvalRequest.requester', 'masterItem.itemCategory', 'approvalRequest.workflow']);
         
-        // TODO: Validasi akses user sama seperti di index
+        $user = Auth::user();
+        $managerOfDeptIds = Department::where('manager_id', $user->id)->pluck('id');
+        
+        $hasAccess = \Illuminate\Support\Facades\DB::table('approval_workflow_ts_categories')
+            ->join('approval_workflows', 'approval_workflows.id', '=', 'approval_workflow_ts_categories.approval_workflow_id')
+            ->where('approval_workflow_ts_categories.ts_category_id', $item->ts_category_id)
+            ->where('approval_workflow_ts_categories.approval_workflow_id', $item->workflow_id)
+            ->where(function($sub) use ($user, $managerOfDeptIds, $item) {
+                // 1. Tipe User
+                $sub->where(function($s) use ($user) {
+                    $s->where('approval_workflows.ts_approver_type', 'user')
+                      ->where('approval_workflows.ts_approver_id', $user->id);
+                });
+                // 2. Tipe Role
+                $sub->orWhere(function($s) use ($user) {
+                    $s->where('approval_workflows.ts_approver_type', 'role')
+                      ->where('approval_workflows.ts_approver_role_id', $user->role_id);
+                });
+                // 3. Tipe Department Manager
+                if ($managerOfDeptIds->isNotEmpty()) {
+                    $requesterDept = \Illuminate\Support\Facades\DB::table('user_departments')
+                        ->where('user_id', $item->approvalRequest->requester_id)
+                        ->where('is_primary', true)
+                        ->first();
+                        
+                    if ($requesterDept && $managerOfDeptIds->contains($requesterDept->department_id)) {
+                        $sub->orWhere('approval_workflows.ts_approver_type', 'department_manager');
+                    }
+                }
+            })->exists();
+
+        if (!$hasAccess) {
+            abort(403, 'Anda tidak memiliki akses sebagai Technical Support untuk item ini.');
+        }
 
         return view('technical-support.show', compact('item'));
     }

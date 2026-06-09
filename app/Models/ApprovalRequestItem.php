@@ -11,6 +11,7 @@ class ApprovalRequestItem extends Model
 
     protected $fillable = [
         'approval_request_id',
+        'workflow_id',
         'master_item_id',
         'quantity',
         'unit_price',
