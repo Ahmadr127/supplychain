@@ -12,6 +12,7 @@ use App\Models\Department;
 use App\Models\ProcurementType;
 use App\Models\ApprovalRequestItemExtra;
 use App\Models\ApprovalRequestItem;
+use App\Models\TsCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +20,7 @@ use Illuminate\Support\Str;
 use App\Services\ItemResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Models\Setting;
+
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -189,10 +190,10 @@ class ApprovalRequestController extends Controller
         // Load submission types for the edit view (used in the form)
         $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
-        // Get FS document settings
-        $fsSettings = Setting::getGroup('approval_request');
+
+        $tsCategories = TsCategory::where('is_active', true)->get();
         
-        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments', 'fsSettings'));
+        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments', 'tsCategories'));
     }
 
     public function store(Request $request)
@@ -361,6 +362,7 @@ class ApprovalRequestController extends Controller
                 // Create item in approval_request_items table (NEW)
                 $item = $approvalRequest->items()->create([
                     'master_item_id' => $masterItemId,
+                    'workflow_id' => $request->workflow_id,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'total_price' => $totalPrice,
@@ -373,6 +375,9 @@ class ApprovalRequestController extends Controller
                     'letter_number' => $itemData['letter_number'] ?? null,
                     'fs_document' => $fsDocumentPath,
                     'status' => 'on progress',
+                    'needs_ts' => false,
+                    'ts_category_id' => null,
+                    'ts_status' => 'pending',
                 ]);
 
                 // Initialize per-item approval steps from workflow (NEW)
@@ -592,8 +597,6 @@ class ApprovalRequestController extends Controller
         // Departments needed by the form (allocation dropdown, etc.)
         $departments = \App\Models\Department::orderBy('name')->get();
         
-        // Get FS document settings
-        $fsSettings = Setting::getGroup('approval_request');
         
         $approvalRequest->load(['items.masterItem', 'itemType', 'submissionType', 'itemExtras']);
         
@@ -605,8 +608,10 @@ class ApprovalRequestController extends Controller
             ->where('approval_request_id', $approvalRequest->id)
             ->get()
             ->groupBy('master_item_id');
+            
+        $tsCategories = TsCategory::where('is_active', true)->get();
         
-        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'fsSettings', 'itemExtras', 'itemFiles'));
+        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'itemExtras', 'itemFiles', 'tsCategories'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -754,6 +759,7 @@ class ApprovalRequestController extends Controller
                     // Create new item
                     $item = $approvalRequest->items()->create([
                         'master_item_id' => $masterItemId,
+                        'workflow_id' => $approvalRequest->workflow_id,
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,
@@ -766,6 +772,9 @@ class ApprovalRequestController extends Controller
                         'letter_number' => $itemData['letter_number'] ?? null,
                         'fs_document' => $fsDocumentPath,
                         'status' => 'on progress',
+                        'needs_ts' => false,
+                        'ts_category_id' => null,
+                        'ts_status' => 'pending',
                     ]);
 
                     $this->initializeItemSteps($approvalRequest, $item);

@@ -4,15 +4,15 @@
     <div class="mb-2">
         <button type="button" class="form-extra-toggle w-full flex items-center justify-between p-2 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors duration-200" data-row-index="__ROW_INDEX__">
             <div class="flex items-center">
-                <i class="fas fa-chevron-down form-extra-icon mr-2 text-gray-600 transition-transform duration-200 rotate-180"></i>
+                <i class="fas fa-chevron-down form-extra-icon mr-2 text-gray-600 transition-transform duration-200"></i>
                 <span class="text-sm font-medium text-gray-700">Form Kelangkapan Pengadaan</span>
             </div>
             <span class="text-xs text-gray-500">Klik untuk membuka/tutup</span>
         </button>
     </div>
     
-    <!-- Collapsible Content (Default Open) -->
-    <div class="form-extra-content">
+    <!-- Collapsible Content (Default Closed) -->
+    <div class="form-extra-content hidden">
         <!-- FS Document Upload Section - Simplified and moved to top -->
         <div class="fs-upload-section mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
             <div class="flex items-center justify-between">
@@ -363,91 +363,49 @@
         });
     }
     
-    // Configure form state based on threshold conditions and settings
-    function configureFormState(rowIndex, meetsShowThreshold, meetsUploadThreshold) {
+    // Set inputs to standard enabled state
+    function configureFormState(rowIndex) {
         const trFs = document.getElementById(`row-${rowIndex}-static`);
         if (!trFs) return;
         
-        // Simplified: if form is shown, inputs are always enabled
-        // Upload is enabled only when upload threshold is met
-        const enableInputs = meetsShowThreshold;
-        const enableUpload = meetsUploadThreshold;
-        
-        // Configure regular inputs (always enabled when form is shown)
         const inputs = trFs.querySelectorAll('input:not(.fs-document-input), select, textarea');
         inputs.forEach(input => {
             input.disabled = false;
             input.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
         });
 
-        // Configure radios: required when form is visible
-        setRadiosRequired(trFs, true);
-        
         // Configure upload section
         const uploadSection = trFs.querySelector('.fs-upload-section');
         const fileInput = trFs.querySelector('.fs-document-input');
         if (uploadSection) {
-            if (enableUpload) {
-                uploadSection.classList.remove('hidden');
-                if (fileInput) {
-                    fileInput.disabled = false;
-                    fileInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
-                    // Make FS file input required when visible and no existing FS document
-                    try {
-                        const row = (typeof rows !== 'undefined' ? rows : []).find(r => r.index === rowIndex);
-                        const hasExisting = !!(row && row.fs_document);
-                        fileInput.required = !hasExisting;
-                    } catch (_) { fileInput.required = true; }
-                }
-            } else {
-                // Hide and clear value for safety so hidden files are not submitted
-                uploadSection.classList.add('hidden');
-                if (fileInput) {
-                    try { fileInput.value = ''; } catch (_) {}
-                    fileInput.required = false;
-                }
+            uploadSection.classList.remove('hidden');
+            if (fileInput) {
+                fileInput.disabled = false;
+                fileInput.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-50');
+                fileInput.required = false; // Validation is handled by backend workflow
             }
-        }
-
-        // Prefill visible form statis fields from main inputs
-        if (!trFs.classList.contains('hidden')) {
-            try { syncFormExtraFields(rowIndex); } catch(_) {}
         }
     }
     
-    // Toggle form extra visibility based on subtotal threshold
-    // Requires: rows array and fsSettings object from parent scope
+    // Always show the container but keep it collapsed.
+    // Validation is delegated to the backend workflow.
     function toggleRowStaticSectionForRow(rowIndex) {
-        if (typeof rows === 'undefined' || typeof fsSettings === 'undefined') return;
+        if (typeof rows === 'undefined') return;
         
         const row = rows.find(r => r.index === rowIndex);
         if (!row) return;
         
-        const subtotal = (parseInt(row.quantity || 0) || 0) * (parseInt(row.unit_price || 0) || 0);
         const trFs = document.getElementById(`row-${rowIndex}-static`);
         if (!trFs) return;
         
-        // If FS is disabled globally, always hide the form
-        if (!fsSettings.enabled) {
-            trFs.classList.add('hidden');
-            setRadiosRequired(trFs, false);
-            const fileInput = trFs.querySelector('.fs-document-input');
-            if (fileInput) fileInput.required = false;
-            return;
-        }
-        
-        const meetsShowThreshold = subtotal >= fsSettings.thresholdShow;
-        const meetsUploadThreshold = subtotal >= fsSettings.thresholdUpload;
+        // Ensure the wrapper is visible so user can click to expand
+        trFs.classList.remove('hidden');
 
-        if (meetsShowThreshold) {
-            trFs.classList.remove('hidden');
-            configureFormState(rowIndex, meetsShowThreshold, meetsUploadThreshold);
-        } else {
-            trFs.classList.add('hidden');
-            setRadiosRequired(trFs, false);
-            const fileInput = trFs.querySelector('.fs-document-input');
-            if (fileInput) fileInput.required = false;
-        }
+        // Configure inputs to be enabled
+        configureFormState(rowIndex);
+        
+        // Sync values
+        try { syncFormExtraFields(rowIndex); } catch(_) {}
     }
     
     // Build hidden inputs for form extra data and FS document

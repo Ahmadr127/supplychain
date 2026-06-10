@@ -101,6 +101,9 @@ class WorkflowService
             if ($request->workflow_id !== $targetWorkflow->id) {
                 $request->update(['workflow_id' => $targetWorkflow->id]);
             }
+            if ($item->workflow_id !== $targetWorkflow->id) {
+                $item->update(['workflow_id' => $targetWorkflow->id]);
+            }
             return;
         }
 
@@ -117,6 +120,9 @@ class WorkflowService
         ) {
             // Update request->workflow_id for bookkeeping
             $request->update(['workflow_id' => $targetWorkflow->id]);
+            
+            // Update item->workflow_id for TS Queue and workflow state correctness
+            $item->update(['workflow_id' => $targetWorkflow->id]);
 
             // 1) Align the approved step (step 1) name/metadata with target workflow step 1
             if ($lastApprovedStep) {

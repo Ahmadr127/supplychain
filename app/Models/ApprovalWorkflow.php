@@ -44,6 +44,10 @@ class ApprovalWorkflow extends Model
         'priority',        // For workflow selection ordering
         // Purchasing step configuration (which steps are enabled for this workflow)
         'purchasing_step_config',
+        // Technical Support Config
+        'ts_approver_type',
+        'ts_approver_id',
+        'ts_approver_role_id',
     ];
 
     protected $casts = [
@@ -60,6 +64,14 @@ class ApprovalWorkflow extends Model
     // ═══════════════════════════════════════════════════════════════════════════
     // RELATIONSHIPS
     // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Get the ts categories that trigger this workflow.
+     */
+    public function tsCategories()
+    {
+        return $this->belongsToMany(TsCategory::class, 'approval_workflow_ts_categories', 'approval_workflow_id', 'ts_category_id')->withTimestamps();
+    }
 
     // Relasi dengan approval requests
     public function requests()

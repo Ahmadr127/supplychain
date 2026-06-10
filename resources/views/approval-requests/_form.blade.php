@@ -7,7 +7,7 @@
 <div class="space-y-2 max-w-full">
     <!-- Main Form -->
     <div class="space-y-2 max-w-full">
-        <!-- Top grid: Jenis Pengajuan, Sifat Pengadaan & Tipe Barang -->
+        <!-- Top grid: Jenis Pengajuan, Sifat Pengadaan, Tipe Barang -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
             <!-- Jenis Pengajuan -->
             <div>
@@ -81,11 +81,8 @@
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
             </div>
-        </div>
 
-        
-
-        <!-- Items Section -->
+        </div>        <!-- Items Section -->
         <div id="itemsSection" class="w-full">
             <div class="flex items-center justify-between mb-2">
                 <h3 class="text-lg font-semibold text-gray-900">Item yang Diminta</h3>
@@ -100,8 +97,6 @@
             </div>
         </div>
         
-    </div>
-
     <!-- Hidden fields -->
     <input type="hidden" name="workflow_id" id="workflow_id" value="{{ $defaultWorkflow->id }}">
     <input type="hidden" name="request_type" value="normal">
@@ -200,19 +195,7 @@
     let currentItemTypeId = {!! $isEdit ? $approvalRequest->item_type_id ?? 'null' : 'null' !!};
     const allCategories = {!! json_encode(($itemCategories ?? collect())->map(function($c){return ['id'=>$c->id,'name'=>$c->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
     const allDepartments = {!! json_encode(($departments ?? collect())->map(function($d){return ['id'=>$d->id,'name'=>$d->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
-    
-    // Dynamic FS settings from database
-    // Simplified: two thresholds with clear purpose
-    // - thresholdShow: when to show form and enable inputs (e.g., 50jt)
-    // - thresholdUpload: when to require document upload (e.g., 100jt)
-    const fsSettings = {
-        enabled: {!! json_encode($fsSettings['fs_document_enabled'] ?? true) !!},
-        thresholdShow: {!! json_encode($fsSettings['fs_threshold_per_item'] ?? 50000000) !!},
-        thresholdUpload: {!! json_encode($fsSettings['fs_threshold_total'] ?? 100000000) !!}
-    };
-    
-    // Track if total threshold is met
-    let totalThresholdMet = false;
+
 
     document.addEventListener('DOMContentLoaded', function() {
         initializeItemTypeSelection();
