@@ -24,18 +24,7 @@
         </div>
 
         <div class="p-2">
-            <!-- Success/Error Messages -->
-            @if(session('success'))
-            <div class="mb-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
-                <div class="flex items-center">
-                    <i class="fas fa-check-circle text-green-600 mr-2"></i>
-                    <span class="text-sm text-green-800">{{ session('success') }}</span>
-                </div>
-                <button onclick="this.parentElement.remove()" class="text-green-600 hover:text-green-800">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            @endif
+
             
             @if($errors->any())
             <div class="mb-3 bg-red-50 border border-red-200 rounded-lg p-3">
@@ -62,9 +51,9 @@
                     $departmentsMap = \App\Models\Department::pluck('name', 'id');
                 }
             @endphp
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-3 xl:h-[calc(100vh-220px)]">
                 <!-- Main Content -->
-                <div class="xl:col-span-2 space-y-4">
+                <div class="xl:col-span-2 space-y-4 xl:overflow-y-auto pr-2 pb-4" style="scrollbar-width: thin;">
                     <!-- Request Info -->
                     <div class="bg-gray-50 rounded-lg p-3">
                         <h3 class="text-base font-semibold text-gray-900 mb-3">Informasi Request</h3>
@@ -530,7 +519,7 @@
                 </div>
 
                 <!-- Sidebar -->
-                <div class="space-y-3">
+                <div class="space-y-3 xl:overflow-y-auto pr-2 pb-4" style="scrollbar-width: thin;">
                     <!-- Requester Info -->
                     <div>
                         <h3 class="text-sm font-semibold text-gray-900 mb-2">Requester</h3>

@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
 use App\Services\ItemResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Models\Setting;
+
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -190,12 +190,10 @@ class ApprovalRequestController extends Controller
         // Load submission types for the edit view (used in the form)
         $submissionTypes = \App\Models\SubmissionType::where('is_active', true)->orderBy('name')->get();
         
-        // Get FS document settings
-        $fsSettings = Setting::getGroup('approval_request');
 
         $tsCategories = TsCategory::where('is_active', true)->get();
         
-        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments', 'fsSettings', 'tsCategories'));
+        return view('approval-requests.create', compact('defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'previewRequestNumber', 'departments', 'tsCategories'));
     }
 
     public function store(Request $request)
@@ -224,7 +222,6 @@ class ApprovalRequestController extends Controller
             'items.*.notes' => 'nullable|string|max:500',
             'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480',
             'items.*.fs_document' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // Per-item FS document
-            'ts_category_id' => 'nullable|exists:ts_categories,id',
         ]);
 
         // Additional conditional validation: new items must include a category
@@ -275,8 +272,6 @@ class ApprovalRequestController extends Controller
         }
 
         $workflow = ApprovalWorkflow::findOrFail($request->workflow_id);
-        $workflow->load('tsCategories');
-        $tsCategoryIds = $workflow->tsCategories->pluck('id')->toArray();
 
         // Determine specific type from selected workflow
         $isSpecificType = (bool) $workflow->is_specific_type;
@@ -380,8 +375,8 @@ class ApprovalRequestController extends Controller
                     'letter_number' => $itemData['letter_number'] ?? null,
                     'fs_document' => $fsDocumentPath,
                     'status' => 'on progress',
-                    'needs_ts' => $request->filled('ts_category_id'),
-                    'ts_category_id' => $request->ts_category_id,
+                    'needs_ts' => false,
+                    'ts_category_id' => null,
                     'ts_status' => 'pending',
                 ]);
 
@@ -602,8 +597,6 @@ class ApprovalRequestController extends Controller
         // Departments needed by the form (allocation dropdown, etc.)
         $departments = \App\Models\Department::orderBy('name')->get();
         
-        // Get FS document settings
-        $fsSettings = Setting::getGroup('approval_request');
         
         $approvalRequest->load(['items.masterItem', 'itemType', 'submissionType', 'itemExtras']);
         
@@ -618,7 +611,7 @@ class ApprovalRequestController extends Controller
             
         $tsCategories = TsCategory::where('is_active', true)->get();
         
-        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'fsSettings', 'itemExtras', 'itemFiles', 'tsCategories'));
+        return view('approval-requests.edit', compact('approvalRequest', 'defaultWorkflow', 'masterItems', 'itemTypes', 'procurementTypes', 'itemCategories', 'commodities', 'units', 'submissionTypes', 'departments', 'itemExtras', 'itemFiles', 'tsCategories'));
     }
 
     public function update(Request $request, ApprovalRequest $approvalRequest)
@@ -665,7 +658,6 @@ class ApprovalRequestController extends Controller
             'items.*.notes' => 'nullable|string|max:500',
             'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480',
             'items.*.fs_document' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // Per-item FS document
-            'ts_category_id' => 'nullable|exists:ts_categories,id',
         ]);
 
         // Additional conditional validation: new items must include a category
@@ -699,9 +691,6 @@ class ApprovalRequestController extends Controller
             'submission_type_id' => $request->submission_type_id,
             'is_specific_type' => $isSpecificType,
         ]);
-
-        $approvalRequest->workflow->load('tsCategories');
-        $tsCategoryIds = $approvalRequest->workflow->tsCategories->pluck('id')->toArray();
 
         // Handle items update (NEW: Smart Update for Per-Item Status)
         if ($request->has('items') && is_array($request->items)) {
@@ -759,8 +748,6 @@ class ApprovalRequestController extends Controller
                             'allocation_department_id' => $itemData['allocation_department_id'] ?? null,
                             'letter_number' => $itemData['letter_number'] ?? null,
                             'fs_document' => $fsDocumentPath,
-                            'needs_ts' => $request->filled('ts_category_id'),
-                            'ts_category_id' => $request->ts_category_id,
                         ]);
 
                         // Steps reset removed to preserve approval history
@@ -785,8 +772,8 @@ class ApprovalRequestController extends Controller
                         'letter_number' => $itemData['letter_number'] ?? null,
                         'fs_document' => $fsDocumentPath,
                         'status' => 'on progress',
-                        'needs_ts' => $request->filled('ts_category_id'),
-                        'ts_category_id' => $request->ts_category_id,
+                        'needs_ts' => false,
+                        'ts_category_id' => null,
                         'ts_status' => 'pending',
                     ]);
 

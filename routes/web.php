@@ -278,6 +278,11 @@ Route::middleware('auth')->group(function () {
         Route::post('release-requests/{item}/reject', [ReleaseRequestController::class, 'reject'])->name('release-requests.reject');
     });
 
+    // Technical Support Categories
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::resource('ts-categories', \App\Http\Controllers\TsCategoryController::class);
+    });
+
     // Technical Support routes
     Route::middleware('permission:access_technical_support')->prefix('technical-support')->name('technical-support.')->group(function () {
         Route::get('/', [TechnicalSupportController::class, 'index'])->name('index');
@@ -285,13 +290,7 @@ Route::middleware('auth')->group(function () {
         Route::put('/{item}', [TechnicalSupportController::class, 'update'])->name('update');
     });
 
-    // Settings management
-    Route::middleware('permission:manage_settings')->group(function () {
-        Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
-        Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
-    });
-    // API endpoint for getting settings (accessible to all authenticated users)
-    Route::get('ajax/settings', [SettingController::class, 'getSettings'])->name('api.settings.get');
+
     
     // Reports (Process Purchasing)
     // Reports (Process Purchasing)

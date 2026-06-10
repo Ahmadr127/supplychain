@@ -7,8 +7,8 @@
 <div class="space-y-2 max-w-full">
     <!-- Main Form -->
     <div class="space-y-2 max-w-full">
-        <!-- Top grid: Jenis Pengajuan, Sifat Pengadaan, Tipe Barang & Bantuan TS -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+        <!-- Top grid: Jenis Pengajuan, Sifat Pengadaan, Tipe Barang -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
             <!-- Jenis Pengajuan -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -82,51 +82,7 @@
                 @enderror
             </div>
 
-        <!-- Bantuan Technical Support -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Bantuan TS <span class="text-gray-500 text-xs font-normal">(Opsional)</span>
-            </label>
-            {{-- Hidden default: tidak perlu TS jika tidak ada yang dipilih --}}
-            <input type="hidden" name="ts_category_id" value="">
-            <div class="space-y-2">
-                @foreach($tsCategories as $tsCat)
-                <div class="flex items-center">
-                    <input type="radio" id="ts_category_{{ $tsCat->id }}" name="ts_category_id" value="{{ $tsCat->id }}" 
-                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 ts-category-radio"
-                        {{ old('ts_category_id', $isEdit ? ($approvalRequest->items->first()?->ts_category_id ?? '') : '') == $tsCat->id ? 'checked' : '' }}>
-                    <label for="ts_category_{{ $tsCat->id }}" class="ml-2 text-sm text-gray-700 cursor-pointer select-none">
-                        <span class="font-medium">{{ $tsCat->name }}</span>
-                    </label>
-                </div>
-                @endforeach
-            </div>
-            <script>
-                (function() {
-                    // Track last clicked radio to allow deselect on re-click
-                    document.querySelectorAll('.ts-category-radio').forEach(function(radio) {
-                        radio.addEventListener('mousedown', function() {
-                            this._wasChecked = this.checked;
-                        });
-                        radio.addEventListener('click', function() {
-                            if (this._wasChecked) {
-                                this.checked = false;
-                                // Restore hidden input empty value
-                                document.querySelector('input[type="hidden"][name="ts_category_id"]').value = '';
-                            }
-                        });
-                    });
-                })();
-            </script>
-            @error('ts_category_id')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
-    </div>
-
-        
-
-        <!-- Items Section -->
+        </div>        <!-- Items Section -->
         <div id="itemsSection" class="w-full">
             <div class="flex items-center justify-between mb-2">
                 <h3 class="text-lg font-semibold text-gray-900">Item yang Diminta</h3>
@@ -239,19 +195,7 @@
     let currentItemTypeId = {!! $isEdit ? $approvalRequest->item_type_id ?? 'null' : 'null' !!};
     const allCategories = {!! json_encode(($itemCategories ?? collect())->map(function($c){return ['id'=>$c->id,'name'=>$c->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
     const allDepartments = {!! json_encode(($departments ?? collect())->map(function($d){return ['id'=>$d->id,'name'=>$d->name];})->values(), JSON_HEX_APOS|JSON_HEX_QUOT) !!} || [];
-    
-    // Dynamic FS settings from database
-    // Simplified: two thresholds with clear purpose
-    // - thresholdShow: when to show form and enable inputs (e.g., 50jt)
-    // - thresholdUpload: when to require document upload (e.g., 100jt)
-    const fsSettings = {
-        enabled: {!! json_encode($fsSettings['fs_document_enabled'] ?? true) !!},
-        thresholdShow: {!! json_encode($fsSettings['fs_threshold_per_item'] ?? 50000000) !!},
-        thresholdUpload: {!! json_encode($fsSettings['fs_threshold_total'] ?? 100000000) !!}
-    };
-    
-    // Track if total threshold is met
-    let totalThresholdMet = false;
+
 
     document.addEventListener('DOMContentLoaded', function() {
         initializeItemTypeSelection();

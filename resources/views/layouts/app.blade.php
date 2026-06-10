@@ -262,18 +262,28 @@
                 @endif
 
                 {{-- Technical Support Menu --}}
-                @if(auth()->user()->hasPermission('access_technical_support'))
+                @if(auth()->user()->hasPermission('access_technical_support') || auth()->user()->hasPermission('manage_settings'))
                     <x-sidebar-dropdown-menu 
                         title="Technical Support" 
                         icon="fa-tools" 
-                        routePrefix="technical-support.*"
+                        routePrefix="technical-support.*,ts-categories.*"
                         defaultOpen="false">
-                        <x-sidebar-menu-item 
-                            route="technical-support.index" 
-                            icon="fa-clipboard-list" 
-                            label="Antrean TS" 
-                            routeMatch="technical-support.*"
-                        />
+                        @if(auth()->user()->hasPermission('access_technical_support'))
+                            <x-sidebar-menu-item 
+                                route="technical-support.index" 
+                                icon="fa-clipboard-list" 
+                                label="Antrean TS" 
+                                routeMatch="technical-support.*"
+                            />
+                        @endif
+                        @if(auth()->user()->hasPermission('manage_settings'))
+                            <x-sidebar-menu-item 
+                                route="ts-categories.index" 
+                                icon="fa-tags" 
+                                label="Kategori TS" 
+                                routeMatch="ts-categories.*"
+                            />
+                        @endif
                     </x-sidebar-dropdown-menu>
                 @endif
 

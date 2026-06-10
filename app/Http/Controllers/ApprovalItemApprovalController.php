@@ -38,11 +38,12 @@ class ApprovalItemApprovalController extends Controller
         } else {
             Log::warning('🟥 No pending step found for this item!');
         }
-        // Dynamic validation based on step
         $rules = [
             'comments' => 'nullable|string|max:1000',
             'step_attachments' => 'nullable|array',
             'step_attachments.*' => 'file|max:10240', // 10MB per file
+            'needs_ts' => 'nullable|boolean',
+            'ts_category_id' => 'required_with:needs_ts|nullable|exists:ts_categories,id',
         ];
         
         // Step with required_action 'input_price': require price input if not set
@@ -202,6 +203,18 @@ class ApprovalItemApprovalController extends Controller
                 );
                 Log::info('🟩 Step attachments processed');
             }
+
+            // Update Technical Support info
+            $needsTs = $request->has('needs_ts');
+            $item->update([
+                'needs_ts' => $needsTs,
+                'ts_category_id' => $needsTs ? $request->ts_category_id : null,
+                'ts_status' => $needsTs ? 'pending' : 'pending', // retain pending status
+            ]);
+            Log::info('🟦 TS Info updated', [
+                'needs_ts' => $needsTs,
+                'ts_category_id' => $needsTs ? $request->ts_category_id : null
+            ]);
 
             // Mark current step as approved
             Log::info('🟦 Updating step status to approved...');
