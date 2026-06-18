@@ -425,10 +425,10 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                             <label class="block text-xs font-medium text-gray-700 mb-1">
                                 Upload Dokumen FS <span class="text-red-500">*</span>
                             </label>
-                            <input type="file" name="fs_document" accept=".pdf,.doc,.docx"
+                            <input type="file" name="fs_document" accept=".pdf"
                                 :required="action === 'approve'"
                                 class="w-full text-xs border-2 border-gray-300 rounded-md px-2.5 py-1.5 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 transition-colors file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-yellow-600 file:text-white hover:file:bg-yellow-700">
-                            <p class="text-[10px] text-gray-500 mt-1">Format: PDF, DOC, DOCX (Max: 5MB)</p>
+                            <p class="text-[10px] text-gray-500 mt-1">Format: PDF (Max: 5MB)</p>
                         </div>
                     </div>
                 @endif
@@ -468,10 +468,10 @@ $isReleaseStep = $currentPendingStep && ($currentPendingStep->step_phase ?? 'app
                         <div>
                             <label class="block text-xs font-medium text-gray-700 mb-1">
                                 Tambah Lampiran
-                                <span class="text-gray-400 text-[10px] font-normal">(PDF, DOC, DOCX, JPG, PNG — maks 10MB/file)</span>
+                                <span class="text-gray-400 text-[10px] font-normal">(PDF — maks 10MB/file)</span>
                             </label>
                             <input type="file" name="step_attachments[]" multiple
-                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                accept=".pdf"
                                 class="w-full text-xs border-2 border-dashed border-blue-300 rounded-md px-2.5 py-2
                                        focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-colors bg-blue-50
                                        file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs

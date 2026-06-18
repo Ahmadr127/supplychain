@@ -220,8 +220,8 @@ class ApprovalRequestController extends Controller
             'items.*.allocation_department_id' => 'nullable|exists:departments,id',
             'items.*.letter_number' => 'nullable|string|max:255',
             'items.*.notes' => 'nullable|string|max:500',
-            'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480',
-            'items.*.fs_document' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // Per-item FS document
+            'items.*.files.*' => 'nullable|file|mimes:pdf|max:20480',
+            'items.*.fs_document' => 'nullable|file|mimes:pdf|max:5120', // Per-item FS document
         ]);
 
         // Additional conditional validation: new items must include a category
@@ -656,8 +656,8 @@ class ApprovalRequestController extends Controller
             'items.*.allocation_department_id' => 'nullable|exists:departments,id',
             'items.*.letter_number' => 'nullable|string|max:255',
             'items.*.notes' => 'nullable|string|max:500',
-            'items.*.files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx|max:20480',
-            'items.*.fs_document' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // Per-item FS document
+            'items.*.files.*' => 'nullable|file|mimes:pdf|max:20480',
+            'items.*.fs_document' => 'nullable|file|mimes:pdf|max:5120', // Per-item FS document
         ]);
 
         // Additional conditional validation: new items must include a category

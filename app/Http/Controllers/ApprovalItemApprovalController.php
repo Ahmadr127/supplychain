@@ -41,7 +41,7 @@ class ApprovalItemApprovalController extends Controller
         $rules = [
             'comments' => 'nullable|string|max:1000',
             'step_attachments' => 'nullable|array',
-            'step_attachments.*' => 'file|max:10240', // 10MB per file
+            'step_attachments.*' => 'file|mimes:pdf|max:10240', // 10MB per file
             'needs_ts' => 'nullable|boolean',
             'ts_category_id' => 'required_with:needs_ts|nullable|exists:ts_categories,id',
         ];
@@ -59,7 +59,7 @@ class ApprovalItemApprovalController extends Controller
         
         // Step with required_action 'verify_budget': FS upload is always required.
         if ($currentStep && $currentStep->required_action == 'verify_budget') {
-            $rules['fs_document'] = 'required|file|mimes:pdf,doc,docx|max:5120';
+            $rules['fs_document'] = 'required|file|mimes:pdf|max:5120';
             Log::info('🟨 FS Document upload required for verify_budget step');
         }
         
