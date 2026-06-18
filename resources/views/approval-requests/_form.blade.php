@@ -148,16 +148,6 @@
         transform: rotate(180deg);
     }
     
-    /* Transition for form extra toggle */
-    .form-extra-icon {
-        transition: transform 0.2s ease;
-    }
-    
-    /* Form extra content animation */
-    .form-extra-content {
-        transition: all 0.3s ease;
-    }
-    
     /* Table cells should not clip */
     #itemsTableBody td {
         position: static;
@@ -186,8 +176,6 @@
 <script>
     // Note: Helper functions (escapeHtml, positionDropdown, formatRupiahInputValue, parseRupiahToNumber)
     // are now loaded from form-helpers.js
-    
-    // Note: syncFormExtraFields is now defined in _form-extra.blade.php
 
     let rows = [];
     let staticSectionShown = false;
@@ -243,9 +231,6 @@
         @else
             addRow();
         @endif
-
-        // Pasang watcher total harga
-        installTotalWatcher();
 
         // Serialize rows on submit
         const form = document.getElementById('approval-form');
@@ -359,13 +344,6 @@
                 }));
             }
 
-            // Collect form extra data for each item if form statis is visible
-            try {
-                collectFormExtraData();
-            } catch (err) {
-                console.error('Error collecting form extra data:', err);
-            }
-
             // Rebuild hidden inputs
             form.querySelectorAll('.item-hidden').forEach(e => e.remove());
             rows.forEach((row, idx) => {
@@ -417,9 +395,6 @@
                 form.insertAdjacentHTML('beforeend',
                     `<input class="item-hidden" type="hidden" name="items[${row.index}][notes]" value="${escapeHtml(row.notes || '')}">`
                     );
-                
-                // Serialize form extra data (from _form-extra.blade.php)
-                serializeFormExtraToHiddenInputs(form, row);
             });
 
             form.submit();
@@ -436,15 +411,6 @@
         });
         return total;
     }
-
-    // Initialize form extra thresholds for all rows
-    function installTotalWatcher() {
-        rows.forEach(r => toggleRowStaticSectionForRow(r.index));
-    }
-
-    // Note: toggleRowStaticSectionForRow, configureFormState, and setRadiosRequired 
-    // are now defined in _form-extra.blade.php
-    
 
     // Note: appendStaticRowsFromActiveRows was removed - dead code (never called)
     // Note: hideAllSuggestions and scroll/resize listeners are now in autocomplete-suggestions.js
@@ -538,8 +504,7 @@
             letter_number: defaults.letter_number || '',
             fs_document: defaults.fs_document || '', // Add existing FS document
             existing_files: defaults.existing_files || [], // Add existing files
-            locked: defaults.locked || false,
-            itemExtra: defaults.itemExtra || null // Add itemExtra data
+            locked: defaults.locked || false
         };
         // Get department name if ID exists but name doesn't
         if (row.allocation_department_id && !row.allocation_department_name) {
@@ -548,29 +513,6 @@
         }
         rows.push(row);
         renderRow(row);
-        // Re-evaluasi thresholds setelah menambah baris
-        toggleRowStaticSectionForRow(row.index);
-        
-        // Load itemExtra data if exists (for edit mode)
-        if (row.itemExtra) {
-            setTimeout(() => loadItemExtraData(row.index, row.itemExtra), 100);
-        }
-        
-        // Show existing FS document status if exists (for edit mode)
-        if (row.fs_document) {
-            setTimeout(() => {
-                const trFs = document.getElementById(`row-${row.index}-static`);
-                if (trFs) {
-                    const uploadSection = trFs.querySelector('.fs-upload-section');
-                    if (uploadSection) {
-                        const existingNote = document.createElement('div');
-                        existingNote.className = 'text-xs text-green-700 mt-1';
-                        existingNote.innerHTML = '<i class="fas fa-check-circle mr-1"></i>Dokumen FS sudah tersimpan';
-                        uploadSection.appendChild(existingNote);
-                    }
-                }
-            }, 150);
-        }
     }
 
     function removeRow(index) {
@@ -578,7 +520,6 @@
         if (row && row.locked) return; // cegah hapus untuk baris statis
         rows = rows.filter(r => r.index !== index);
         document.getElementById('row-' + index)?.remove();
-        document.getElementById(`row-${index}-static`)?.remove();
         // Update numbering for remaining items
         updateItemNumbers();
     }
@@ -681,13 +622,15 @@
             <div>
                 <label class="block text-xs text-gray-600">Dokumen</label>
                 <div class="flex flex-col gap-1">
-                    <div class="flex items-center">
-                        <input type="file" name="items[${row.index}][files][]" class="item-files hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx">
-                        <button type="button" class="item-files-btn h-6 px-2 inline-flex items-center justify-center text-gray-700 hover:text-blue-700 hover:bg-blue-50 border border-gray-300 rounded text-xs" title="Unggah dokumen">
-                            <i class="fas fa-paperclip mr-0.5 text-xs"></i> <span class="text-xs">Upload</span>
-                        </button>
-                        <span class="item-files-count text-xs text-gray-600 ml-1"></span>
-                        ${row.fs_document ? `<input type="hidden" name="items[${row.index}][existing_fs_document]" value="${escapeHtml(row.fs_document)}">` : ''}
+                    <div class="flex flex-col gap-1.5 items-start w-full">
+                        <div class="flex items-center gap-2">
+                            <input type="file" name="items[${row.index}][files][]" class="item-files hidden" multiple accept=".pdf">
+                            <button type="button" class="item-files-btn shrink-0 whitespace-nowrap h-7 px-3 inline-flex items-center justify-center text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 rounded-md text-xs font-medium transition-colors duration-150 shadow-sm" title="Unggah dokumen PDF">
+                                <i class="fas fa-cloud-upload-alt mr-1.5 text-[13px]"></i> <span>Upload PDF</span>
+                            </button>
+                            ${row.fs_document ? `<input type="hidden" name="items[${row.index}][existing_fs_document]" value="${escapeHtml(row.fs_document)}">` : ''}
+                        </div>
+                        <div class="item-files-count text-xs text-gray-600 w-full flex items-center min-w-0"></div>
                     </div>
                     ${row.existing_files && row.existing_files.length > 0 ? `
                         <div class="existing-files text-xs text-gray-600">
@@ -700,16 +643,6 @@
         </div>`;
         
         container.appendChild(itemDiv);
-        
-        // Create Form Extra section (hidden by default)
-        const trFs = document.createElement('div');
-        trFs.id = `row-${row.index}-static`;
-        trFs.className = 'hidden bg-gray-50 border border-gray-200 rounded-lg p-2 mt-1';
-        trFs.innerHTML = getFormStatisHTML(row.index);
-        container.appendChild(trFs);
-        
-        // Initialize form extra (from _form-extra.blade.php)
-        initFormExtra(row.index);
 
         bindRowEvents(itemDiv, row);
         // Kunci elemen jika baris locked (statis)
@@ -744,8 +677,6 @@
         nameInput.addEventListener('input', async function() {
             row.name = this.value;
             row.master_item_id = '';
-            // Realtime sync to form statis (force overwrite to mirror main field)
-            syncFormExtraFields(row.index, { force: true });
             if (this.value.trim().length < 2) {
                 sugBox.classList.add('hidden');
                 return;
@@ -776,19 +707,24 @@
 
         qtyInput.addEventListener('change', function() {
             row.quantity = parseInt(this.value) || 1;
-            toggleRowStaticSectionForRow(row.index);
-            // Realtime sync quantity to form statis
-            syncFormExtraFields(row.index, { force: true });
         });
         if (fileBtn && fileInput) {
             fileBtn.addEventListener('click', function() {
                 fileInput.click();
             });
             fileInput.addEventListener('change', function() {
-                const n = fileInput.files?.length || 0;
+                const files = fileInput.files;
+                const n = files?.length || 0;
                 if (fileCount) {
-                    fileCount.innerHTML = n ? '<i class="fas fa-check text-green-600"></i>' : '';
-                    if (n) fileCount.setAttribute('title', `${n} file`); else fileCount.removeAttribute('title');
+                    if (n > 0) {
+                        const fileNames = Array.from(files).map(f => escapeHtml(f.name)).join(', ');
+                        const displayTxt = n === 1 ? fileNames : `${n} file: ${fileNames}`;
+                        fileCount.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1.5 text-sm shrink-0"></i> <span class="truncate font-medium text-gray-700" title="${fileNames}">${displayTxt}</span>`;
+                        fileCount.setAttribute('title', fileNames);
+                    } else {
+                        fileCount.innerHTML = '';
+                        fileCount.removeAttribute('title');
+                    }
                 }
             });
         }
@@ -905,8 +841,6 @@
             currentItemTypeId = checkedRadio.value;
         }
     }
-
-    // Note: collectFormExtraData and loadItemExtraData are now defined in _form-extra.blade.php
     
     // expose functions to window
     window.addRow = addRow;

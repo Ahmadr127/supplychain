@@ -24,7 +24,6 @@
 
 <!-- Include Modal Form for Adding Items -->
 @include('components.modals.form-master-items')
-@include('approval-requests._form-extra')
 
 <!-- Include Helper Scripts -->
 <script src="{{ asset('js/form-helpers.js') }}"></script>
