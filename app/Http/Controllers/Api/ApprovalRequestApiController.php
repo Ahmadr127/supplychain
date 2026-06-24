@@ -124,6 +124,12 @@ class ApprovalRequestApiController extends Controller
                     if (!in_array($item->status, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released'])) {
                         $item->status = $isPendingForMe ? 'pending' : 'approved';
                     }
+
+                    // If the user only wants to see 'pending' items, hide the items they already actioned
+                    if ($requestedStatus === 'pending' && !$isPendingForMe) {
+                        return false;
+                    }
+
                     return true;
                 }
                 return false;
