@@ -103,8 +103,8 @@ class ApprovalRequestApiController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $filtered = $allRequests->map(function ($req) use ($userId) {
-            $myItems = $req->items->filter(function ($item) use ($userId) {
+        $filtered = $allRequests->map(function ($req) use ($userId, $requestedStatus) {
+            $myItems = $req->items->filter(function ($item) use ($userId, $requestedStatus) {
                 // Get the true current pending step in the sequential workflow.
                 $step = $item->getCurrentPendingStep();
                 $isPendingForMe = $step && in_array($step->step_phase ?? 'approval', ['approval', 'release']) && $step->canApprove($userId);
