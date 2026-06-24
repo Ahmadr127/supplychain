@@ -105,12 +105,9 @@ class ApprovalRequestApiController extends Controller
 
         $filtered = $allRequests->map(function ($req) use ($userId) {
             $myItems = $req->items->map(function ($item) use ($userId) {
-                // Use only pending steps in approval or release phase (ignore purchasing-phase).
-                $step = $item->steps->first(function ($s) {
-                    $phase = $s->step_phase ?? 'approval';
-                    return in_array($phase, ['approval', 'release']) && $s->status === 'pending';
-                });
-                $isPendingForMe = $step && $step->canApprove($userId);
+                // Get the true current pending step in the sequential workflow.
+                $step = $item->getCurrentPendingStep();
+                $isPendingForMe = $step && in_array($step->step_phase ?? 'approval', ['approval', 'release']) && $step->canApprove($userId);
                 
                 $hasActioned = $item->steps->contains(function ($s) use ($userId) {
                     $phase = $s->step_phase ?? 'approval';
@@ -129,7 +126,7 @@ class ApprovalRequestApiController extends Controller
                     if ($isPendingForMe) {
                         $item->status = 'pending';
                     } elseif ($hasActioned) {
-                        $item->status = 'on progress'; // User has done their part, it's being processed further
+                        $item->status = 'approved'; // User has done their part, marked as approved from their perspective
                     }
                 }
                 
@@ -141,11 +138,8 @@ class ApprovalRequestApiController extends Controller
             if ($myItems->isEmpty()) return null;
 
             $isPending = $myItems->contains(function ($i) use ($userId) {
-                $step = $i->steps->first(function ($s) {
-                    $phase = $s->step_phase ?? 'approval';
-                    return in_array($phase, ['approval', 'release']) && $s->status === 'pending';
-                });
-                return $step && $step->canApprove($userId);
+                $step = $i->getCurrentPendingStep();
+                return $step && in_array($step->step_phase ?? 'approval', ['approval', 'release']) && $step->canApprove($userId);
             });
             $isRejected = $myItems->contains(
                 fn($i) => $i->steps
@@ -154,9 +148,9 @@ class ApprovalRequestApiController extends Controller
                     ->filter(fn($s) => in_array(($s->step_phase ?? 'approval'), ['approval', 'release']))
                     ->isNotEmpty()
             );
-            $isActionedByMe = $myItems->contains(fn($i) => $i->status === 'on progress');
+            $isActionedByMe = $myItems->contains(fn($i) => $i->status === 'approved');
 
-            $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : ($isActionedByMe ? 'on progress' : 'approved'));
+            $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');
 
             $req->status = $computedStatus;
             $req->setRelation('items', $myItems);
@@ -256,7 +250,7 @@ class ApprovalRequestApiController extends Controller
                 });
                 
                 if ($hasActioned && !$isPendingForMe) {
-                    $displayStatus = 'on progress';
+                    $displayStatus = 'approved';
                 }
             }
 

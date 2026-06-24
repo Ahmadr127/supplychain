@@ -26,8 +26,9 @@ class AppServiceProvider extends ServiceProvider
         // Register custom middleware
         $this->app['router']->aliasMiddleware('permission', \App\Http\Middleware\CheckPermission::class);
 
-        // Force HTTPS jika di set di .env (untuk mengatasi warning form submission not secure di production)
-        if (env('FORCE_HTTPS', false)) {
+        // Force HTTPS jika APP_URL menggunakan https (mengatasi insecure form submission & redirect 302 drop method)
+        // Note: Tidak menggunakan env() langsung karena akan return null jika config di-cache.
+        if (str_starts_with(config('app.url', ''), 'https://')) {
             URL::forceScheme('https');
         }
     }

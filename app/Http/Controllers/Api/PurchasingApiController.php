@@ -71,12 +71,13 @@ class PurchasingApiController extends Controller
         $requestedStatus = $this->normalizeStatus($request->input('status'));
         $query = PurchasingItem::with(['approvalRequest', 'masterItem', 'preferredVendor', 'statusChanger']);
 
-        if ($search = $request->input('search')) {
+        if ($searchRaw = $request->input('search')) {
+            $search = strtolower(trim($searchRaw));
             $query->where(function ($q) use ($search) {
                 $q->whereHas('approvalRequest', function ($q2) use ($search) {
-                    $q2->where('request_number', 'like', "%{$search}%");
+                    $q2->whereRaw('LOWER(request_number) LIKE ?', ["%{$search}%"]);
                 })->orWhereHas('masterItem', function ($q2) use ($search) {
-                    $q2->where('item_name', 'like', "%{$search}%");
+                    $q2->whereRaw('LOWER(item_name) LIKE ?', ["%{$search}%"]);
                 });
             });
         }
@@ -87,12 +88,13 @@ class PurchasingApiController extends Controller
 
         // Calculate status counts for all statuses without the status filter applied
         $baseQuery = PurchasingItem::query();
-        if ($search = $request->input('search')) {
-            $baseQuery->where(function ($q) use ($search) {
-                $q->whereHas('approvalRequest', function ($q2) use ($search) {
-                    $q2->where('request_number', 'like', "%{$search}%");
-                })->orWhereHas('masterItem', function ($q2) use ($search) {
-                    $q2->where('item_name', 'like', "%{$search}%");
+        if ($searchRaw = $request->input('search')) {
+            $search2 = strtolower(trim($searchRaw));
+            $baseQuery->where(function ($q) use ($search2) {
+                $q->whereHas('approvalRequest', function ($q2) use ($search2) {
+                    $q2->whereRaw('LOWER(request_number) LIKE ?', ["%{$search2}%"]);
+                })->orWhereHas('masterItem', function ($q2) use ($search2) {
+                    $q2->whereRaw('LOWER(item_name) LIKE ?', ["%{$search2}%"]);
                 });
             });
         }
