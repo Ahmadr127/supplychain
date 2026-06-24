@@ -1179,21 +1179,8 @@ class ApprovalRequestController extends Controller
             $itemData = $req->items->firstWhere('master_item_id', $itemStep->master_item_id);
             
             // Transform step status for display:
-            // If step is 'pending' and it's the current actionable step (no unapproved steps before it),
-            // change display status to 'on progress' to indicate it's actively waiting for approval
+            // Keep status as 'pending' to prevent confusing the user in the status column.
             $displayStatus = $itemStep->status;
-            if ($itemStep->status === 'pending') {
-                // Check if there are any unapproved steps BEFORE this one
-                $hasUnapprovedBefore = \App\Models\ApprovalItemStep::where('approval_request_item_id', $itemStep->approval_request_item_id)
-                    ->where('step_number', '<', $itemStep->step_number)
-                    ->whereNotIn('status', ['approved', 'skipped'])
-                    ->exists();
-                
-                // If no unapproved steps before = this is the current actionable step
-                if (!$hasUnapprovedBefore) {
-                    $displayStatus = 'on progress';
-                }
-            }
             
             // Create a clone of the step with modified status for display
             $displayStep = clone $itemStep;
