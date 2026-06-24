@@ -166,8 +166,14 @@ class ApprovalRequestItem extends Model
      */
     public function getCurrentPendingStep()
     {
+        if ($this->relationLoaded('steps')) {
+            return $this->steps->whereIn('status', ['pending', 'pending_purchase'])
+                ->sortBy('step_number')
+                ->first();
+        }
+
         return $this->steps()
-            ->where('status', 'pending')
+            ->whereIn('status', ['pending', 'pending_purchase'])
             ->orderBy('step_number')
             ->first();
     }
