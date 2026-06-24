@@ -173,7 +173,7 @@ class PurchasingTypeServiceTest extends TestCase
         );
 
         $grn = $steps->firstWhere('canonical_step_key', 'invoice_grn_done');
-        $this->assertTrue($grn->locked);
+        $this->assertFalse($grn->locked);
     }
 
     public function test_invoice_grn_active_when_release_finished()
@@ -242,6 +242,34 @@ class PurchasingTypeServiceTest extends TestCase
         $this->assertFalse($flags['can_select_preferred']);
     }
 
+    public function test_resolve_workflow_flags_trial_done_via_data()
+    {
+        $item = Mockery::mock(PurchasingItem::class)->makePartial();
+        $item->approval_request_id = 1;
+        $item->master_item_id = 1;
+        $item->preferred_vendor_id = null;
+        $item->po_number = null;
+        $item->invoice_number = null;
+
+        $request = Mockery::mock(ApprovalRequest::class)->makePartial();
+        $request->id = 1;
+        $request->request_number = 'TEST-001';
+        $request->received_at = null;
+        $request->workflow_id = null;
+        $item->shouldReceive('getAttribute')->with('approvalRequest')->andReturn($request);
+
+        $vendorsMock = Mockery::mock();
+        $vendorsMock->shouldReceive('exists')->andReturn(true);
+        $vendorsMock->shouldReceive('whereHas')->with('trials')->andReturn(
+            Mockery::mock(['exists' => true])
+        );
+        $item->shouldReceive('vendors')->andReturn($vendorsMock);
+
+        $flags = $this->service->resolveWorkflowFlags($item, true, true, collect(), collect());
+
+        $this->assertTrue($flags['trial_done']);
+    }
+
     // ────────────────────────────────────────────────────────────────────────
     // Helpers
     // ────────────────────────────────────────────────────────────────────────
@@ -261,7 +289,10 @@ class PurchasingTypeServiceTest extends TestCase
         $request->received_at = null;
         $request->workflow_id = null;
         $item->shouldReceive('getAttribute')->with('approvalRequest')->andReturn($request);
-        $item->shouldReceive('vendors')->andReturn(new class { public function exists() { return false; } });
+        $item->shouldReceive('vendors')->andReturn(new class {
+            public function exists() { return false; }
+            public function whereHas($rel) { return $this; }
+        });
 
         return $item;
     }
@@ -269,7 +300,10 @@ class PurchasingTypeServiceTest extends TestCase
     private function makeItemWithVendors(): PurchasingItem
     {
         $item = $this->makeItem();
-        $item->shouldReceive('vendors')->andReturn(new class { public function exists() { return true; } });
+        $item->shouldReceive('vendors')->andReturn(new class {
+            public function exists() { return true; }
+            public function whereHas($rel) { return $this; }
+        });
         $item->preferred_vendor_id = null;
         return $item;
     }

@@ -333,7 +333,9 @@ class PurchasingTypeService
             fn($s) => ($s->required_action ?? '') === 'purchasing_trial'
         );
         $hasTrial  = $trialRow !== null;
-        $trialDone = $trialRow && in_array($trialRow->status, ['approved', 'skipped'], true);
+        $trialDoneByDb = $trialRow && in_array($trialRow->status, ['approved', 'skipped'], true);
+        $trialDoneByData = $item->vendors()->whereHas('trials')->exists();
+        $trialDone = $trialDoneByDb || $trialDoneByData;
 
         $isReleaseFinished = $this->computeReleaseFinished($releaseItemSteps);
 

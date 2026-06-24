@@ -253,9 +253,21 @@ class ApprovalRequestApiController extends Controller
                     $displayStatus = 'approved';
                 }
             }
+            $pi = $item->purchasingItem();
+            $psCode = $pi ? $pi->status : 'unprocessed';
+            $psText = match($psCode) {
+                'unprocessed' => 'Belum diproses',
+                'benchmarking' => 'Pemilihan vendor',
+                'selected' => 'Proses PR & PO',
+                'po_issued' => 'Proses di vendor',
+                'grn_received' => 'Barang sudah diterima',
+                'done' => 'Selesai',
+                default => strtoupper($psCode),
+            };
 
             return [
                 'id'              => $item->id,
+                'purchasing_status' => $psText,
                 'master_item'     => $item->masterItem,
                 'quantity'        => $item->quantity,
                 'unit'            => $item->unit,
