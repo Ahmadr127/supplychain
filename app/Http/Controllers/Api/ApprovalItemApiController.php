@@ -23,6 +23,17 @@ use Illuminate\Support\Facades\Storage;
  */
 class ApprovalItemApiController extends Controller
 {
+    private function mapSingleStatus(?string $status): ?string
+    {
+        if (!$status) {
+            return null;
+        }
+        $normalized = strtolower(trim($status));
+        if (in_array($normalized, ['on progress', 'in_purchasing', 'in_release'])) {
+            return 'approved';
+        }
+        return $status;
+    }
     /**
      * GET /api/approval-requests/{reqId}/items/{itemId}
      */
@@ -81,7 +92,7 @@ class ApprovalItemApiController extends Controller
             'status' => 'success',
             'data'   => [
                 'item_id'                => $item->id,
-                'item_status'            => $item->status,
+                'item_status'            => $this->mapSingleStatus($item->status),
                 'can_approve'            => $currentStep ? $currentStep->canApprove($userId) : false,
                 'needs_price_input'      => $needsPriceInput,
                 'needs_capex_input'      => $needsCapexInput,
@@ -401,7 +412,7 @@ class ApprovalItemApiController extends Controller
             'unit'            => $item->unit,
             'unit_price'      => $item->unit_price,
             'total_price'     => $item->total_price,
-            'status'          => $item->status,
+            'status'          => $this->mapSingleStatus($item->status),
             'fs_document'     => $item->fs_document,
             'capex_item_id'   => $item->capex_item_id,
             'funding_source'  => $fundingSource,

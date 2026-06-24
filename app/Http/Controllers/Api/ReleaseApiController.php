@@ -18,6 +18,18 @@ class ReleaseApiController extends Controller
      * For release "item list" endpoint (approval_request_items.status):
      * - UI aliases like fulfilled/terpenuhi map to final item status approved.
      */
+    private function mapSingleStatus(?string $status): ?string
+    {
+        if (!$status) {
+            return null;
+        }
+        $normalized = strtolower(trim($status));
+        if (in_array($normalized, ['on progress', 'in_purchasing', 'in_release'])) {
+            return 'approved';
+        }
+        return $status;
+    }
+
     private function normalizeItemStatus(?string $status): ?string
     {
         if (!$status) {
@@ -26,8 +38,7 @@ class ReleaseApiController extends Controller
 
         return match (strtolower(trim($status))) {
             'all' => null,
-            'fulfilled', 'terpenuhi' => 'approved',
-            'released' => 'approved',
+            'fulfilled', 'terpenuhi', 'released', 'on progress', 'in_purchasing', 'in_release' => 'approved',
             default => strtolower(trim($status)),
         };
     }
@@ -78,9 +89,13 @@ class ReleaseApiController extends Controller
         }
 
         if ($requestedStatus) {
-            $query->where('status', $requestedStatus);
+            if ($requestedStatus === 'approved') {
+                $query->whereIn('status', ['approved', 'on progress', 'in_purchasing', 'in_release']);
+            } else {
+                $query->where('status', $requestedStatus);
+            }
         } else {
-            $query->whereIn('status', ['in_release', 'approved']);
+            $query->whereIn('status', ['in_release', 'approved', 'on progress', 'in_purchasing']);
         }
 
         // Filter by user permissions (only items user can approve atau privileged roles)
@@ -101,6 +116,7 @@ class ReleaseApiController extends Controller
         // Mark items waiting for current user approval
         $formattedItems = collect($items->items())->map(function ($item) use ($user) {
             $itemArray = $item->toArray();
+            $itemArray['status'] = $this->mapSingleStatus($item->status);
             $itemArray['waiting_for_me'] = false;
             
             $pendingStep = collect($item->steps)->where('status', 'pending')->first();
@@ -157,6 +173,7 @@ class ReleaseApiController extends Controller
         }
 
         $itemArray = $item->toArray();
+        $itemArray['status'] = $this->mapSingleStatus($item->status);
         $itemArray['purchasing_info'] = $purchasingItem ? $purchasingItem->toArray() : null;
         $itemArray['current_step'] = $currentStep ? $currentStep->toArray() : null;
         $itemArray['next_step'] = $nextStep ? $nextStep->toArray() : null;

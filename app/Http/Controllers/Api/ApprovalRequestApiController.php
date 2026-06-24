@@ -20,6 +20,31 @@ use Illuminate\Support\Facades\Storage;
  */
 class ApprovalRequestApiController extends Controller
 {
+    private function mapSingleStatus(?string $status): ?string
+    {
+        if (!$status) {
+            return null;
+        }
+        $normalized = strtolower(trim($status));
+        if (in_array($normalized, ['on progress', 'in_purchasing', 'in_release'])) {
+            return 'approved';
+        }
+        return $status;
+    }
+
+    private function transformRequestStatus(ApprovalRequest $req): ApprovalRequest
+    {
+        $req->status = $this->mapSingleStatus($req->status);
+        
+        if ($req->relationLoaded('items')) {
+            $req->items->each(function ($item) {
+                $item->status = $this->mapSingleStatus($item->status);
+            });
+        }
+        
+        return $req;
+    }
+
     private function normalizeStatus(?string $status): ?string
     {
         if (!$status) {
@@ -28,7 +53,7 @@ class ApprovalRequestApiController extends Controller
 
         return match (strtolower(trim($status))) {
             'all' => null,
-            'fulfilled', 'terpenuhi', 'released' => 'approved',
+            'fulfilled', 'terpenuhi', 'released', 'on progress', 'in_purchasing', 'in_release' => 'approved',
             default => strtolower(trim($status)),
         };
     }
@@ -50,13 +75,24 @@ class ApprovalRequestApiController extends Controller
         }
 
         $requestedStatus = $this->normalizeStatus($request->input('status'));
-        if ($requestedStatus)    $query->where('status', $requestedStatus);
+        if ($requestedStatus) {
+            if ($requestedStatus === 'approved') {
+                $query->whereIn('status', ['approved', 'on progress', 'in_purchasing', 'in_release']);
+            } else {
+                $query->where('status', $requestedStatus);
+            }
+        }
         if ($request->date_from) $query->whereDate('created_at', '>=', $request->date_from);
         if ($request->date_to)   $query->whereDate('created_at', '<=', $request->date_to);
 
+        $paginator = $query->paginate($request->get('per_page', 15));
+        $paginator->getCollection()->transform(function ($req) {
+            return $this->transformRequestStatus($req);
+        });
+
         return response()->json([
             'status' => 'success',
-            'data'   => $query->paginate($request->get('per_page', 15)),
+            'data'   => $paginator,
         ]);
     }
 
@@ -71,12 +107,23 @@ class ApprovalRequestApiController extends Controller
             ->orderBy('created_at', 'desc');
 
         $requestedStatus = $this->normalizeStatus($request->input('status'));
-        if ($requestedStatus) $query->where('status', $requestedStatus);
+        if ($requestedStatus) {
+            if ($requestedStatus === 'approved') {
+                $query->whereIn('status', ['approved', 'on progress', 'in_purchasing', 'in_release']);
+            } else {
+                $query->where('status', $requestedStatus);
+            }
+        }
         if ($request->search) $query->where('request_number', 'like', "%{$request->search}%");
+
+        $paginator = $query->paginate($request->get('per_page', 15));
+        $paginator->getCollection()->transform(function ($req) {
+            return $this->transformRequestStatus($req);
+        });
 
         return response()->json([
             'status' => 'success',
-            'data'   => $query->paginate($request->get('per_page', 15)),
+            'data'   => $paginator,
         ]);
     }
 
@@ -127,7 +174,11 @@ class ApprovalRequestApiController extends Controller
                         $item->status = 'pending';
                     } elseif ($hasActioned) {
                         $item->status = 'approved'; // User has done their part, marked as approved from their perspective
+                    } else {
+                        $item->status = $this->mapSingleStatus($item->status);
                     }
+                } else {
+                    $item->status = $this->mapSingleStatus($item->status);
                 }
                 
                 $item->setAttribute('can_approve', (bool) $isPendingForMe);
@@ -152,7 +203,7 @@ class ApprovalRequestApiController extends Controller
 
             $computedStatus = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');
 
-            $req->status = $computedStatus;
+            $req->status = $this->mapSingleStatus($computedStatus);
             $req->setRelation('items', $myItems);
             return $req;
         })->filter();
@@ -251,7 +302,11 @@ class ApprovalRequestApiController extends Controller
                 
                 if ($hasActioned && !$isPendingForMe) {
                     $displayStatus = 'approved';
+                } else {
+                    $displayStatus = $this->mapSingleStatus($displayStatus);
                 }
+            } else {
+                $displayStatus = $this->mapSingleStatus($displayStatus);
             }
             $pi = $item->purchasingItem();
             $psCode = $pi ? $pi->status : 'unprocessed';
@@ -339,7 +394,7 @@ class ApprovalRequestApiController extends Controller
                 'requester'      => $requester,
                 'department'     => $primaryDept,
                 'department_id'  => $primaryDept?->id,
-                'status'         => $approvalRequest->status,
+                'status'         => $this->mapSingleStatus($approvalRequest->status),
                 'notes'          => $approvalRequest->notes,
                 'created_at'     => $approvalRequest->created_at,
                 'items'          => $items,
