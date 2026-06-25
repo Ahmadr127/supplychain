@@ -32,7 +32,7 @@ class ApprovalItemApiController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Item tidak ditemukan dalam request ini.'], 404);
         }
 
-        $item->load(['masterItem', 'steps.approver', 'capexItem']);
+        $item->load(['masterItem', 'steps.approver', 'capexItem', 'tsCategory']);
         $currentStep = $item->getCurrentPendingStep();
         $userId      = Auth::id();
 
@@ -129,6 +129,8 @@ class ApprovalItemApiController extends Controller
             'comments'          => 'nullable|string|max:1000',
             'step_attachments'  => 'nullable|array',
             'step_attachments.*'=> 'nullable|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png',
+            'needs_ts'          => 'nullable|boolean',
+            'ts_category_id'    => 'required_with:needs_ts|nullable|exists:ts_categories,id',
         ];
 
         if ($currentStep->hasRequiredAction('input_price') && (is_null($item->unit_price) || $item->unit_price <= 0)) {
@@ -171,6 +173,14 @@ class ApprovalItemApiController extends Controller
                 $fsPath = $request->file('fs_document')->store('fs_documents', 'public');
                 $item->update(['fs_document' => $fsPath]);
             }
+
+            // Update Technical Support info
+            $needsTs = $request->has('needs_ts') && ($request->needs_ts == '1' || $request->needs_ts == 'true' || $request->boolean('needs_ts'));
+            $item->update([
+                'needs_ts'       => $needsTs,
+                'ts_category_id' => $needsTs ? $request->ts_category_id : null,
+                'ts_status'      => $needsTs ? 'pending' : 'pending',
+            ]);
 
             // Handle step attachments (nullable — simpan jika ada file)
             if ($request->hasFile('step_attachments')) {
@@ -396,6 +406,11 @@ class ApprovalItemApiController extends Controller
 
         return [
             'id'              => $item->id,
+            'needs_ts'        => (bool) $item->needs_ts,
+            'ts_status'       => $item->ts_status,
+            'ts_specification'=> $item->ts_specification,
+            'ts_category_id'  => $item->ts_category_id,
+            'ts_category_name'=> $item->tsCategory?->name,
             'master_item'     => $item->masterItem,
             'quantity'        => $item->quantity,
             'unit'            => $item->unit,

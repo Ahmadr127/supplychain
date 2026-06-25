@@ -198,6 +198,7 @@ class ApprovalRequestApiController extends Controller
             'items.steps.approver',
             'items.capexItem',
             'items.allocationDepartment',
+            'items.tsCategory',
         ]);
 
         $userId = Auth::id();
@@ -271,6 +272,11 @@ class ApprovalRequestApiController extends Controller
                 'unit_price'      => $item->unit_price,
                 'total_price'     => $item->total_price,
                 'status'          => $displayStatus,
+                'needs_ts'        => (bool) $item->needs_ts,
+                'ts_status'       => $item->ts_status,
+                'ts_specification'=> $item->ts_specification,
+                'ts_category_id'  => $item->ts_category_id,
+                'ts_category_name'=> $item->tsCategory?->name,
                 'fs_document'     => $item->fs_document,
                 'brand'           => $item->brand,
                 'specification'   => $item->specification,

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\FcmTokenController;
 use App\Http\Controllers\Api\NotificationApiController;
 use App\Http\Controllers\Api\PurchasingApiController;
 use App\Http\Controllers\Api\ReleaseApiController;
+use App\Http\Controllers\Api\TechnicalSupportApiController;
 use App\Http\Controllers\SupplierLookupController;
 use App\Http\Controllers\ItemLookupController;
 use App\Http\Controllers\ApprovalWorkflowController;
@@ -176,4 +177,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/release/items/{id}/approve', [ReleaseApiController::class, 'approve']);
     Route::post('/release/items/{id}/reject', [ReleaseApiController::class, 'reject']);
     Route::get('/release/my-pending', [ReleaseApiController::class, 'myPending']);
+
+    // ----------------------------------------------------------------
+    // Technical Support Management  (TechnicalSupportApiController)
+    // ----------------------------------------------------------------
+    Route::get('/ts-categories', [TechnicalSupportApiController::class, 'categories']);
+    Route::get('/technical-support', [TechnicalSupportApiController::class, 'index']);
+    Route::get('/technical-support/{item}', [TechnicalSupportApiController::class, 'show']);
+    Route::put('/technical-support/{item}', [TechnicalSupportApiController::class, 'update']);
+    Route::delete('/technical-support/{item}', [TechnicalSupportApiController::class, 'destroy']);
 });
