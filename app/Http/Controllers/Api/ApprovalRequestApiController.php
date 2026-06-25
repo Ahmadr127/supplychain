@@ -103,36 +103,90 @@ class ApprovalRequestApiController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $filtered = $allRequests->map(function ($req) use ($userId, $requestedStatus) {
-            $myItems = $req->items->filter(function ($item) use ($userId, $requestedStatus) {
+        $filtered = $allRequests->map(function ($req) use ($user, $userId, $requestedStatus) {
+            $myItems = $req->items->filter(function ($item) use ($user, $userId, $requestedStatus, $req) {
                 // Get the true current pending step in the sequential workflow.
                 $step = $item->getCurrentPendingStep();
                 $isPendingForMe = $step && in_array($step->step_phase ?? 'approval', ['approval', 'release']) && $step->canApprove($userId);
                 
-                $hasActioned = $item->steps->contains(function ($s) use ($userId) {
+                $hasApproved = $item->steps->contains(function ($s) use ($userId) {
                     $phase = $s->step_phase ?? 'approval';
                     return (int) $s->approved_by === (int) $userId
                         && in_array($phase, ['approval', 'release'])
-                        && in_array($s->status, ['approved', 'rejected'], true);
+                        && $s->status === 'approved';
                 });
 
-                if ($isPendingForMe || $hasActioned) {
-                    $item->setAttribute('can_approve', (bool)$isPendingForMe);
-                    
-                    // Override display status based on the user's interaction point
-                    // if it's not natively fully approved or rejected
-                    if (!in_array($item->status, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released'])) {
-                        $item->status = $isPendingForMe ? 'pending' : 'approved';
-                    }
+                $hasRejected = $item->steps->contains(function ($s) use ($userId) {
+                    $phase = $s->step_phase ?? 'approval';
+                    return (int) $s->approved_by === (int) $userId
+                        && in_array($phase, ['approval', 'release'])
+                        && $s->status === 'rejected';
+                });
 
-                    // If the user only wants to see 'pending' items, hide the items they already actioned
-                    if ($requestedStatus === 'pending' && !$isPendingForMe) {
+                // Check if there is any pending step for this user that is blocked (waiting for previous steps)
+                $hasBlockedStepForMe = false;
+                if (!$isPendingForMe && !$hasApproved && !$hasRejected) {
+                    $hasBlockedStepForMe = $item->steps->contains(function ($s) use ($userId, $user, $req) {
+                        $phase = $s->step_phase ?? 'approval';
+                        if (!in_array($phase, ['approval', 'release'])) return false;
+                        if ($s->status !== 'pending' && $s->status !== 'pending_purchase') return false;
+                        
+                        // Check matching approver authority
+                        if ((int)$s->approver_id === (int)$userId) return true;
+                        if ($s->approver_role_id && $user->role && (int)$user->role->id === (int)$s->approver_role_id) return true;
+                        if ($s->approver_type === 'department_manager' && $s->approver_department_id) {
+                            $dept = \App\Models\Department::find($s->approver_department_id);
+                            return $dept && (int)$dept->manager_id === (int)$userId;
+                        }
+                        if ($s->approver_type === 'requester_department_manager') {
+                            $primary = $req->requester ? $req->requester->departments()->wherePivot('is_primary', true)->first() : null;
+                            return $primary && (int)$primary->manager_id === (int)$userId;
+                        }
+                        if ($s->approver_type === 'any_department_manager') {
+                            return $user->departments()->wherePivot('is_manager', true)->exists();
+                        }
                         return false;
-                    }
-
-                    return true;
+                    });
                 }
-                return false;
+
+                // If user is not involved in this item's workflow at all, filter it out
+                $isUserInvolved = $isPendingForMe || $hasApproved || $hasRejected || $hasBlockedStepForMe;
+                if (!$isUserInvolved) {
+                    return false;
+                }
+
+                $item->setAttribute('can_approve', (bool)$isPendingForMe);
+                
+                // Override display status based on the user's interaction point
+                if (!in_array($item->status, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released'])) {
+                    if ($isPendingForMe) {
+                        $item->status = 'pending';
+                    } elseif ($hasApproved) {
+                        $item->status = 'approved';
+                    } elseif ($hasRejected) {
+                        $item->status = 'rejected';
+                    } elseif ($hasBlockedStepForMe) {
+                        $item->status = 'on progress';
+                    }
+                }
+
+                // Apply the requested status filter at the item level
+                if ($requestedStatus) {
+                    if ($requestedStatus === 'pending') {
+                        return $isPendingForMe;
+                    }
+                    if (in_array($requestedStatus, ['on progress', 'on_progress'])) {
+                        return !in_array($item->status, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released']);
+                    }
+                    if ($requestedStatus === 'approved') {
+                        return $hasApproved;
+                    }
+                    if ($requestedStatus === 'rejected') {
+                        return $hasRejected;
+                    }
+                }
+
+                return true;
             })->values();
 
             if ($myItems->isEmpty()) {
@@ -141,15 +195,18 @@ class ApprovalRequestApiController extends Controller
 
             $req->setRelation('items', $myItems);
             
-            $isPending = $myItems->contains('can_approve', true);
-            $isRejected = $myItems->contains(function ($i) use ($userId) {
-                return $i->steps->where('approved_by', $userId)
-                    ->where('status', 'rejected')
-                    ->filter(fn($s) => in_array(($s->step_phase ?? 'approval'), ['approval', 'release']))
-                    ->isNotEmpty();
-            });
-
-            $req->status = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');
+            if ($requestedStatus) {
+                $req->status = $requestedStatus;
+            } else {
+                $isPending = $myItems->contains('can_approve', true);
+                $isRejected = $myItems->contains(function ($i) use ($userId) {
+                    return $i->steps->where('approved_by', $userId)
+                        ->where('status', 'rejected')
+                        ->filter(fn($s) => in_array(($s->step_phase ?? 'approval'), ['approval', 'release']))
+                        ->isNotEmpty();
+                });
+                $req->status = $isPending ? 'pending' : ($isRejected ? 'rejected' : 'approved');
+            }
 
             return $req;
         })->filter();
