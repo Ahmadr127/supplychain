@@ -28,7 +28,6 @@ class ApprovalRequestApiController extends Controller
 
         return match (strtolower(trim($status))) {
             'all' => null,
-            'fulfilled', 'terpenuhi', 'released' => 'approved',
             default => strtolower(trim($status)),
         };
     }
@@ -158,7 +157,7 @@ class ApprovalRequestApiController extends Controller
                 $item->setAttribute('can_approve', (bool)$isPendingForMe);
                 
                 // Override display status based on the user's interaction point
-                if (!in_array($item->status, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released'])) {
+                if (!in_array($item->status, ['approved', 'rejected', 'done', 'completed', 'cancelled'])) {
                     if ($isPendingForMe) {
                         $item->status = 'pending';
                     } elseif ($hasApproved) {
@@ -174,9 +173,6 @@ class ApprovalRequestApiController extends Controller
                 if ($requestedStatus) {
                     if ($requestedStatus === 'pending') {
                         return $isPendingForMe;
-                    }
-                    if (in_array($requestedStatus, ['on progress', 'on_progress'])) {
-                        return !in_array($item->status, ['approved', 'rejected', 'done', 'terpenuhi', 'fulfilled', 'completed', 'released']);
                     }
                     if ($requestedStatus === 'approved') {
                         return $hasApproved;
