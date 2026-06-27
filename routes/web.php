@@ -372,8 +372,8 @@ Route::middleware('auth')->group(function () {
         ->name('api.approval-requests.step-status');
     
     // File download routes
-    Route::get('approval-requests/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');
-    Route::get('approval-requests/attachments/{attachment}/view', [ApprovalRequestController::class, 'viewAttachment'])->name('approval-requests.view-attachment');
+    Route::get('approval-items/attachments/{attachment}/download', [ApprovalRequestController::class, 'downloadAttachment'])->name('approval-requests.download-attachment');
+    Route::get('approval-items/attachments/{attachment}/view', [ApprovalRequestController::class, 'viewAttachment'])->name('approval-requests.view-attachment');
 
     // FS Document routes (Flattened to match standard attachments)
     Route::get('approval-request-items/{item}/view-fs', [ApprovalRequestController::class, 'viewFsDocument'])->name('approval-requests.view-fs');
