@@ -23,3 +23,9 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+<IfModule security2_module>
+    # Bypass rule 933210 (PHP Injection Attack: Variable Function Call Found) 
+    # karena sering memicu false-positive pada tanda kurung ganda (...) (...)
+    SecRuleRemoveById 933210
+</IfModule>
