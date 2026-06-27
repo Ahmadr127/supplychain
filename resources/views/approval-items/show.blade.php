@@ -280,7 +280,7 @@
                                 <span class="text-xs text-gray-600 font-medium">Dokumen Pendukung:</span>
                                 <div class="mt-1 flex flex-wrap gap-2">
                                     @foreach($filesForItem as $f)
-                                        <a href="{{ route('approval-requests.view-attachment', $f->id) }}" target="_blank" 
+                                        <a href="{{ route('approval-requests.view-attachment', [$item->id, $f->id]) }}" target="_blank" 
                                            class="inline-flex items-center px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700 hover:bg-blue-100">
                                             <i class="fas fa-file-alt mr-1"></i>
                                             {{ $f->original_name }}

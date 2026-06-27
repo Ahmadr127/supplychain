@@ -1414,7 +1414,7 @@ class ApprovalRequestController extends Controller
         ]);
     }
 
-    public function downloadAttachment($attachmentId)
+    public function downloadAttachment($approvalItem, $attachmentId)
     {
         $file = \DB::table('approval_request_item_files')->where('id', $attachmentId)->first();
         if (!$file) {
@@ -1429,7 +1429,7 @@ class ApprovalRequestController extends Controller
         return $disk->download($file->path, $file->original_name);
     }
 
-    public function viewAttachment($attachmentId)
+    public function viewAttachment($approvalItem, $attachmentId)
     {
         $file = \DB::table('approval_request_item_files')->where('id', $attachmentId)->first();
         if (!$file) {
