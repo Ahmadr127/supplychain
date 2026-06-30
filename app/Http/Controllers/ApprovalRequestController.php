@@ -1344,10 +1344,10 @@ class ApprovalRequestController extends Controller
             ->count();
 
         $statusCounts = [
-            'pending' => $pendingCount,
+            'pending' => $onProgressCount,
             'approved' => $approvedCount,
             'rejected' => $rejectedCount,
-            'on_progress' => $onProgressCount,
+            'on_progress' => $pendingCount,
             'cancelled' => $cancelledCount,
         ];
         

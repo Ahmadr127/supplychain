@@ -104,8 +104,8 @@ class PendingApprovalsStatsService
 
         return [
             'total' => $total,
-            'pending' => $pendingCount,
-            'on_progress' => $onProgressCount,
+            'pending' => $onProgressCount,
+            'on_progress' => $pendingCount,
             'approved' => $approvedCount,
             'rejected' => $rejectedCount,
             'cancelled' => $cancelledCount,
